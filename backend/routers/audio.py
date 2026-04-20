@@ -106,14 +106,10 @@ def _synthesize_speech(text: str) -> bytes | None:
     voice = _get_piper()
     if voice is None:
         return None
-    buf = io.BytesIO()
-    with io.RawIOBase() as raw_io:
-        # Piper writes WAV; we strip the header and return raw PCM
-        wav_buf = io.BytesIO()
-        with voice.stream_to_file(text, wav_buf):
-            pass
-    wav_buf.seek(0)
-    # Skip 44-byte WAV header (standard PCM WAV)
+    # Piper writes WAV; we strip the 44-byte header and return raw PCM
+    wav_buf = io.BytesIO()
+    with voice.stream_to_file(text, wav_buf):
+        pass
     wav_buf.seek(44)
     return wav_buf.read()
 
@@ -122,11 +118,21 @@ def _transcribe(pcm_bytes: bytes, sample_rate: int = 16000) -> str:
     """Run faster-whisper STT; returns transcript string."""
     model = _get_whisper()
     float_audio = _pcm_bytes_to_float32(pcm_bytes)
-    # Write to temp WAV for whisper
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-        _write_wav(tmp.name, float_audio, sample_rate)
-        segments, _ = model.transcribe(tmp.name, language="ha")
+    # Write to temp WAV for whisper; always clean up afterward
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+            tmp_path = tmp.name
+        _write_wav(tmp_path, float_audio, sample_rate)
+        segments, _ = model.transcribe(tmp_path, language="ha")
         return " ".join(seg.text for seg in segments).strip()
+    finally:
+        if tmp_path:
+            import os as _os
+            try:
+                _os.unlink(tmp_path)
+            except OSError:
+                pass
 
 
 def _write_wav(path: str, audio: np.ndarray, sample_rate: int):
