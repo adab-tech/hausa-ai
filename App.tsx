@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect, useMemo, memo } from 'react';
-import { gemini } from './services/geminiService.ts';
+import { gemini } from './services/localService.ts';
 import { Message, Role, Attachment, SovereignVibe } from './types.ts';
 import { ArewaLogo } from './components/ArewaLogo.tsx';
 import { Waveform } from './components/Waveform.tsx';
@@ -134,10 +134,6 @@ const App: React.FC = () => {
   const handleSendMessage = async () => {
     if (!inputText.trim() && attachments.length === 0) return;
     
-    if (window.aistudio && !(await window.aistudio.hasSelectedApiKey())) {
-      await window.aistudio.openSelectKey();
-    }
-
     const currentInput = inputText;
     const currentAttachments = [...attachments];
     
@@ -191,10 +187,6 @@ const App: React.FC = () => {
       setIsLiveActive(false);
       setVolume(0);
       return;
-    }
-
-    if (window.aistudio && !(await window.aistudio.hasSelectedApiKey())) {
-      await window.aistudio.openSelectKey();
     }
 
     try {
