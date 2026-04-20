@@ -1,0 +1,38 @@
+{
+  "name": "Vertex Sovereign — Self-Hosted AI",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+
+  // Use a GPU-enabled machine type in GitHub Codespaces:
+  // Settings > Codespaces > Machine type → "4-core + NVIDIA T4"
+  "hostRequirements": {
+    "gpu": "optional"
+  },
+
+  "features": {
+    "ghcr.io/devcontainers/features/python:1": { "version": "3.11" },
+    "ghcr.io/devcontainers/features/node:1": { "version": "20" },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+
+  "forwardPorts": [3000, 8000, 11434],
+  "portsAttributes": {
+    "3000": { "label": "Frontend (Vite)", "onAutoForward": "openBrowser" },
+    "8000": { "label": "Backend (FastAPI)" },
+    "11434": { "label": "Ollama LLM" }
+  },
+
+  // Install Ollama, pull the Hausa model, install Python/Node deps
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "bradlc.vscode-tailwindcss"
+      ]
+    }
+  }
+}
