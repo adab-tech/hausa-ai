@@ -1,0 +1,107 @@
+# Vertex Sovereign — Self-Hosted Docker Compose Stack
+#
+# Services:
+#   ollama    — Ollama LLM server (pull Aya-Expanse 8B on first start)
+#   backend   — FastAPI Python server (chat / image / audio WebSocket)
+#   frontend  — Vite React app
+#
+# Usage:
+#   docker compose up --build
+#
+# GPU support (NVIDIA):
+#   Install nvidia-container-toolkit, then uncomment the `deploy` sections below.
+#
+# Image model alternatives (set IMAGE_MODEL):
+#   - black-forest-labs/FLUX.1-schnell  (default, Apache 2.0, ~14 GB VRAM or slow on CPU)
+#   - stabilityai/stable-diffusion-2-1  (lighter, ~10 GB disk, 6 GB VRAM)
+#   - runwayml/stable-diffusion-v1-5    (lightest, ~4 GB VRAM)
+
+version: "3.9"
+
+volumes:
+  ollama_data:
+  piper_models:
+  hf_cache:
+
+services:
+  # ── Ollama LLM server ────────────────────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+    # Uncomment for NVIDIA GPU:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # Pull the Hausa-capable model on first startup
+  ollama-pull:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    volumes:
+      - ollama_data:/root/.ollama
+    entrypoint: >
+      sh -c "
+        OLLAMA_HOST=http://ollama:11434 ollama pull ${OLLAMA_MODEL:-aya-expanse:8b}
+      "
+    restart: on-failure
+
+  # ── Python FastAPI backend ───────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      ollama:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-aya-expanse:8b}
+      - IMAGE_MODEL=${IMAGE_MODEL:-black-forest-labs/FLUX.1-schnell}
+      - IMAGE_DEVICE=${IMAGE_DEVICE:-cpu}
+      - PIPER_MODELS_DIR=/models/piper
+      - WHISPER_MODEL=${WHISPER_MODEL:-base}
+      - HF_HOME=/cache/huggingface
+    volumes:
+      - piper_models:/models/piper
+      - hf_cache:/cache/huggingface
+    # Uncomment for NVIDIA GPU:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+  # ── React/Vite frontend ──────────────────────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_BACKEND_URL=http://localhost:8000
