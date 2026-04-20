@@ -1,0 +1,10 @@
+{
+  "name": "Vertex Sovereign | Command Center",
+  "description": "High-fidelity Hausa Intelligence by ADAB-TECH.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ],
+  "majorCapabilities": []
+}
