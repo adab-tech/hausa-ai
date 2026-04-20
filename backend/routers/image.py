@@ -37,12 +37,7 @@ def _get_pipeline():
     import torch
     from diffusers import AutoPipelineForText2Image
 
-    dtype = None
-    try:
-        import torch  # noqa: F811
-        dtype = torch.float16 if IMAGE_DEVICE != "cpu" else torch.float32
-    except ImportError:
-        pass
+    dtype = torch.float16 if IMAGE_DEVICE != "cpu" else torch.float32
 
     logger.info("Loading image pipeline: %s on %s", IMAGE_MODEL, IMAGE_DEVICE)
     pipe = AutoPipelineForText2Image.from_pretrained(
@@ -82,9 +77,9 @@ async def generate_image(req: ImageRequest):
         img.save(buf, format="PNG")
         b64 = base64.b64encode(buf.getvalue()).decode()
         return {"data": f"data:image/png;base64,{b64}"}
-    except Exception as exc:
+    except Exception:
         logger.exception("Image generation failed")
-        return {"data": None, "error": str(exc)}
+        return {"data": None, "error": "Image generation failed. Check backend logs."}
 
 
 @router.post("/generate-video")

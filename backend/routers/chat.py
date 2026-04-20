@@ -111,7 +111,6 @@ def _build_messages(req: ChatRequest) -> list[dict[str, Any]]:
         messages.append({"role": role, "content": item.text})
 
     # Current user turn — include image attachments if the model supports vision
-    user_content: Any
     images = [
         att.data.split("base64,")[1]
         for att in req.attachments
@@ -154,7 +153,7 @@ async def chat_endpoint(req: ChatRequest):
                 "Amma kamar yadda karin magana ya nuna, 'Hargitsin duniya ba ya hana safiya wayewa'. "
                 "Don Allah a sake gwadawa."
             )
-            yield f"data: {json.dumps({'text': error_text, 'isDone': True, 'verified': False, 'error': str(exc)})}\n\n"
+            yield f"data: {json.dumps({'text': error_text, 'isDone': True, 'verified': False, 'error': 'LLM service unavailable'})}\n\n"
             return
 
         # Final done event
