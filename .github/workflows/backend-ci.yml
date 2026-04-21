@@ -23,7 +23,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Set up Python
-        uses: actions/setup-python@8d9cd93d35bce5e39c11d98bc7a2d15ce10ca48e # v5.5.0
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: "pip"
@@ -57,7 +57,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Set up Python
-        uses: actions/setup-python@8d9cd93d35bce5e39c11d98bc7a2d15ce10ca48e # v5.5.0
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: "pip"
