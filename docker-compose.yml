@@ -78,6 +78,8 @@ services:
       - OLLAMA_MODEL=${OLLAMA_MODEL:-aya-expanse:8b}
       - IMAGE_MODEL=${IMAGE_MODEL:-black-forest-labs/FLUX.1-schnell}
       - IMAGE_DEVICE=${IMAGE_DEVICE:-cpu}
+      - VIDEO_MODEL=${VIDEO_MODEL:-damo-vilab/text-to-video-ms-1.7b}
+      - VIDEO_DEVICE=${VIDEO_DEVICE:-cpu}
       - PIPER_MODELS_DIR=/models/piper
       - WHISPER_MODEL=${WHISPER_MODEL:-base}
       - HF_HOME=/cache/huggingface
