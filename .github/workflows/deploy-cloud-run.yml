@@ -32,7 +32,7 @@ jobs:
           GCP_WIF_PROVIDER: ${{ secrets.GCP_WIF_PROVIDER }}
           GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
         run: |
-          if [ -z "$GCP_WIF_PROVIDER" ] || [ -z "$GCP_SERVICE_ACCOUNT" ]; then
+          if [ -z "${GCP_WIF_PROVIDER//[[:space:]]/}" ] || [ -z "${GCP_SERVICE_ACCOUNT//[[:space:]]/}" ]; then
             echo "::error::Missing required GitHub Actions secrets for GCP authentication."
             echo "::error::Set GCP_WIF_PROVIDER and GCP_SERVICE_ACCOUNT in Settings > Secrets and variables > Actions."
             exit 1
