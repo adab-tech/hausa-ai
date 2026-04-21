@@ -5,7 +5,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -122,8 +121,6 @@ async def test_chat_with_image_attachment(client):
 @pytest.mark.anyio
 async def test_chat_with_manifest_image_signal(client):
     """A MANIFEST: IMAGE tag in LLM reply triggers image generation."""
-    import base64
-    import io
 
     from PIL import Image
 

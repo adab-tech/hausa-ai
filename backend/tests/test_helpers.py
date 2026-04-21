@@ -4,7 +4,6 @@ import pytest
 
 from routers.chat import _calculate_cultural_confidence, _sanitize
 
-
 # ---------------------------------------------------------------------------
 # _sanitize helper
 # ---------------------------------------------------------------------------
