@@ -13,9 +13,9 @@ This repository includes `.github/workflows/deploy-cloud-run.yml` to deploy Clou
   - `VERTEX_PROJECT_ID=gen-lang-client-0675423068`
   - `VERTEX_LOCATION=europe-west1`
 
-## Required GitHub repository variables
+## Required GitHub repository secrets
 
-Add these repository variables in **GitHub → Settings → Secrets and variables → Actions → Variables**:
+Add these repository secrets in **GitHub → Settings → Secrets and variables → Actions → Secrets**:
 
 - `GCP_WIF_PROVIDER`
   - Value format:
