@@ -14,7 +14,7 @@ numpy>=1.26,<3
 faster-whisper~=1.0.3
 
 # Text-to-Speech — Piper (has ha_NG-openbible-medium Hausa voice)
-piper-tts~=1.2.0
+piper-tts~=1.4.2
 
 # Image & video generation — Diffusers + FLUX/Stable Diffusion / ModelScope T2V
 diffusers>=0.30,<1
