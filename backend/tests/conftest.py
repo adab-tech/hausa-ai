@@ -7,7 +7,7 @@ with all heavy model loading mocked out so tests run offline and quickly.
 
 import sys
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 from httpx import ASGITransport, AsyncClient
