@@ -19,12 +19,42 @@ API_KEY
 """
 
 import os
+from urllib.parse import urlparse
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from auth import verify_api_key
 from routers import audio, chat, image
+
+
+def _validate_runtime_config() -> None:
+    """Fail fast on invalid or unsafe runtime configuration."""
+    app_env = os.getenv("APP_ENV", "development").strip().lower()
+    api_key = os.getenv("API_KEY", "").strip()
+    allowed_origins = os.getenv("ALLOWED_ORIGINS", "*").strip()
+    ollama_host = os.getenv("OLLAMA_HOST", "http://ollama:11434").strip()
+
+    parsed = urlparse(ollama_host)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise RuntimeError(
+            "Invalid OLLAMA_HOST. Expected a full http(s) URL, "
+            f"got: {ollama_host!r}"
+        )
+
+    if app_env == "production":
+        if allowed_origins == "*":
+            raise RuntimeError(
+                "ALLOWED_ORIGINS='*' is not allowed in production. "
+                "Set explicit trusted origins."
+            )
+        if not api_key:
+            raise RuntimeError(
+                "API_KEY must be set when APP_ENV=production."
+            )
+
+
+_validate_runtime_config()
 
 # ---------------------------------------------------------------------------
 # CORS configuration
