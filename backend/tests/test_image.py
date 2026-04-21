@@ -4,7 +4,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Request validation
 # ---------------------------------------------------------------------------
@@ -42,7 +41,6 @@ async def test_video_rejects_missing_prompt(client):
 # ---------------------------------------------------------------------------
 
 def _make_fake_image():
-    import io
 
     from PIL import Image
 

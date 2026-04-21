@@ -16,6 +16,7 @@ import io
 import logging
 import os
 import tempfile
+from contextlib import suppress
 from functools import lru_cache
 
 from fastapi import APIRouter
@@ -141,10 +142,8 @@ async def generate_video(req: VideoRequest):
             with open(tmp_path, "rb") as fh:
                 mp4_bytes = fh.read()
         finally:
-            try:
+            with suppress(OSError):
                 os.unlink(tmp_path)
-            except OSError:
-                pass
 
         b64 = base64.b64encode(mp4_bytes).decode()
         return {"uri": f"data:video/mp4;base64,{b64}", "error": None}

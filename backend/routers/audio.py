@@ -23,7 +23,9 @@ import logging
 import os
 import struct
 import tempfile
+from contextlib import suppress
 from pathlib import Path
+from typing import Any, cast
 
 import numpy as np
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -128,17 +130,13 @@ def _transcribe(pcm_bytes: bytes, sample_rate: int = 16000) -> str:
         return " ".join(seg.text for seg in segments).strip()
     finally:
         if tmp_path:
-            import os as _os
-            try:
-                _os.unlink(tmp_path)
-            except OSError:
-                pass
+            with suppress(OSError):
+                os.unlink(tmp_path)
 
 
 def _write_wav(path: str, audio: np.ndarray, sample_rate: int):
     """Write a minimal PCM WAV file."""
     pcm = _float32_to_pcm16_bytes(audio)
-    n_samples = len(audio)
     with open(path, "wb") as f:
         # RIFF header
         f.write(b"RIFF")
@@ -160,7 +158,7 @@ async def _llm_respond(transcript: str, history: list[dict]) -> str:
     messages = [{"role": "system", "content": _VOICE_SYSTEM}]
     messages.extend(history[-6:])
     messages.append({"role": "user", "content": transcript})
-    response = await client.chat(model=OLLAMA_MODEL, messages=messages)
+    response = await client.chat(model=OLLAMA_MODEL, messages=cast(Any, messages))
     return response["message"]["content"].strip()
 
 
@@ -178,7 +176,7 @@ async def live_endpoint(ws: WebSocket):
             # Receive binary PCM-16 audio frames from browser (16 kHz, mono)
             try:
                 data = await asyncio.wait_for(ws.receive_bytes(), timeout=30.0)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 continue
 
             pcm_buffer.extend(data)
@@ -235,7 +233,5 @@ async def live_endpoint(ws: WebSocket):
         logger.info("Live session disconnected")
     except Exception as exc:
         logger.exception("Live session error: %s", exc)
-        try:
+        with suppress(Exception):
             await ws.send_text(json.dumps({"type": "error", "data": str(exc)}))
-        except Exception:
-            pass

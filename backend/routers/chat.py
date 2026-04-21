@@ -18,6 +18,7 @@ The backend responds with Server-Sent Events (text/event-stream):
 """
 
 import json
+import os
 import re
 from typing import Any
 
@@ -51,7 +52,6 @@ SOVEREIGN_CONSTITUTION = """
 """
 
 # Default model — change via OLLAMA_MODEL env var or docker-compose environment
-import os
 DEFAULT_MODEL = os.getenv("OLLAMA_MODEL", "aya-expanse:8b")
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://ollama:11434")
 
@@ -147,7 +147,7 @@ async def chat_endpoint(req: ChatRequest):
                     {"text": _sanitize(full_text), "isDone": False}
                 )
                 yield f"data: {payload}\n\n"
-        except Exception as exc:
+        except Exception:
             error_text = (
                 "Gafara, ranka ya dade. An samu tangarda a sashen Nexus-7. "
                 "Amma kamar yadda karin magana ya nuna, 'Hargitsin duniya ba ya hana safiya wayewa'. "
