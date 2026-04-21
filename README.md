@@ -18,3 +18,7 @@ View your app in AI Studio: https://ai.studio/apps/aaa09fcc-0e77-4ce9-b323-11eb0
 2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
 3. Run the app:
    `npm run dev`
+
+## Cloud Run deployment
+
+For GitHub Actions deployment of Cloud Run service `adabtech` using Workload Identity Federation, see [docs/deploy-cloud-run.md](docs/deploy-cloud-run.md).
