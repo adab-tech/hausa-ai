@@ -1,0 +1,35 @@
+name: Post Deploy Smoke Test
+
+on:
+  workflow_run:
+    workflows: ["Deploy Cloud Run (adabtech)"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Smoke test deployed service
+    if: >-
+      ${
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_branch == 'main'
+      }
+    runs-on: ubuntu-latest
+    env:
+      SERVICE_URL: https://adabtech-1015422054034.europe-west1.run.app
+
+    steps:
+      - name: Check health endpoint
+        run: |
+          set -euo pipefail
+          RESPONSE=$(curl -fsS "$SERVICE_URL/health")
+          echo "Health response: $RESPONSE"
+          echo "$RESPONSE" | grep -q '"status"'
+          echo "$RESPONSE" | grep -q '"sovereign"'
+          echo "$RESPONSE" | grep -q '"version"'
+
+      - name: Summary
+        run: |
+          echo "Smoke test passed for $SERVICE_URL"
