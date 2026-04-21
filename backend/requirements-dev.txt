@@ -10,7 +10,7 @@ anyio[trio]~=4.7
 httpx~=0.27          # also used in production; listed here for explicitness
 
 # Linting & formatting
-ruff~=0.11
+ruff~=0.15
 mypy~=1.14
 
 # Type stubs
