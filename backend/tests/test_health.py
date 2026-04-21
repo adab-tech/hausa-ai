@@ -1,7 +1,6 @@
 """Tests for the /health endpoint."""
 
 import pytest
-import pytest_asyncio  # noqa: F401 — required for anyio
 
 
 @pytest.mark.anyio
