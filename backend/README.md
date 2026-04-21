@@ -57,8 +57,10 @@ All settings are via environment variables:
 |---|---|---|
 | `OLLAMA_HOST` | `http://ollama:11434` | Ollama server URL |
 | `OLLAMA_MODEL` | `aya-expanse:8b` | LLM model name |
-| `IMAGE_MODEL` | `black-forest-labs/FLUX.1-schnell` | Diffusers model |
+| `IMAGE_MODEL` | `black-forest-labs/FLUX.1-schnell` | Diffusers image model |
 | `IMAGE_DEVICE` | `cpu` | `cpu` or `cuda` |
+| `VIDEO_MODEL` | `damo-vilab/text-to-video-ms-1.7b` | Diffusers video model |
+| `VIDEO_DEVICE` | same as `IMAGE_DEVICE` | `cpu` or `cuda` |
 | `WHISPER_MODEL` | `base` | `tiny`/`base`/`small`/`medium` |
 | `PIPER_MODELS_DIR` | `/models/piper` | Directory for Piper ONNX voice files |
 | `PIPER_MODEL` | `ha_NG-openbible-medium` | Piper voice name |
@@ -102,14 +104,20 @@ curl -L -o /models/piper/ha_NG-openbible-medium.onnx.json "$BASE/ha_NG-openbible
 
 ---
 
-## Video Generation (Roadmap)
+## Video Generation
 
-Video generation is currently stubbed (`/api/generate-video` returns `{"uri": null}`).
+`/api/generate-video` uses the **ModelScope text-to-video pipeline** (`damo-vilab/text-to-video-ms-1.7b`, Apache 2.0) via Diffusers to generate short MP4 clips (~16 frames, 256×256) returned as a base64 data URI.
 
-To enable it, replace the stub in `routers/image.py` with:
+| Variable | Default | Description |
+|---|---|---|
+| `VIDEO_MODEL` | `damo-vilab/text-to-video-ms-1.7b` | HuggingFace model ID |
+| `VIDEO_DEVICE` | same as `IMAGE_DEVICE` | `cpu` or `cuda` |
 
-- **[CogVideoX-5B](https://github.com/THUDM/CogVideo)** — Apache 2.0, text-to-video, requires ~24 GB VRAM
-- **[Stable Video Diffusion](https://huggingface.co/stabilityai/stable-video-diffusion-img2vid)** — image-to-video
+> **Note:** CPU inference takes several minutes per clip. For interactive use, run on a CUDA GPU.
+>
+> Alternative high-quality models (require more VRAM):
+> - **[CogVideoX-5B](https://github.com/THUDM/CogVideo)** — Apache 2.0, ~24 GB VRAM
+> - **[Stable Video Diffusion](https://huggingface.co/stabilityai/stable-video-diffusion-img2vid)** — image-to-video
 
 ---
 
