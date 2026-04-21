@@ -17,6 +17,7 @@ from routers.audio import (
 # PCM conversion round-trip
 # ---------------------------------------------------------------------------
 
+
 def test_pcm_bytes_to_float32_shape():
     """16-bit stereo sample converts to float32 with correct length."""
     raw = struct.pack("<4h", 0, 16384, -16384, 32767)
@@ -56,6 +57,7 @@ def test_pcm_round_trip():
 # _write_wav
 # ---------------------------------------------------------------------------
 
+
 def test_write_wav_creates_valid_riff(tmp_path):
     """_write_wav writes a RIFF WAV file readable by the stdlib wave module."""
     path = str(tmp_path / "test.wav")
@@ -83,6 +85,7 @@ def test_write_wav_non_zero_audio(tmp_path):
 # ---------------------------------------------------------------------------
 # _synthesize_speech — Piper not installed → returns None gracefully
 # ---------------------------------------------------------------------------
+
 
 def test_synthesize_speech_returns_none_when_piper_unavailable():
     """When Piper is not installed / models not present, TTS returns None."""

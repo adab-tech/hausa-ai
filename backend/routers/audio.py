@@ -62,6 +62,7 @@ def _get_whisper():
     global _whisper_model
     if _whisper_model is None:
         from faster_whisper import WhisperModel
+
         logger.info("Loading Whisper model: %s", WHISPER_MODEL)
         _whisper_model = WhisperModel(WHISPER_MODEL, device="cpu", compute_type="int8")
     return _whisper_model
@@ -72,6 +73,7 @@ def _get_piper():
     if _piper_voice is None:
         try:
             from piper import PiperVoice
+
             model_path = Path(PIPER_MODELS_DIR) / f"{PIPER_MODEL}.onnx"
             config_path = Path(PIPER_MODELS_DIR) / f"{PIPER_MODEL}.onnx.json"
             if model_path.exists() and config_path.exists():
@@ -154,6 +156,7 @@ def _write_wav(path: str, audio: np.ndarray, sample_rate: int):
 # ---------------------------------------------------------------------------
 async def _llm_respond(transcript: str, history: list[dict]) -> str:
     import ollama
+
     client = ollama.AsyncClient(host=OLLAMA_HOST)
     messages = [{"role": "system", "content": _VOICE_SYSTEM}]
     messages.extend(history[-6:])

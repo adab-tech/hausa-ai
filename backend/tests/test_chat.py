@@ -9,6 +9,7 @@ import pytest
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _iter_sse(content: bytes) -> list[dict]:
     """Parse SSE bytes into a list of payload dicts."""
     lines = content.decode().splitlines()
@@ -22,6 +23,7 @@ def _iter_sse(content: bytes) -> list[dict]:
 # ---------------------------------------------------------------------------
 # Request validation
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.anyio
 async def test_chat_rejects_empty_text(client):
@@ -55,6 +57,7 @@ async def test_chat_rejects_bad_role_in_history(client):
 # ---------------------------------------------------------------------------
 # Happy path — Ollama is mocked
 # ---------------------------------------------------------------------------
+
 
 async def _fake_ollama_chat(*_args, **_kwargs):
     async def _gen():
@@ -167,6 +170,7 @@ async def test_chat_error_yields_done_event(client):
 # ---------------------------------------------------------------------------
 # Auth tests
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.anyio
 async def test_chat_with_api_key_set(client, monkeypatch):

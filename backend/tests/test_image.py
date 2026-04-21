@@ -8,6 +8,7 @@ import pytest
 # Request validation
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.anyio
 async def test_image_rejects_missing_prompt(client):
     response = await client.post("/api/generate-image", json={})
@@ -16,17 +17,13 @@ async def test_image_rejects_missing_prompt(client):
 
 @pytest.mark.anyio
 async def test_image_rejects_oversized_prompt(client):
-    response = await client.post(
-        "/api/generate-image", json={"prompt": "x" * 2_000}
-    )
+    response = await client.post("/api/generate-image", json={"prompt": "x" * 2_000})
     assert response.status_code == 422
 
 
 @pytest.mark.anyio
 async def test_image_rejects_invalid_vibe(client):
-    response = await client.post(
-        "/api/generate-image", json={"prompt": "a scene", "vibe": "NOPE"}
-    )
+    response = await client.post("/api/generate-image", json={"prompt": "a scene", "vibe": "NOPE"})
     assert response.status_code == 422
 
 
@@ -39,6 +36,7 @@ async def test_video_rejects_missing_prompt(client):
 # ---------------------------------------------------------------------------
 # Happy path — diffusers pipeline is mocked
 # ---------------------------------------------------------------------------
+
 
 def _make_fake_image():
 
@@ -56,9 +54,7 @@ async def test_image_generation_success(client):
     fake_pipe = MagicMock(return_value=fake_result)
 
     with patch("routers.image._get_image_pipeline", return_value=fake_pipe):
-        response = await client.post(
-            "/api/generate-image", json={"prompt": "Hausa market scene"}
-        )
+        response = await client.post("/api/generate-image", json={"prompt": "Hausa market scene"})
 
     assert response.status_code == 200
     data = response.json()
@@ -72,9 +68,7 @@ async def test_image_generation_failure_returns_error(client):
         "routers.image._get_image_pipeline",
         side_effect=RuntimeError("CUDA OOM"),
     ):
-        response = await client.post(
-            "/api/generate-image", json={"prompt": "test"}
-        )
+        response = await client.post("/api/generate-image", json={"prompt": "test"})
 
     assert response.status_code == 200
     data = response.json()
@@ -85,6 +79,7 @@ async def test_image_generation_failure_returns_error(client):
 # ---------------------------------------------------------------------------
 # Video generation
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.anyio
 async def test_video_generation_success(client):
@@ -104,8 +99,8 @@ async def test_video_generation_success(client):
     # that are imported lazily inside generate_video.
     fake_diffusers = ModuleType("diffusers")
     fake_diffusers_utils = ModuleType("diffusers.utils")
-    fake_diffusers_utils.export_to_video = _fake_export  # type: ignore[attr-defined]
-    fake_diffusers.utils = fake_diffusers_utils  # type: ignore[attr-defined]
+    fake_diffusers_utils.export_to_video = _fake_export
+    fake_diffusers.utils = fake_diffusers_utils
 
     with (
         patch.dict(
@@ -114,9 +109,7 @@ async def test_video_generation_success(client):
         ),
         patch("routers.image._get_video_pipeline", return_value=fake_pipe),
     ):
-        response = await client.post(
-            "/api/generate-video", json={"prompt": "Hausa night market"}
-        )
+        response = await client.post("/api/generate-video", json={"prompt": "Hausa night market"})
 
     assert response.status_code == 200
     data = response.json()
@@ -130,9 +123,7 @@ async def test_video_generation_failure_returns_error(client):
         "routers.image._get_video_pipeline",
         side_effect=RuntimeError("OOM"),
     ):
-        response = await client.post(
-            "/api/generate-video", json={"prompt": "test"}
-        )
+        response = await client.post("/api/generate-video", json={"prompt": "test"})
 
     assert response.status_code == 200
     data = response.json()
