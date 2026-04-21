@@ -27,32 +27,39 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Validate required GCP auth secrets
+      - name: Check required GCP auth secrets
+        id: gcp_secrets
         env:
           GCP_WIF_PROVIDER: ${{ secrets.GCP_WIF_PROVIDER }}
           GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
         run: |
           if [[ "$GCP_WIF_PROVIDER" =~ ^[[:space:]]*$ ]] || [[ "$GCP_SERVICE_ACCOUNT" =~ ^[[:space:]]*$ ]]; then
-            echo "::error::Missing required GitHub Actions secrets for GCP authentication."
-            echo "::error::Set GCP_WIF_PROVIDER and GCP_SERVICE_ACCOUNT in Settings > Secrets and variables > Actions."
-            exit 1
+            echo "has_secrets=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping Cloud Run deploy because required secrets are missing."
+            echo "::notice::Set GCP_WIF_PROVIDER and GCP_SERVICE_ACCOUNT in Settings > Secrets and variables > Actions to enable deploys."
+          else
+            echo "has_secrets=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Authenticate to Google Cloud (WIF)
+        if: steps.gcp_secrets.outputs.has_secrets == 'true'
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
       - name: Setup gcloud
+        if: steps.gcp_secrets.outputs.has_secrets == 'true'
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ env.PROJECT_ID }}
 
       - name: Configure Docker auth for Artifact Registry
+        if: steps.gcp_secrets.outputs.has_secrets == 'true'
         run: gcloud auth configure-docker "${{ env.REGION }}-docker.pkg.dev" --quiet
 
       - name: Build and push image
+        if: steps.gcp_secrets.outputs.has_secrets == 'true'
         env:
           IMAGE_URI: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.AR_REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
         run: |
@@ -61,6 +68,7 @@ jobs:
           echo "IMAGE_URI=$IMAGE_URI" >> "$GITHUB_ENV"
 
       - name: Deploy to Cloud Run
+        if: steps.gcp_secrets.outputs.has_secrets == 'true'
         run: |
           gcloud run deploy "${{ env.SERVICE }}" \
             --region "${{ env.REGION }}" \
