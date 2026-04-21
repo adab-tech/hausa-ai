@@ -50,7 +50,7 @@ jobs:
 
       - name: Setup gcloud
         if: steps.gcp_secrets.outputs.has_secrets == 'true'
-        uses: google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a # v2.1.4
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v2.1.4
         with:
           project_id: ${{ env.PROJECT_ID }}
 
