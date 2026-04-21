@@ -7,7 +7,7 @@ FastAPI backend that replaces all Google Gemini API calls with open-source equiv
 | Text generation | Gemini 3 Pro | **Aya-Expanse 8B** via Ollama |
 | Image generation | Gemini 3 Pro Image | **FLUX.1-schnell** via Diffusers |
 | Live audio (voice) | Gemini 2.5 Flash Native Audio | **Whisper + Ollama + Piper TTS** |
-| Video generation | Veo 3.1 | Stub (see below) |
+| Video generation | Veo 3.1 | ModelScope T2V via Diffusers (experimental) |
 
 ---
 
@@ -127,7 +127,7 @@ curl -L -o /models/piper/ha_NG-openbible-medium.onnx.json "$BASE/ha_NG-openbible
 |---|---|---|
 | `/api/chat` | POST | Streaming SSE text generation |
 | `/api/generate-image` | POST | Image generation (base64 PNG) |
-| `/api/generate-video` | POST | Video generation (stub) |
+| `/api/generate-video` | POST | Video generation (experimental) |
 | `/api/live` | WS | Bidirectional voice (STT + LLM + TTS) |
 | `/health` | GET | Health check |
 
