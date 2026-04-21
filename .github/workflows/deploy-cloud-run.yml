@@ -27,11 +27,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Validate required GCP auth secrets
+        env:
+          GCP_WIF_PROVIDER: ${{ secrets.GCP_WIF_PROVIDER }}
+          GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+        run: |
+          if [[ "$GCP_WIF_PROVIDER" =~ ^[[:space:]]*$ ]] || [[ "$GCP_SERVICE_ACCOUNT" =~ ^[[:space:]]*$ ]]; then
+            echo "::error::Missing required GitHub Actions secrets for GCP authentication."
+            echo "::error::Set GCP_WIF_PROVIDER and GCP_SERVICE_ACCOUNT in Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+
       - name: Authenticate to Google Cloud (WIF)
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
-          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
