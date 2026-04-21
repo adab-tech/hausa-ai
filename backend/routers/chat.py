@@ -60,21 +60,21 @@ OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://ollama:11434")
 # Pydantic models
 # ---------------------------------------------------------------------------
 class HistoryItem(BaseModel):
-    role: str  # "user" | "assistant"
-    text: str
+    role: str = Field(..., pattern=r"^(user|assistant)$")
+    text: str = Field(..., max_length=8_000)
 
 
 class Attachment(BaseModel):
-    mimeType: str
-    data: str  # data-URL: "data:<mime>;base64,<b64>"
+    mimeType: str = Field(..., max_length=128)
+    data: str = Field(..., max_length=5_000_000)  # ~3.75 MB base64
 
 
 class ChatRequest(BaseModel):
-    text: str
-    history: list[HistoryItem] = Field(default_factory=list)
-    vibe: str = "Classic"
-    memoryPrompt: str = ""
-    attachments: list[Attachment] = Field(default_factory=list)
+    text: str = Field(..., min_length=1, max_length=4_000)
+    history: list[HistoryItem] = Field(default_factory=list, max_length=20)
+    vibe: str = Field("Classic", pattern=r"^(Classic|Royal|Cyberpunk|Academic)$")
+    memoryPrompt: str = Field("", max_length=4_000)
+    attachments: list[Attachment] = Field(default_factory=list, max_length=5)
 
 
 # ---------------------------------------------------------------------------
