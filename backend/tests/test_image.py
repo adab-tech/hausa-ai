@@ -90,21 +90,31 @@ async def test_image_generation_failure_returns_error(client):
 
 @pytest.mark.anyio
 async def test_video_generation_success(client):
-    import tempfile
+    import sys
+    from types import ModuleType
 
     fake_frame = _make_fake_image()
     fake_output = MagicMock()
     fake_output.frames = [[fake_frame] * 4]
     fake_pipe = MagicMock(return_value=fake_output)
 
-    # export_to_video writes a real file; we stub it to write a minimal MP4-like bytes
     def _fake_export(frames, path, fps=8):
         with open(path, "wb") as f:
             f.write(b"\x00\x00\x00\x18ftyp")  # fake MP4 header bytes
 
+    # diffusers is not installed in the CI test environment, so stub the modules
+    # that are imported lazily inside generate_video.
+    fake_diffusers = ModuleType("diffusers")
+    fake_diffusers_utils = ModuleType("diffusers.utils")
+    fake_diffusers_utils.export_to_video = _fake_export  # type: ignore[attr-defined]
+    fake_diffusers.utils = fake_diffusers_utils  # type: ignore[attr-defined]
+
     with (
+        patch.dict(
+            sys.modules,
+            {"diffusers": fake_diffusers, "diffusers.utils": fake_diffusers_utils},
+        ),
         patch("routers.image._get_video_pipeline", return_value=fake_pipe),
-        patch("routers.image.export_to_video", _fake_export),
     ):
         response = await client.post(
             "/api/generate-video", json={"prompt": "Hausa night market"}
