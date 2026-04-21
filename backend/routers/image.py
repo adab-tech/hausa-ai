@@ -19,7 +19,7 @@ import tempfile
 from functools import lru_cache
 
 from fastapi import APIRouter
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -74,12 +74,12 @@ def _get_video_pipeline():
 # Request/Response models
 # ---------------------------------------------------------------------------
 class ImageRequest(BaseModel):
-    prompt: str
-    vibe: str = "Classic"
+    prompt: str = Field(..., max_length=1_000)
+    vibe: str = Field("Classic", pattern=r"^(Classic|Royal|Cyberpunk|Academic)$")
 
 
 class VideoRequest(BaseModel):
-    prompt: str
+    prompt: str = Field(..., max_length=1_000)
 
 
 # ---------------------------------------------------------------------------
