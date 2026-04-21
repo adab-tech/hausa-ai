@@ -8,6 +8,7 @@ from routers.chat import _calculate_cultural_confidence, _sanitize
 # _sanitize helper
 # ---------------------------------------------------------------------------
 
+
 def test_sanitize_removes_manifest_tags():
     text = "Hello [MANIFEST: IMAGE|beautiful scene] world"
     assert _sanitize(text) == "Hello  world"
@@ -24,6 +25,7 @@ def test_sanitize_noop_on_clean_text():
 # ---------------------------------------------------------------------------
 # _calculate_cultural_confidence helper
 # ---------------------------------------------------------------------------
+
 
 def test_confidence_high_when_all_markers_present():
     text = "ɓarawo ɗan ƙauyen, kun ji 'yan birnin. Ranka ya dade."
@@ -44,6 +46,7 @@ def test_confidence_partial_markers():
 # auth module
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.anyio
 async def test_auth_passes_when_no_key_configured(client):
     """Health endpoint always passes (no API_KEY set in tests)."""
@@ -56,9 +59,7 @@ async def test_auth_rejects_wrong_key(client, monkeypatch):
     import auth as auth_module
 
     monkeypatch.setattr(auth_module, "_CONFIGURED_KEY", "correct-key")
-    response = await client.get(
-        "/health", headers={"X-API-Key": "wrong-key"}
-    )
+    response = await client.get("/health", headers={"X-API-Key": "wrong-key"})
     # /health is not protected but other routes are; verify auth logic directly
     # by calling a protected route
     response = await client.post(

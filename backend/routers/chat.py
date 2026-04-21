@@ -100,9 +100,7 @@ def _calculate_cultural_confidence(text: str) -> bool:
 
 
 def _build_messages(req: ChatRequest) -> list[dict[str, Any]]:
-    system_content = (
-        f"{SOVEREIGN_CONSTITUTION}\nVibe: {req.vibe}\n{req.memoryPrompt}"
-    )
+    system_content = f"{SOVEREIGN_CONSTITUTION}\nVibe: {req.vibe}\n{req.memoryPrompt}"
     messages: list[dict[str, Any]] = [{"role": "system", "content": system_content}]
 
     # Keep last 6 turns (context slicing — same as original)
@@ -143,9 +141,7 @@ async def chat_endpoint(req: ChatRequest):
             ):
                 delta = part["message"]["content"]
                 full_text += delta
-                payload = json.dumps(
-                    {"text": _sanitize(full_text), "isDone": False}
-                )
+                payload = json.dumps({"text": _sanitize(full_text), "isDone": False})
                 yield f"data: {payload}\n\n"
         except Exception:
             error_text = (
