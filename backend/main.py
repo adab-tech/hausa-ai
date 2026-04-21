@@ -17,11 +17,10 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Allow the Vite dev server (port 3000) and any Codespaces forwarded URL
+# Allow any origin (open self-hosted API — no cookie-based auth is used)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
