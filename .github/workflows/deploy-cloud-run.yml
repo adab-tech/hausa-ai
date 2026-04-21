@@ -1,0 +1,59 @@
+name: Deploy Cloud Run (adabtech)
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: gen-lang-client-0675423068
+  PROJECT_NUMBER: "1015422054034"
+  REGION: europe-west1
+  SERVICE: adabtech
+  VERTEX_PROJECT_ID: gen-lang-client-0675423068
+  VERTEX_LOCATION: europe-west1
+  AR_REPOSITORY: adabtech
+  IMAGE_NAME: adabtech
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Configure Docker auth for Artifact Registry
+        run: gcloud auth configure-docker "${{ env.REGION }}-docker.pkg.dev" --quiet
+
+      - name: Build and push image
+        env:
+          IMAGE_URI: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.AR_REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        run: |
+          docker build -f backend/Dockerfile -t "$IMAGE_URI" backend
+          docker push "$IMAGE_URI"
+          echo "IMAGE_URI=$IMAGE_URI" >> "$GITHUB_ENV"
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy "${{ env.SERVICE }}" \
+            --region "${{ env.REGION }}" \
+            --project "${{ env.PROJECT_ID }}" \
+            --image "$IMAGE_URI" \
+            --allow-unauthenticated \
+            --set-env-vars "VERTEX_PROJECT_ID=${{ env.VERTEX_PROJECT_ID }},VERTEX_LOCATION=${{ env.VERTEX_LOCATION }}"
