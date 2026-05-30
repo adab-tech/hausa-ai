@@ -48,3 +48,7 @@ venv/
 *.mp3
 *.onnx
 *.onnx.json
+
+# Pitch and Proposals (kept local only)
+docs/project_proposal_hpc_ua.md
+docs/unilorin_ua_ai4d_pitch.md
