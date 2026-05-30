@@ -1,4 +1,4 @@
-# Vertex Sovereign — Self-Hosted Docker Compose Stack
+# Hausa AI — Self-Hosted Docker Compose Stack
 #
 # Services:
 #   ollama    — Ollama LLM server (pull Aya-Expanse 8B on first start)

@@ -15,17 +15,19 @@ const AXIOM_PHRASES = [
   "Applying Litvinova's Laws...",
   "Synthesizing Proverbial Wisdom...",
   "Optimizing Social Hierarchy...",
-  "Vertex Sovereign: Nexus-7 Deep Scan..."
+  "Hausa AI: Nexus-7 Deep Scan..."
 ];
 
 const MessageItem = memo(({ m, currentAxiomIndex }: { m: Message; currentAxiomIndex: number }) => {
+  const [showTrace, setShowTrace] = useState(false);
+
   return (
     <div className={`flex ${m.role === Role.user ? 'justify-end' : 'justify-start'} animate-reveal w-full`}>
       <div className={`max-w-[95%] sm:max-w-[85%] w-full flex flex-col ${m.role === Role.user ? 'items-end' : 'items-start'}`}>
         
         {/* Meta Header */}
         <div className="mb-4 flex items-center gap-4 px-6 opacity-40 text-[9px] uppercase font-black tracking-widest">
-          {m.role === Role.user ? 'Umarni' : 'Sovereign Artifact'}
+          {m.role === Role.user ? 'Umarni' : 'Hausa AI Artifact'}
           <span className="h-[1px] w-6 bg-white/10"></span>
           {m.verified && (
              <span className="flex items-center gap-1.5 text-silk-gold border border-silk-gold/30 px-2 py-0.5 rounded-sm bg-silk-gold/5 animate-pulse">
@@ -72,6 +74,42 @@ const MessageItem = memo(({ m, currentAxiomIndex }: { m: Message; currentAxiomIn
               ))}
             </div>
           )}
+
+          {/* Expandable Axiom Trace Widget */}
+          {m.role === Role.assistant && !m.isThinking && (m.normalized || m.toneMapped) && (
+            <div className="mt-10 border-t border-white/5 pt-8 text-left">
+              <button 
+                onClick={() => setShowTrace(!showTrace)}
+                className="flex items-center gap-3 text-[10px] sm:text-[11px] font-black uppercase tracking-widest text-silk-gold/70 hover:text-silk-gold transition-colors focus:outline-none"
+              >
+                <span className={`transform transition-transform ${showTrace ? 'rotate-90' : 'rotate-0'}`}>▶</span>
+                <span>Hanya / Linguistic Trace (Axiom Trace)</span>
+              </button>
+              
+              {showTrace && (
+                <div className="mt-6 p-6 rounded-[24px] bg-black/40 border border-silk-gold/10 space-y-6 text-[12px] animate-reveal">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5">
+                      <span className="text-[8px] uppercase tracking-widest text-white/30 block mb-2">Original Generation</span>
+                      <p className="font-serif italic text-white/90">{m.text}</p>
+                    </div>
+                    <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5">
+                      <span className="text-[8px] uppercase tracking-widest text-silk-gold/50 block mb-2">Normalized (ɗ, ɓ, ƙ, ƴ)</span>
+                      <p className="font-serif italic text-silk-gold">{m.normalized || m.text}</p>
+                    </div>
+                    <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5">
+                      <span className="text-[8px] uppercase tracking-widest text-white/30 block mb-2">Tonal Melody (R→L Pitch)</span>
+                      <p className="font-serif italic text-white/80">{m.toneMapped || "Babu lambar sauti"}</p>
+                    </div>
+                  </div>
+                  <div className="text-[8px] text-white/20 uppercase tracking-[0.2em] font-mono text-right">
+                    Litvinova Mora TBU Logic: Active
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
         </div>
       </div>
     </div>
@@ -90,6 +128,8 @@ const App: React.FC = () => {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [volume, setVolume] = useState(0);
   const [currentAxiomIndex, setCurrentAxiomIndex] = useState(0);
+  const [speakerId, setSpeakerId] = useState<number | null>(null);
+  const [showSpeakerDial, setShowSpeakerDial] = useState(false);
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -171,7 +211,9 @@ const App: React.FC = () => {
           groundingSources: chunk.groundingSources,
           isThinking: !chunk.isDone,
           modelTier: chunk.tier as any,
-          verified: chunk.verified
+          verified: chunk.verified,
+          normalized: chunk.normalized,
+          toneMapped: chunk.toneMapped
         } : m));
       }
     } catch (err) { 
@@ -197,7 +239,7 @@ const App: React.FC = () => {
         const inputCtx = audioContextsRef.current.in!;
         const outputCtx = audioContextsRef.current.out!;
 
-        sessionPromiseRef.current = gemini.connectLive({
+        sessionPromiseRef.current = gemini.connectLive(speakerId, {
           onopen: () => {
             setIsLiveActive(true);
             const source = inputCtx.createMediaStreamSource(stream);
@@ -223,6 +265,16 @@ const App: React.FC = () => {
               source.start(audioContextsRef.current.nextStartTime);
               audioContextsRef.current.nextStartTime += buffer.duration;
             }
+            if (msg.text) {
+              setMessages(prev => [...prev, {
+                id: Date.now().toString(),
+                role: msg.isUser ? Role.user : Role.assistant,
+                text: msg.text,
+                timestamp: new Date(),
+                normalized: msg.normalized,
+                toneMapped: msg.toneMapped
+              }]);
+            }
           },
           onclose: () => setIsLiveActive(false),
           onerror: () => setIsLiveActive(false)
@@ -246,7 +298,7 @@ const App: React.FC = () => {
         <div className="flex items-center gap-6 sm:gap-14 group cursor-pointer" onClick={() => setShowReview(true)}>
           <ArewaLogo size={60} className="sm:w-24 sm:h-24" active={isLoading || isLiveActive} />
           <div className="flex flex-col">
-            <h1 className="font-serif italic text-4xl sm:text-7xl text-silk-gold tracking-tighter leading-none">Vertex Sovereign</h1>
+            <h1 className="font-serif italic text-4xl sm:text-7xl text-silk-gold tracking-tighter leading-none">Hausa AI</h1>
             <div className="flex items-center gap-3 mt-2">
               <span className="w-2 h-2 rounded-full bg-silk-gold animate-glow"></span>
               <span className="text-[10px] sm:text-[14px] text-ivory/30 uppercase tracking-[0.8em] font-black italic">Nexus-7 Core Architecture</span>
@@ -256,18 +308,48 @@ const App: React.FC = () => {
 
         <div className="flex items-center gap-6 sm:gap-10">
            <button 
-             onClick={() => setShowVibeDial(!showVibeDial)}
+             onClick={() => { setShowVibeDial(!showVibeDial); setShowSpeakerDial(false); }}
              className="px-8 py-4 rounded-full border border-silk-gold/20 text-[11px] sm:text-[14px] font-black uppercase tracking-widest text-silk-gold hover:bg-silk-gold/10 transition-all shadow-[0_20px_50px_rgba(0,0,0,1)] backdrop-blur-3xl"
            >
              Protocol: {vibe}
            </button>
            {showVibeDial && (
-              <div className="absolute top-32 right-16 bg-obsidian/95 border border-silk-gold/20 rounded-[40px] p-4 shadow-[0_60px_120px_rgba(0,0,0,1)] z-[100] animate-reveal backdrop-blur-2xl">
+              <div className="absolute top-32 right-80 bg-obsidian/95 border border-silk-gold/20 rounded-[40px] p-4 shadow-[0_60px_120px_rgba(0,0,0,1)] z-[100] animate-reveal backdrop-blur-2xl">
                 {(['Classic', 'Royal', 'Cyberpunk', 'Academic'] as SovereignVibe[]).map(v => (
                   <button key={v} onClick={() => { setVibe(v); setShowVibeDial(false); }} className={`w-full text-left px-12 py-6 rounded-3xl text-[12px] uppercase tracking-widest transition-all ${vibe === v ? 'bg-silk-gold/20 text-silk-gold font-bold' : 'text-white/40 hover:text-white hover:bg-white/5'}`}>{v}</button>
                 ))}
               </div>
            )}
+           
+           <div className="relative">
+             <button 
+               onClick={() => { setShowSpeakerDial(!showSpeakerDial); setShowVibeDial(false); }}
+               className="px-8 py-4 rounded-full border border-silk-gold/20 text-[11px] sm:text-[14px] font-black uppercase tracking-widest text-silk-gold hover:bg-silk-gold/10 transition-all shadow-[0_20px_50px_rgba(0,0,0,1)] backdrop-blur-3xl"
+             >
+               Murya: {speakerId === null ? 'Baseline (Piper)' : `Speaker ${speakerId + 1} (${speakerId < 4 ? 'Namiji' : 'Mace'})`}
+             </button>
+             {showSpeakerDial && (
+                <div className="absolute top-20 right-0 bg-obsidian/98 border border-silk-gold/20 rounded-[30px] p-3 shadow-[0_60px_120px_rgba(0,0,0,1)] z-[100] animate-reveal backdrop-blur-2xl w-80 max-h-[60vh] overflow-y-auto no-scrollbar">
+                  <button 
+                    onClick={() => { setSpeakerId(null); setShowSpeakerDial(false); }} 
+                    className={`w-full text-left px-8 py-4 rounded-2xl text-[10px] uppercase tracking-widest transition-all ${speakerId === null ? 'bg-silk-gold/20 text-silk-gold font-bold' : 'text-white/40 hover:text-white hover:bg-white/5'}`}
+                  >
+                    Baseline (Piper)
+                  </button>
+                  <div className="h-[1px] bg-white/10 my-2"></div>
+                  {Array.from({length: 8}, (_, i) => (
+                    <button 
+                      key={i} 
+                      onClick={() => { setSpeakerId(i); setShowSpeakerDial(false); }} 
+                      className={`w-full text-left px-8 py-4 rounded-2xl text-[10px] uppercase tracking-widest transition-all ${speakerId === i ? 'bg-silk-gold/20 text-silk-gold font-bold' : 'text-white/40 hover:text-white hover:bg-white/5'}`}
+                    >
+                      Speaker {i + 1} ({i < 4 ? 'Namiji / Male' : 'Mace / Female'})
+                    </button>
+                  ))}
+                </div>
+             )}
+           </div>
+
            <button onClick={() => setShowReview(true)} className="p-6 rounded-full bg-silk-gold/5 text-silk-gold border border-silk-gold/10 hover:bg-silk-gold/20 transition-all shadow-xl">
               <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 21a9 9 0 100-18 9 9 0 000 18z" strokeWidth="1.5"/><path d="M12 8v4l3 3" strokeWidth="2" strokeLinecap="round"/></svg>
            </button>

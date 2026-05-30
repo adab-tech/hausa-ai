@@ -32,6 +32,8 @@ export interface Message {
   verified?: boolean;
   timestamp: Date;
   modelTier?: 'Flash' | 'Pro';
+  normalized?: string;
+  toneMapped?: string;
 }
 
 export type AspectRatio = '1:1' | '2:3' | '3:2' | '3:4' | '4:3' | '9:16' | '16:9' | '21:9';

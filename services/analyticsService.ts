@@ -2,7 +2,13 @@
 import { VoiceSettings } from "../types";
 
 export interface AnalyticsData {
-  voiceUsage: Record<string, number>;
+  voiceUsage: {
+    Kore: number;
+    Zephyr: number;
+    Puck: number;
+    Charon: number;
+    Fenrir: number;
+  };
   speedPreferences: number[];
   totalVoiceSessions: number;
   totalTextMessages: number;
@@ -17,7 +23,13 @@ class AnalyticsService {
   constructor() {
     const saved = localStorage.getItem(STORAGE_KEY);
     this.data = saved ? JSON.parse(saved) : {
-      voiceUsage: {},
+      voiceUsage: {
+        Kore: 0,
+        Zephyr: 0,
+        Puck: 0,
+        Charon: 0,
+        Fenrir: 0
+      },
       speedPreferences: [],
       totalVoiceSessions: 0,
       totalTextMessages: 0,
@@ -32,7 +44,15 @@ class AnalyticsService {
 
   logVoiceSession(settings: VoiceSettings) {
     this.data.totalVoiceSessions++;
-    this.data.voiceUsage[settings.voiceName] = (this.data.voiceUsage[settings.voiceName] || 0) + 1;
+    
+    switch (settings.voiceName) {
+      case 'Kore': this.data.voiceUsage.Kore = (this.data.voiceUsage.Kore || 0) + 1; break;
+      case 'Zephyr': this.data.voiceUsage.Zephyr = (this.data.voiceUsage.Zephyr || 0) + 1; break;
+      case 'Puck': this.data.voiceUsage.Puck = (this.data.voiceUsage.Puck || 0) + 1; break;
+      case 'Charon': this.data.voiceUsage.Charon = (this.data.voiceUsage.Charon || 0) + 1; break;
+      case 'Fenrir': this.data.voiceUsage.Fenrir = (this.data.voiceUsage.Fenrir || 0) + 1; break;
+    }
+
     this.data.speedPreferences.push(settings.speed);
     // Keep only last 100 for moving average
     if (this.data.speedPreferences.length > 100) this.data.speedPreferences.shift();

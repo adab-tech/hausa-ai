@@ -17,7 +17,7 @@ const BACKEND_URL =
 
 // ─── SOVEREIGN CONSTITUTION (unchanged from original) ──────────────────────
 const SOVEREIGN_CONSTITUTION = `
-[IDENTITY]: Vertex Sovereign (Nexus-7 Core).
+[IDENTITY]: Hausa AI (Nexus-7 Core).
 [LINGUISTIC_CORE]: Standard Hausa (Fada).
 [MANDATORY_SOCIAL_HIERARCHY]:
 - All users must be addressed with the Plural of Respect (Ku/Su/Kun/Sun).
@@ -43,6 +43,8 @@ interface ExchangeChunk {
   isDone: boolean;
   tier: string;
   verified: boolean;
+  normalized?: string;
+  toneMapped?: string;
 }
 
 class LocalService {
@@ -126,6 +128,8 @@ class LocalService {
               isDone: true,
               tier: "Pro",
               verified: payload.verified ?? false,
+              normalized: payload.normalized,
+              toneMapped: payload.tone_mapped,
             };
           } else {
             yield {
@@ -201,13 +205,17 @@ class LocalService {
    *
    * The frontend sends raw PCM-16 binary frames (16 kHz, mono) — same as before.
    */
-  connectLive(callbacks: {
-    onopen?: () => void;
-    onmessage?: (msg: any) => void;
-    onclose?: () => void;
-    onerror?: (err: Event) => void;
-  }): Promise<{ sendRealtimeInput: (p: { media: { data: string; mimeType: string } }) => void; close: () => void }> {
-    const wsUrl = BACKEND_URL.replace(/^http/, "ws") + "/api/live";
+  connectLive(
+    speakerId: number | null,
+    callbacks: {
+      onopen?: () => void;
+      onmessage?: (msg: any) => void;
+      onclose?: () => void;
+      onerror?: (err: Event) => void;
+    }
+  ): Promise<{ sendRealtimeInput: (p: { media: { data: string; mimeType: string } }) => void; close: () => void }> {
+    const queryParam = speakerId !== null ? `?speaker_id=${speakerId}` : "";
+    const wsUrl = BACKEND_URL.replace(/^http/, "ws") + `/api/live${queryParam}`;
     const ws = new WebSocket(wsUrl);
     ws.binaryType = "arraybuffer";
 
@@ -227,8 +235,19 @@ class LocalService {
               },
             },
           });
+        } else if (msg.type === "user_transcript") {
+          callbacks.onmessage?.({
+            text: msg.data,
+            isUser: true,
+          });
+        } else if (msg.type === "text") {
+          callbacks.onmessage?.({
+            text: msg.data,
+            isUser: false,
+            normalized: msg.normalized,
+            toneMapped: msg.tone_mapped,
+          });
         }
-        // "text" and "error" messages are informational; ignore or log
       }
     };
 
@@ -245,6 +264,45 @@ class LocalService {
     };
 
     return Promise.resolve(session);
+  }
+
+  // ── WAXAL Dataset endpoints ──────────────────────────────────────────────
+  async getWaxalStats(): Promise<any> {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/waxal/stats`);
+      return await res.json();
+    } catch (err) {
+      console.error("Failed to fetch WAXAL stats:", err);
+      return null;
+    }
+  }
+
+  async getWaxalSamples(
+    page: number,
+    pageSize: number,
+    speakerId?: string,
+    gender?: string,
+    query?: string
+  ): Promise<any> {
+    try {
+      let url = `${BACKEND_URL}/api/waxal/samples?page=${page}&page_size=${pageSize}`;
+      if (speakerId) url += `&speaker_id=${encodeURIComponent(speakerId)}`;
+      if (gender) url += `&gender=${encodeURIComponent(gender)}`;
+      if (query) url += `&query=${encodeURIComponent(query)}`;
+
+      const res = await fetch(url);
+      return await res.json();
+    } catch (err) {
+      console.error("Failed to fetch WAXAL samples:", err);
+      return null;
+    }
+  }
+
+  getWaxalAudioUrl(filename: string): string {
+    // filename is e.g. "audio/Hausa_M4_001_0020.mp3"
+    // We only need the basename for our endpoint
+    const basename = filename.split("/").pop() || filename;
+    return `${BACKEND_URL}/api/waxal/audio/${encodeURIComponent(basename)}`;
   }
 }
 

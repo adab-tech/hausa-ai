@@ -38,3 +38,13 @@ __pycache__/
 htmlcov/
 .coverage
 coverage.xml
+
+# Project-specific ignored folders/files
+waxal_hausa/
+models/
+venv/
+.venv/
+*.wav
+*.mp3
+*.onnx
+*.onnx.json

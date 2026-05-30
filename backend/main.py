@@ -1,5 +1,5 @@
 """
-Vertex Sovereign — Self-Hosted Backend
+Hausa AI — Self-Hosted Backend
 FastAPI app that replaces Google Gemini/Veo/Live APIs with open-source equivalents:
   • Text  : Ollama (Aya-23 8B / Llama 3.1 8B)
   • Image : Diffusers FLUX.1-schnell / Stable Diffusion
@@ -20,12 +20,16 @@ API_KEY
 
 import os
 from urllib.parse import urlparse
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from auth import verify_api_key
-from routers import audio, chat, image
+from routers import audio, chat, image, waxal
 
 
 def _validate_runtime_config() -> None:
@@ -68,7 +72,7 @@ else:
     _allow_credentials = True
 
 app = FastAPI(
-    title="Vertex Sovereign — Local AI Backend",
+    title="Hausa AI — Local AI Backend",
     description="Self-hosted replacement for Google Gemini APIs",
     version="1.0.0",
 )
@@ -89,6 +93,7 @@ _auth = [Depends(verify_api_key)]
 app.include_router(chat.router, prefix="/api", dependencies=_auth)
 app.include_router(image.router, prefix="/api", dependencies=_auth)
 app.include_router(audio.router, prefix="/api", dependencies=_auth)
+app.include_router(waxal.router, prefix="/api", dependencies=_auth)
 
 
 @app.get("/health")

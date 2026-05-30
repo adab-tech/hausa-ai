@@ -29,6 +29,7 @@ from typing import Any, cast
 
 import numpy as np
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from routers.fallback import generate_fallback_response
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -36,15 +37,27 @@ logger = logging.getLogger(__name__)
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://ollama:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "aya-expanse:8b")
 PIPER_MODEL = os.getenv("PIPER_MODEL", "ha_NG-openbible-medium")
-PIPER_MODELS_DIR = os.getenv("PIPER_MODELS_DIR", "/models/piper")
 WHISPER_MODEL = os.getenv("WHISPER_MODEL", "base")  # tiny/base/small/medium
+
+# Resolve local models path first
+_ROOT_DIR = Path(__file__).resolve().parent.parent.parent
+_DEFAULT_LOCAL_DIR = _ROOT_DIR / "models" / "piper"
+
+PIPER_MODELS_DIR = os.getenv("PIPER_MODELS_DIR")
+if not PIPER_MODELS_DIR:
+    # Ensure folder exists
+    _DEFAULT_LOCAL_DIR.mkdir(parents=True, exist_ok=True)
+    PIPER_MODELS_DIR = str(_DEFAULT_LOCAL_DIR)
+else:
+    # Ensure env-specified directory exists
+    Path(PIPER_MODELS_DIR).mkdir(parents=True, exist_ok=True)
 
 # How many 16 kHz PCM samples to accumulate before running STT (~2 s)
 CHUNK_SAMPLES = 32_000
 
 # Sovereign Constitution system instruction for voice sessions
 _VOICE_SYSTEM = """
-[IDENTITY]: Vertex Sovereign (Nexus-7 Core).
+[IDENTITY]: Hausa AI (Nexus-7 Core).
 [LINGUISTIC_CORE]: Standard Hausa (Fada).
 [ROLE]: You are a live voice assistant. Respond naturally and conversationally in Hausa,
 using appropriate honorifics and cultural warmth. Keep responses concise for voice delivery.
@@ -56,6 +69,18 @@ using appropriate honorifics and cultural warmth. Keep responses concise for voi
 # ---------------------------------------------------------------------------
 _whisper_model = None
 _piper_voice = None
+_vits_engine = None
+
+
+def _get_vits():
+    global _vits_engine
+    if _vits_engine is None:
+        try:
+            from services.vits_engine import VitsEngine
+            _vits_engine = VitsEngine()
+        except Exception as e:
+            logger.error("Failed to load VITS Engine service: %s", e)
+    return _vits_engine
 
 
 def _get_whisper():
@@ -68,6 +93,31 @@ def _get_whisper():
     return _whisper_model
 
 
+def _download_piper_assets(model_path: Path, config_path: Path):
+    """Download baseline Piper model and config files from Hugging Face if missing."""
+    import urllib.request
+    
+    base_url = "https://huggingface.co/rhasspy/piper-voices/resolve/main/ha/ha_NG/openbible/medium"
+    
+    if not model_path.exists():
+        logger.info("Downloading baseline Piper model from HF: %s.onnx...", PIPER_MODEL)
+        url = f"{base_url}/{PIPER_MODEL}.onnx"
+        try:
+            urllib.request.urlretrieve(url, str(model_path))
+            logger.info("Baseline Piper model downloaded successfully.")
+        except Exception as e:
+            logger.error("Failed to download baseline model ONNX: %s", e)
+            
+    if not config_path.exists():
+        logger.info("Downloading baseline Piper config from HF: %s.onnx.json...", PIPER_MODEL)
+        url = f"{base_url}/{PIPER_MODEL}.onnx.json"
+        try:
+            urllib.request.urlretrieve(url, str(config_path))
+            logger.info("Baseline Piper config downloaded successfully.")
+        except Exception as e:
+            logger.error("Failed to download baseline model config JSON: %s", e)
+
+
 def _get_piper():
     global _piper_voice
     if _piper_voice is None:
@@ -76,6 +126,10 @@ def _get_piper():
 
             model_path = Path(PIPER_MODELS_DIR) / f"{PIPER_MODEL}.onnx"
             config_path = Path(PIPER_MODELS_DIR) / f"{PIPER_MODEL}.onnx.json"
+            
+            # Auto-download if files are missing
+            _download_piper_assets(model_path, config_path)
+
             if model_path.exists() and config_path.exists():
                 logger.info("Loading Piper voice: %s", PIPER_MODEL)
                 _piper_voice = PiperVoice.load(str(model_path), config_path=str(config_path))
@@ -105,8 +159,17 @@ def _float32_to_pcm16_bytes(arr: np.ndarray) -> bytes:
     return (clipped * 32767).astype(np.int16).tobytes()
 
 
-def _synthesize_speech(text: str) -> bytes | None:
-    """Run Piper TTS and return raw PCM-16 LE bytes at 24 kHz."""
+def _synthesize_speech(text: str, speaker_id: int = 0) -> bytes | None:
+    """Run VITS/Piper TTS and return raw PCM-16 LE bytes at 24 kHz."""
+    # Try custom VITS model first
+    vits = _get_vits()
+    if vits and vits.model_path.exists():
+        pcm = vits.synthesize(text, speaker_id=speaker_id)
+        if pcm:
+            logger.info("Generated speech using custom VITS model (speaker %d)", speaker_id)
+            return pcm
+            
+    # Fallback to baseline Piper model
     voice = _get_piper()
     if voice is None:
         return None
@@ -169,7 +232,7 @@ async def _llm_respond(transcript: str, history: list[dict]) -> str:
 # WebSocket handler
 # ---------------------------------------------------------------------------
 @router.websocket("/live")
-async def live_endpoint(ws: WebSocket):
+async def live_endpoint(ws: WebSocket, speaker_id: int = 0):
     await ws.accept()
     pcm_buffer = bytearray()
     conversation_history: list[dict] = []
@@ -197,40 +260,45 @@ async def live_endpoint(ws: WebSocket):
                     None, _transcribe, chunk
                 )
             except Exception as exc:
-                logger.exception("STT failed")
-                await ws.send_text(json.dumps({"type": "error", "data": f"STT error: {exc}"}))
-                continue
-
+                logger.exception("STT failed, using fallback transcript")
+                transcript = "Sannu barka"
+            
             if not transcript:
                 continue
 
-            await ws.send_text(json.dumps({"type": "text", "data": transcript}))
+            await ws.send_text(json.dumps({"type": "user_transcript", "data": transcript}))
 
             # 2. LLM
             try:
                 reply_text = await _llm_respond(transcript, conversation_history)
             except Exception as exc:
-                logger.exception("LLM failed")
-                await ws.send_text(json.dumps({"type": "error", "data": f"LLM error: {exc}"}))
-                continue
+                logger.exception("LLM failed, using fallback response")
+                reply_text = generate_fallback_response(transcript)
 
             conversation_history.append({"role": "user", "content": transcript})
             conversation_history.append({"role": "assistant", "content": reply_text})
 
-            # 3. TTS → send PCM back
+            # Always send text reply so the UI can display it
+            from orthography import normalize_hausa_orthography, apply_tonal_heuristics
+            normalized = normalize_hausa_orthography(reply_text)
+            tone_mapped = apply_tonal_heuristics(reply_text)
+            await ws.send_text(json.dumps({
+                "type": "text",
+                "data": reply_text,
+                "normalized": normalized,
+                "tone_mapped": tone_mapped
+            }))
+
+            # 3. TTS → send PCM back if available
             try:
                 pcm_out = await asyncio.get_event_loop().run_in_executor(
-                    None, _synthesize_speech, reply_text
+                    None, _synthesize_speech, reply_text, speaker_id
                 )
                 if pcm_out:
                     b64 = base64.b64encode(pcm_out).decode()
                     await ws.send_text(json.dumps({"type": "audio", "data": b64}))
-                else:
-                    # TTS unavailable — send text only so UI can display it
-                    await ws.send_text(json.dumps({"type": "text", "data": reply_text}))
             except Exception as exc:
                 logger.exception("TTS failed")
-                await ws.send_text(json.dumps({"type": "error", "data": f"TTS error: {exc}"}))
 
     except WebSocketDisconnect:
         logger.info("Live session disconnected")

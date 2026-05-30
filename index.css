@@ -1,0 +1,25 @@
+/* 
+  index.css — Reset and base scroll styles.
+  Most styling is handled by Tailwind and the inline style block in index.html.
+*/
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: #030303;
+  color: #FCFCF9;
+}
+
+/* Custom scrollbar hides */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
