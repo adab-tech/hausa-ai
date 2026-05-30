@@ -1,5 +1,5 @@
 """
-Optional API-key authentication for the Vertex Sovereign backend.
+Optional API-key authentication for the Hausa AI backend.
 
 Set the ``API_KEY`` environment variable to a secret value to enable
 authentication.  When set, every request must carry the header::

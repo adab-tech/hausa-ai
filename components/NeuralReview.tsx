@@ -1,11 +1,83 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { learning } from '../services/learningService.ts';
 import { ArewaLogo } from './ArewaLogo.tsx';
+import { gemini } from '../services/localService.ts';
 
 export const NeuralReview: React.FC<{ onClose: () => void; onOpenWhitePaper?: () => void }> = ({ onClose, onOpenWhitePaper }) => {
   const stats = learning.getStats() as any;
-  const [activeTab, setActiveTab] = useState<'telemetry' | 'matrix' | 'phonology' | 'vision'>('telemetry');
+  const [activeTab, setActiveTab] = useState<'telemetry' | 'matrix' | 'phonology' | 'vision' | 'waxal'>('telemetry');
+
+  // WAXAL explorer states
+  const [waxalStats, setWaxalStats] = useState<any>(null);
+  const [waxalSamples, setWaxalSamples] = useState<any[]>([]);
+  const [waxalPage, setWaxalPage] = useState(1);
+  const [waxalTotalPages, setWaxalTotalPages] = useState(1);
+  const [waxalTotalCount, setWaxalTotalCount] = useState(0);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [speakerFilter, setSpeakerFilter] = useState('');
+  const [genderFilter, setGenderFilter] = useState('');
+  const [playingAudio, setPlayingAudio] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    if (activeTab === 'waxal') {
+      gemini.getWaxalStats().then(data => {
+        if (data) setWaxalStats(data);
+      });
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'waxal') {
+      gemini.getWaxalSamples(
+        waxalPage,
+        8,
+        speakerFilter || undefined,
+        genderFilter || undefined,
+        searchQuery || undefined
+      ).then(data => {
+        if (data) {
+          setWaxalSamples(data.samples || []);
+          setWaxalTotalPages(data.total_pages || 1);
+          setWaxalTotalCount(data.total_count || 0);
+        }
+      });
+    }
+  }, [activeTab, waxalPage, speakerFilter, genderFilter, searchQuery]);
+
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+    };
+  }, []);
+
+  const playAudio = (filename: string) => {
+    const url = gemini.getWaxalAudioUrl(filename);
+    if (playingAudio === filename) {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        setPlayingAudio(null);
+      }
+    } else {
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      setPlayingAudio(filename);
+      audio.play();
+      audio.onended = () => {
+        setPlayingAudio(null);
+      };
+      audio.onerror = () => {
+        console.error("Audio playback error");
+        setPlayingAudio(null);
+      };
+    }
+  };
   
   const competitiveEdge = [
     { metric: 'Scholarly Sources', sovereign: '7 (Nexus-7 Core)', others: 'Generic Web Data', advantage: 'Primary Grounding' },
@@ -36,7 +108,7 @@ export const NeuralReview: React.FC<{ onClose: () => void; onOpenWhitePaper?: ()
             </div>
           </div>
           <div className="flex bg-white/5 p-1.5 rounded-full w-full md:w-auto overflow-x-auto no-scrollbar border border-white/5">
-            {['telemetry', 'matrix', 'phonology', 'vision'].map((tab) => (
+            {['telemetry', 'matrix', 'phonology', 'vision', 'waxal'].map((tab) => (
               <button 
                 key={tab}
                 onClick={() => setActiveTab(tab as any)}
@@ -96,7 +168,7 @@ export const NeuralReview: React.FC<{ onClose: () => void; onOpenWhitePaper?: ()
                   <thead className="bg-white/5 text-[10px] uppercase tracking-[0.3em] text-white/50">
                     <tr>
                       <th className="p-10">Neural Metric</th>
-                      <th className="p-10 text-silk-gold">Vertex Sovereign (Prosodic)</th>
+                      <th className="p-10 text-silk-gold">Hausa AI (Prosodic)</th>
                       <th className="p-10">Standard AI Models</th>
                     </tr>
                   </thead>
@@ -119,7 +191,7 @@ export const NeuralReview: React.FC<{ onClose: () => void; onOpenWhitePaper?: ()
               <div className="flex justify-center"><ArewaLogo size={100} className="sm:w-32 sm:h-32" active /></div>
               <h3 className="font-serif italic text-6xl sm:text-8xl md:text-9xl text-silk-gold leading-tight">Digital Prosody</h3>
               <p className="text-white/50 text-2xl sm:text-4xl font-light italic leading-relaxed px-4">
-                We have moved beyond words. Vertex Sovereign calculates the vibration of Standard Hausa through the laws of moraic TBUs and R-to-L melody mapping.
+                We have moved beyond words. Hausa AI calculates the vibration of Standard Hausa through the laws of moraic TBUs and R-to-L melody mapping.
               </p>
               <div className="p-12 rounded-[80px] bg-gradient-to-br from-silk-gold/10 to-transparent border border-silk-gold/20 flex flex-col md:flex-row items-center justify-between gap-8">
                 <div className="text-center md:text-left">
@@ -136,6 +208,155 @@ export const NeuralReview: React.FC<{ onClose: () => void; onOpenWhitePaper?: ()
                 )}
               </div>
             </div>
+          )}
+
+          {activeTab === 'waxal' && (
+             <div className="space-y-12 animate-reveal">
+               {/* Dashboard Stats */}
+               {waxalStats ? (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="p-8 rounded-[30px] bg-white/[0.02] border border-white/5">
+                      <span className="text-[10px] text-white/40 uppercase tracking-wider block mb-2">Speaker & Demographics</span>
+                      <div className="text-3xl font-serif text-silk-gold">{waxalStats.general.total_samples} Total Samples</div>
+                      <div className="text-[11px] text-white/50 mt-2">
+                        {waxalStats.general.total_speakers} Speakers (4 Male, 4 Female)<br/>
+                        Male: {waxalStats.general.male_samples} | Female: {waxalStats.general.female_samples}
+                      </div>
+                    </div>
+                    <div className="p-8 rounded-[30px] bg-white/[0.02] border border-white/5">
+                      <span className="text-[10px] text-white/40 uppercase tracking-wider block mb-2">Lexical / Linguistic Metrics</span>
+                      <div className="text-3xl font-serif text-silk-gold">{waxalStats.linguistic.vocab_size} Vocab Size</div>
+                      <div className="text-[11px] text-white/50 mt-2">
+                        Total Words: {waxalStats.linguistic.total_words}<br/>
+                        Avg length: {waxalStats.linguistic.avg_sentence_length} words (TTR: {waxalStats.linguistic.type_token_ratio})
+                      </div>
+                    </div>
+                    <div className="p-8 rounded-[30px] bg-white/[0.02] border border-white/5">
+                      <span className="text-[10px] text-white/40 uppercase tracking-wider block mb-2">Orthography Hook Contrast</span>
+                      <div className="text-3xl font-serif text-silk-gold">
+                        {waxalStats.orthography.unicode.d_hook + waxalStats.orthography.unicode.k_hook + waxalStats.orthography.unicode.b_hook + waxalStats.orthography.unicode.y_hook} Hooks
+                      </div>
+                      <div className="text-[11px] text-white/50 mt-2">
+                        Unicode: ɗ:{waxalStats.orthography.unicode.d_hook} | ƙ:{waxalStats.orthography.unicode.k_hook} | ɓ:{waxalStats.orthography.unicode.b_hook} | ƴ:{waxalStats.orthography.unicode.y_hook}<br/>
+                        ASCII Hooks (requires Normalization): 'y:{waxalStats.orthography.ascii["'y"] || 0} | k':{waxalStats.orthography.ascii["k'"] || 0} | d':{waxalStats.orthography.ascii["d'"] || 0}
+                      </div>
+                    </div>
+                  </div>
+               ) : (
+                  <div className="text-center py-6 text-white/40">Loading dataset statistics...</div>
+               )}
+
+               {/* Filter & Search Bar */}
+               <div className="flex flex-col md:flex-row gap-6 p-6 rounded-[30px] bg-white/5 border border-white/10 items-center justify-between">
+                 <div className="flex items-center gap-4 bg-black/40 rounded-full px-6 py-3 border border-white/5 w-full md:w-1/2">
+                   <svg className="w-5 h-5 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeWidth="2" strokeLinecap="round"/></svg>
+                   <input 
+                     type="text" 
+                     value={searchQuery}
+                     onChange={(e) => { setSearchQuery(e.target.value); setWaxalPage(1); }}
+                     placeholder="Bincika rubutu (Search transcript)..." 
+                     className="bg-transparent border-none text-white focus:outline-none w-full text-[14px]"
+                   />
+                 </div>
+                 <div className="flex gap-4 w-full md:w-auto">
+                   <select 
+                     value={speakerFilter} 
+                     onChange={(e) => { setSpeakerFilter(e.target.value); setWaxalPage(1); }}
+                     className="bg-black/60 border border-white/10 rounded-full px-6 py-3 text-[12px] text-white/70 focus:outline-none"
+                   >
+                     <option value="">Duk Masu Magana (All Speakers)</option>
+                     {Array.from({length: 8}, (_, i) => i + 1).map(num => (
+                       <option key={num} value={num.toString()}>Speaker {num}</option>
+                     ))}
+                   </select>
+                   <select 
+                     value={genderFilter} 
+                     onChange={(e) => { setGenderFilter(e.target.value); setWaxalPage(1); }}
+                     className="bg-black/60 border border-white/10 rounded-full px-6 py-3 text-[12px] text-white/70 focus:outline-none"
+                   >
+                     <option value="">Duk Jinsi (All Genders)</option>
+                     <option value="Male">Namiji (Male)</option>
+                     <option value="Female">Mace (Female)</option>
+                   </select>
+                 </div>
+               </div>
+
+               {/* Samples Table */}
+               <div className="overflow-x-auto rounded-[30px] border border-white/10 bg-white/[0.01]">
+                 <table className="w-full text-left">
+                   <thead className="bg-white/5 text-[9px] uppercase tracking-wider text-white/40">
+                     <tr>
+                       <th className="p-6">ID</th>
+                       <th className="p-6">Speaker</th>
+                       <th className="p-6">Gender</th>
+                       <th className="p-6 w-1/2">Transcript (Rubutu)</th>
+                       <th className="p-6 text-center">Audio</th>
+                     </tr>
+                   </thead>
+                   <tbody className="text-[13px] text-white/80">
+                     {waxalSamples.length > 0 ? (
+                       waxalSamples.map(sample => (
+                         <tr key={sample.id} className="border-t border-white/5 hover:bg-white/[0.02] transition-colors">
+                           <td className="p-6 font-mono text-[11px] text-white/40">{sample.id}</td>
+                           <td className="p-6 font-semibold">Speaker {sample.speaker_id}</td>
+                           <td className="p-6 text-white/50">{sample.gender}</td>
+                           <td className="p-6 font-serif italic text-white/90 leading-relaxed">{sample.text}</td>
+                           <td className="p-6 text-center">
+                             <button 
+                               onClick={() => playAudio(sample.audio_file)}
+                               className={`px-6 py-3 rounded-full text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-2 mx-auto ${
+                                 playingAudio === sample.audio_file 
+                                   ? 'bg-red-600 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)] animate-pulse' 
+                                   : 'bg-silk-gold text-black hover:scale-105'
+                               }`}
+                             >
+                               {playingAudio === sample.audio_file ? (
+                                  <>
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15.75 5.25v13.5m-7.5-13.5v13.5" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                    PAUSE
+                                  </>
+                               ) : (
+                                  <>
+                                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                    PLAY
+                                  </>
+                               )}
+                             </button>
+                           </td>
+                         </tr>
+                       ))
+                     ) : (
+                       <tr>
+                         <td colSpan={5} className="p-12 text-center text-white/30 italic">Babu wani samfuri da ya dace da bincikenka.</td>
+                       </tr>
+                     )}
+                   </tbody>
+                 </table>
+               </div>
+
+               {/* Pagination Controls */}
+               {waxalTotalPages > 1 && (
+                 <div className="flex items-center justify-between px-4 py-2 border-t border-white/5 pt-6">
+                   <button 
+                     disabled={waxalPage === 1}
+                     onClick={() => setWaxalPage(prev => Math.max(1, prev - 1))}
+                     className="px-6 py-3 rounded-full border border-white/10 text-[11px] uppercase tracking-wider text-silk-gold disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/5 transition-all"
+                   >
+                     Baya (Prev)
+                   </button>
+                   <span className="text-[12px] font-mono text-white/50">
+                     Shafi {waxalPage} na {waxalTotalPages} ({waxalTotalCount} samples)
+                   </span>
+                   <button 
+                     disabled={waxalPage === waxalTotalPages}
+                     onClick={() => setWaxalPage(prev => Math.min(waxalTotalPages, prev + 1))}
+                     className="px-6 py-3 rounded-full border border-white/10 text-[11px] uppercase tracking-wider text-silk-gold disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/5 transition-all"
+                   >
+                     Gaba (Next)
+                   </button>
+                 </div>
+               )}
+             </div>
           )}
         </div>
         

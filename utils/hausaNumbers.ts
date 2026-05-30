@@ -1,6 +1,6 @@
 
 /**
- * Vertex Sovereign - Native Hausa Number Engine
+ * Hausa AI - Native Hausa Number Engine
  * Ensures zero digits are displayed in the UI.
  */
 

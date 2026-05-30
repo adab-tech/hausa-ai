@@ -1,4 +1,4 @@
-# Vertex Sovereign — Self-Hosted Backend
+# Hausa AI — Self-Hosted Backend
 
 FastAPI backend that replaces all Google Gemini API calls with open-source equivalents:
 
