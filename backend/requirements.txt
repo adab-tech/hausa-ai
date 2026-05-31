@@ -27,3 +27,6 @@ Pillow>=10.4,<13
 # Video export (used by diffusers.utils.export_to_video)
 imageio>=2.34,<3
 imageio-ffmpeg>=0.5,<1
+
+# GCP Authentication (for Vertex AI fallback)
+google-auth>=2.30,<3
