@@ -63,7 +63,7 @@ jobs:
         env:
           IMAGE_URI: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.AR_REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
         run: |
-          docker build -f backend/Dockerfile -t "$IMAGE_URI" backend
+          docker build -f backend/Dockerfile -t "$IMAGE_URI" .
           docker push "$IMAGE_URI"
           echo "IMAGE_URI=$IMAGE_URI" >> "$GITHUB_ENV"
 
