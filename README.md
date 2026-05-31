@@ -109,6 +109,7 @@ To support the funding and computational requirements of the project, we have dr
 1.  **University of Alabama (UA) HPC Allocation**: Proposal to secure dedicated GPU partitions on `hpc.ua.edu` and the Center for Data ([**`docs/project_proposal_hpc_ua.md`**](file:///C:/Users/Adamu/Desktop/HAUSA%20AI/docs/project_proposal_hpc_ua.md)).
 2.  **University of Ilorin (Unilorin) Affiliation**: Institutional collaboration draft to establish research affiliation in Nigeria, enabling eligibility for **AI4D Africa** and **Lacuna Fund** research grants ([**`docs/unilorin_ua_ai4d_pitch.md`**](file:///C:/Users/Adamu/Desktop/HAUSA%20AI/docs/unilorin_ua_ai4d_pitch.md)).
 3.  **NSF-NEH DLI-DEL Grant**: Collaborative funding strategy under the Documenting Endangered Languages initiative.
+4.  **WAXAL Corpus Reference**: Direct access to the core white paper [**`docs/waxal_white_paper.pdf`**](file:///C:/Users/Adamu/Desktop/HAUSA%20AI/docs/waxal_white_paper.pdf) documenting the high-fidelity multi-speaker training corpus.
 
 ---
 
