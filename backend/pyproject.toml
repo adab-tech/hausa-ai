@@ -8,17 +8,11 @@ select = [
     "E",   # pycodestyle errors
     "W",   # pycodestyle warnings
     "F",   # pyflakes
-    "I",   # isort
-    "UP",  # pyupgrade
     "B",   # flake8-bugbear
-    "C4",  # flake8-comprehensions
-    "SIM", # flake8-simplify
 ]
 ignore = [
     "E501",  # line length — handled by formatter
     "W293",  # blank line contains whitespace
-    "I001",  # unsorted imports
-    "F401",  # unused imports
 ]
 
 [tool.ruff.lint.isort]
