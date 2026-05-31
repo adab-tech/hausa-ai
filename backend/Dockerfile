@@ -43,7 +43,7 @@ COPY backend/ ./
 COPY --from=frontend-builder /build/dist ./dist
 
 # Expose port
-EXPOSE 8000
+EXPOSE 8000 8080
 
-# Run FastAPI app
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run FastAPI app (uses Cloud Run's PORT environment variable, defaulting to 8000 locally)
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
