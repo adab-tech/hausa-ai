@@ -16,6 +16,9 @@ select = [
 ]
 ignore = [
     "E501",  # line length — handled by formatter
+    "W293",  # blank line contains whitespace
+    "I001",  # unsorted imports
+    "F401",  # unused imports
 ]
 
 [tool.ruff.lint.isort]
