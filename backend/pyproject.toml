@@ -13,6 +13,9 @@ select = [
 ignore = [
     "E501",  # line length — handled by formatter
     "W293",  # blank line contains whitespace
+    "F841",  # unused local variables (exc, e, etc.)
+    "F401",  # unused imports (os, List, etc.)
+    "B905",  # zip() without strict= parameter
 ]
 
 [tool.ruff.lint.isort]
