@@ -1,6 +1,18 @@
-import os
 import pytest
+from unittest.mock import patch
 from httpx import AsyncClient
+
+# Mock WAXAL metadata so tests run successfully without requiring the full 2GB corpus in CI
+MOCK_METADATA = [
+    {"speaker_id": "6", "gender": "Male", "text": "Kwallo yana da daɗi."},
+    {"speaker_id": "2", "gender": "Female", "text": "Sannu ku da zuwa."},
+    {"speaker_id": "6", "gender": "Male", "text": "Muna son kwallo sosai."},
+]
+
+@pytest.fixture(autouse=True)
+def mock_waxal_metadata():
+    with patch("routers.waxal._load_metadata", return_value=MOCK_METADATA):
+        yield
 
 @pytest.mark.anyio
 async def test_waxal_stats(client: AsyncClient):
@@ -10,8 +22,8 @@ async def test_waxal_stats(client: AsyncClient):
     
     # Check that general statistics are present
     assert "general" in data
-    assert "total_samples" in data["general"]
-    assert "total_speakers" in data["general"]
+    assert data["general"]["total_samples"] == 3
+    assert data["general"]["total_speakers"] == 2
     assert "linguistic" in data
     assert "orthography" in data
 
@@ -22,7 +34,7 @@ async def test_waxal_samples_pagination(client: AsyncClient):
     data = response.json()
     
     assert "samples" in data
-    assert len(data["samples"]) <= 5
+    assert len(data["samples"]) == 3
     assert "total_count" in data
     assert "total_pages" in data
     assert data["page"] == 1
@@ -34,6 +46,7 @@ async def test_waxal_samples_filtering(client: AsyncClient):
     response = await client.get("/api/waxal/samples?speaker_id=6")
     assert response.status_code == 200
     data = response.json()
+    assert len(data["samples"]) == 2
     for s in data["samples"]:
         assert s["speaker_id"] == "6"
 
@@ -41,7 +54,7 @@ async def test_waxal_samples_filtering(client: AsyncClient):
     response = await client.get("/api/waxal/samples?query=kwallo")
     assert response.status_code == 200
     data = response.json()
-    assert len(data["samples"]) > 0
+    assert len(data["samples"]) == 2
     for s in data["samples"]:
         assert "kwallo" in s["text"].lower()
 
