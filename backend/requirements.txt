@@ -30,3 +30,4 @@ imageio-ffmpeg>=0.5,<1
 
 # GCP Authentication (for Vertex AI fallback)
 google-auth>=2.30,<3
+requests>=2.31,<3

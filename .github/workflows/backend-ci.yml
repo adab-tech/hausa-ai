@@ -79,7 +79,8 @@ jobs:
             ollama~=0.3.0 \
             numpy~=1.26 \
             Pillow~=10.4.0 \
-            google-auth>=2.30.0
+            google-auth>=2.30.0 \
+            requests>=2.31.0
 
       - name: Install dev/test dependencies
         working-directory: backend
