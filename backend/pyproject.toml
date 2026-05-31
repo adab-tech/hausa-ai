@@ -16,6 +16,8 @@ ignore = [
     "F841",  # unused local variables (exc, e, etc.)
     "F401",  # unused imports (os, List, etc.)
     "B905",  # zip() without strict= parameter
+    "E402",  # module level import not at top of file
+    "B007",  # loop control variable not used within loop body
 ]
 
 [tool.ruff.lint.isort]
