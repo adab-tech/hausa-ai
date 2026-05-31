@@ -99,3 +99,43 @@ app.include_router(waxal.router, prefix="/api", dependencies=_auth)
 @app.get("/health")
 async def health():
     return {"status": "sovereign", "version": "1.0.0"}
+
+
+# ---------------------------------------------------------------------------
+# Serve static frontend files (Single-Container Deployment)
+# ---------------------------------------------------------------------------
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from fastapi import HTTPException
+
+# Path to the compiled React build (dist folder)
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+_DIST_DIR = os.path.join(_BASE_DIR, "dist")
+
+if os.path.exists(_DIST_DIR):
+    # Mount assets folder for bundle resources (JS/CSS/images)
+    _assets_dir = os.path.join(_DIST_DIR, "assets")
+    if os.path.exists(_assets_dir):
+        app.mount("/assets", StaticFiles(directory=_assets_dir), name="assets")
+    
+    # Mount main banner at root level
+    @app.get("/hausa_ai_banner.png")
+    async def serve_banner():
+        dist_banner = os.path.join(_DIST_DIR, "hausa_ai_banner.png")
+        if os.path.exists(dist_banner):
+            return FileResponse(dist_banner)
+        workspace_banner = os.path.join(os.path.dirname(_BASE_DIR), "hausa_ai_banner.png")
+        if os.path.exists(workspace_banner):
+            return FileResponse(workspace_banner)
+        raise HTTPException(status_code=404, detail="Banner not found")
+
+    # Serve index.html for root and SPA routing fallbacks
+    @app.get("/{fallback_path:path}")
+    async def spa_fallback(fallback_path: str):
+        if fallback_path.startswith("api/") or fallback_path == "health":
+            raise HTTPException(status_code=404, detail="Not Found")
+            
+        index_file = os.path.join(_DIST_DIR, "index.html")
+        if os.path.exists(index_file):
+            return FileResponse(index_file)
+        raise HTTPException(status_code=404, detail="Frontend build missing")

@@ -13,7 +13,12 @@ import { learning } from "./learningService.ts";
 
 // In production / Codespaces the env var VITE_BACKEND_URL can override this.
 const BACKEND_URL =
-  (import.meta as any).env?.VITE_BACKEND_URL ?? "http://localhost:8000";
+  (import.meta as any).env?.VITE_BACKEND_URL ??
+  (typeof window !== "undefined" && window.location.port === "3000"
+    ? "http://localhost:8000"
+    : typeof window !== "undefined"
+    ? window.location.origin
+    : "http://localhost:8000");
 
 // ─── SOVEREIGN CONSTITUTION (unchanged from original) ──────────────────────
 const SOVEREIGN_CONSTITUTION = `
