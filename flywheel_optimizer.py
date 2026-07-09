@@ -61,7 +61,7 @@ def run_benchmarks():
         
         for i in range(1, 11):
             s_start = time.perf_counter()
-            pcm = engine.synthesize("Sannu ku da zuwa barka da yamma.", speaker_id=0)
+            pcm = engine.synthesize("Sannun ku da zuwa barka da yamma.", speaker_id=0)
             s_end = time.perf_counter()
             
             if pcm:

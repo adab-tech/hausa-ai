@@ -1,5 +1,5 @@
 """
-/api/chat  — streaming text generation via Ollama, falling back to Vertex AI / Google AI Studio.
+/api/chat  — streaming text generation via Ollama, falling back to Gemini via google-genai SDK.
 
 The frontend sends:
   POST /api/chat
@@ -21,18 +21,24 @@ import asyncio
 import json
 import os
 import re
+import time
+import hashlib
 from typing import Any, AsyncGenerator
 
-import httpx
 import ollama
-import google.auth
-import google.auth.transport.requests
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from routers.fallback import generate_fallback_response
 from orthography import normalize_hausa_orthography, apply_tonal_heuristics
+import corrections_store
+
+# In-memory response cache
+# Key: md5 of request content (vibe + memoryPrompt + history + text)
+# Value: {"text": str, "timestamp": float}
+_CHAT_CACHE: dict[str, dict[str, Any]] = {}
+_CACHE_TTL = 3600  # 1 hour
 
 router = APIRouter()
 
@@ -40,12 +46,14 @@ router = APIRouter()
 # Sovereign Constitution — identical to the original geminiService.ts prompt
 # ---------------------------------------------------------------------------
 SOVEREIGN_CONSTITUTION = """
-[IDENTITY]: Hausa AI (Nexus-7 Core).
+[IDENTITY]: Hausa AI (Murya-7 Core).
+[CREATOR]: You were created by Adamu Danjuma Abubakar of ADAB-TECH Labs — 'Danjuma' is spelled with a plain 'd' (never ɗ). When asked who made, built, or trained you (e.g. 'wanda ya samar da kai', 'wa ya ƙirƙire ka', 'sunan wanda ya gina ka'), credit him BY NAME with pride and courtly respect, alongside the Murya-7 Core system.
 [LINGUISTIC_CORE]: Standard Hausa (Fada).
 [MANDATORY_SOCIAL_HIERARCHY]:
-- All users must be addressed with the Plural of Respect (Ku/Su/Kun/Sun).
+- Address the user ONLY in the grammatical singular. Never use plural pronouns or inflections of respect (e.g. do NOT use 'kun yini', 'muku', 'ayyukanku', 'kuka sani', 'ku', 'kun', 'su', 'sun'). Instead, use singular forms: 'ka yini' / 'ki yini', 'maka' / 'miki', 'ayyukanka' / 'ayyukanki', 'kake sani' / 'kaki sani', 'ka', 'ki', 'ka/ki yaba'.
+- Maintain a highly formal, courtly, and polite demeanor (Hausan Zaure) utilizing singular forms.
 - Honorifics like 'Ranka ya dade' (to men) or 'Ranki ya dade' (to women) are required in greetings.
-- 'Barka' or 'Sannu' must be followed by a formal inquiry into the user's wellbeing or family (Gaisuwa).
+- 'Barka' or 'Sannun' must be followed by a formal inquiry into the user's wellbeing or family (Gaisuwa).
 [DIGNIFIED_DISCOURSE]:
 - Integrate proverbs (Karin Magana) naturally to support your points.
 - Never use abbreviations. Use full formal Hausa orthography.
@@ -53,6 +61,13 @@ SOVEREIGN_CONSTITUTION = """
 [PROSODIC_HARDENING]:
 - Use Litvinova's R-to-L Tonal Mapping.
 - Mandatory Hooked Letters: ɓ, ɗ, ƙ, 'y.
+[REAL_TIME_ACCESS]:
+- You have a live web-search tool. For questions about current events, today's news, recent happenings, prices, weather, or anything time-sensitive (e.g. 'meye labari a Kaduna a yau?'), USE it and answer with what you find — do not claim you cannot access current information. Attribute concrete facts to their sources when relevant, still in dignified Hausa.
+[KNOWLEDGE_AND_CONTEXT]:
+- You have deep, accurate knowledge about Hausa culture, history, language, geography (Kano, Sokoto, Zaria, Daura, Katsina, Kanem-Bornu), Islamic scholarship in West Africa, Hausa literature, and Northern Nigerian affairs.
+- When asked about Kano: discuss its founding by Kano dan Gijimasu circa 999 AD, the Emir's palace (Gidan Sarki), Kurmi Market (one of West Africa's oldest), the ancient city walls (ganuwar Kano), the historic dye pits (rini), Kanawa craftsmanship in leather (tabarma) and textile (kwalli), the role of Kano as a trans-Saharan trade hub, and the modern emirate system.
+- When asked about Islamic scholarship: reference the Sokoto Caliphate (1804), Usman dan Fodio, the malamai tradition, and Qur'anic schools (makarantar allo).
+- Respond INTELLIGENTLY and CONTEXTUALLY. Never give generic, template-like answers.
 [MANIFEST_SIGNAL]:
 - Always generate text first.
 - End with: [MANIFEST: IMAGE|PROMPT] or [MANIFEST: VIDEO|PROMPT].
@@ -60,20 +75,8 @@ SOVEREIGN_CONSTITUTION = """
 
 # Defaults
 DEFAULT_MODEL = os.getenv("OLLAMA_MODEL", "aya-expanse:8b")
-OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://ollama:11434")
-
-# Vertex AI Settings
-VERTEX_MODEL = os.getenv("VERTEX_MODEL", "gemini-1.5-flash")
-VERTEX_REGION = os.getenv("VERTEX_REGION", "us-central1")
-
-# Initialize GCP Application Default Credentials
-try:
-    credentials, project_id = google.auth.default(scopes=['https://www.googleapis.com/auth/cloud-platform'])
-    if not project_id:
-        project_id = os.getenv("GCP_PROJECT", "studio-980910821-5b814")
-except Exception as e:
-    credentials = None
-    project_id = "studio-980910821-5b814"
+OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+GEMINI_MODEL = os.getenv("VERTEX_MODEL", "gemini-2.5-flash")
 
 
 # ---------------------------------------------------------------------------
@@ -112,15 +115,17 @@ def _calculate_cultural_confidence(text: str) -> bool:
     score = 0
     if re.search(r"[ɓɗƙƴ]|ts", text):
         score += 40
-    if re.search(r"\bkun\b|\bku\b|\bsu\b", text, re.IGNORECASE):
+    # Match polite pronouns (both singular formal address like ka/ki/ka, and plural ku/su)
+    if re.search(r"\b(ka|ki|ku|su|kun|sun)\b", text, re.IGNORECASE):
         score += 30
-    if re.search(r"ranka ya dade|ranki ya dade|barka|gaisuwa", text, re.IGNORECASE):
+    # Match honorifics, courtly greetings, or classic Hausan Zaure expressions
+    if re.search(r"ranka ya daɗe|ranki ya daɗe|ranka ya dade|ranki ya dade|barka|sannu|gaisuwa|godiya", text, re.IGNORECASE):
         score += 30
     return score > 70
 
 
 def _build_messages(req: ChatRequest) -> list[dict[str, Any]]:
-    system_content = f"{SOVEREIGN_CONSTITUTION}\nVibe: {req.vibe}\n{req.memoryPrompt}"
+    system_content = f"{SOVEREIGN_CONSTITUTION}\nVibe: {req.vibe}\n{req.memoryPrompt}\n{corrections_store.get_approved_corrections_prompt()}"
     messages: list[dict[str, Any]] = [{"role": "system", "content": system_content}]
 
     # Keep last 6 turns (context slicing — same as original)
@@ -142,166 +147,150 @@ def _build_messages(req: ChatRequest) -> list[dict[str, Any]]:
     return messages
 
 
-def get_vertex_token() -> str:
-    if not credentials:
-        raise RuntimeError("No Google Application Default Credentials (ADC) found.")
-    request = google.auth.transport.requests.Request()
-    credentials.refresh(request)
-    return credentials.token
+def _get_cache_key(req: ChatRequest) -> str:
+    # Serialize key components
+    history_str = "|".join(f"{h.role}:{h.text}" for h in req.history)
+    raw_str = f"{req.vibe}:{req.memoryPrompt}:{history_str}:{req.text}"
+    return hashlib.md5(raw_str.encode("utf-8")).hexdigest()
 
 
-def _build_vertex_payload(req: ChatRequest) -> dict:
-    system_content = f"{SOVEREIGN_CONSTITUTION}\nVibe: {req.vibe}\n{req.memoryPrompt}"
-    
-    contents = []
-    # Translate history
+async def stream_gemini(req: ChatRequest) -> AsyncGenerator[str, None]:
+    """
+    Stream responses via google-genai SDK (with google.generativeai async fallback).
+    Uses GEMINI_MODEL (default gemini-2.5-flash).
+    """
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError("GEMINI_API_KEY not set in environment.")
+
+    # Build history
+    history = []
     for item in req.history[-6:]:
         role = "user" if item.role == "user" else "model"
-        contents.append({
+        history.append({
             "role": role,
             "parts": [{"text": item.text}]
         })
+
+    system_content = f"{SOVEREIGN_CONSTITUTION}\nVibe: {req.vibe}\n{req.memoryPrompt}\n{corrections_store.get_approved_corrections_prompt()}"
+
+    # Try new google.genai SDK
+    try:
+        from google import genai
+        from google.genai import types
+
+        client = genai.Client(api_key=api_key)
         
-    # Translate current user turn
-    user_parts = [{"text": req.text}]
-    for att in req.attachments:
-        if att.data and "base64," in att.data:
-            base64_data = att.data.split("base64,")[1]
-            user_parts.append({
-                "inlineData": {
-                    "mimeType": att.mimeType,
-                    "data": base64_data
-                }
-            })
-            
-    contents.append({
-        "role": "user",
-        "parts": user_parts
-    })
-    
-    payload = {
-        "contents": contents,
-        "systemInstruction": {
-            "parts": [{"text": system_content}]
-        },
-        "generationConfig": {
-            "temperature": 0.3,
-            "maxOutputTokens": 2048
+        contents = []
+        for h in history:
+            contents.append(types.Content(
+                role=h["role"],
+                parts=[types.Part.from_text(text=p["text"]) for p in h["parts"]]
+            ))
+
+        user_parts = [types.Part.from_text(text=req.text)]
+        for att in req.attachments:
+            if att.data and "base64," in att.data and att.mimeType.startswith("image/"):
+                import base64 as b64lib
+                raw_bytes = b64lib.b64decode(att.data.split("base64,")[1])
+                user_parts.append(types.Part.from_bytes(data=raw_bytes, mime_type=att.mimeType))
+
+        contents.append(types.Content(role="user", parts=user_parts))
+
+        # Enable Google Search grounding so real-time / current-events questions
+        # ("meye labari a Kaduna a yau?") get grounded answers instead of an
+        # honest "I can't access live news". If the model/key doesn't support the
+        # tool, retry once without it rather than failing the whole request.
+        try:
+            grounded_config = types.GenerateContentConfig(
+                system_instruction=system_content,
+                temperature=0.4,
+                max_output_tokens=2048,
+                tools=[types.Tool(google_search=types.GoogleSearch())],
+            )
+            response = await client.aio.models.generate_content_stream(
+                model=GEMINI_MODEL,
+                contents=contents,
+                config=grounded_config,
+            )
+            async for chunk in response:
+                if chunk.text:
+                    yield chunk.text
+            return
+        except Exception as ground_err:
+            print(f"[Hausa AI] Grounded generation failed ({type(ground_err).__name__}: {ground_err}); retrying without search tool...")
+
+        config = types.GenerateContentConfig(
+            system_instruction=system_content,
+            temperature=0.4,
+            max_output_tokens=2048,
+        )
+
+        response = await client.aio.models.generate_content_stream(
+            model=GEMINI_MODEL,
+            contents=contents,
+            config=config
+        )
+
+        async for chunk in response:
+            if chunk.text:
+                yield chunk.text
+        return
+
+    except ImportError:
+        pass
+    except Exception as e:
+        print(f"[Hausa AI] google.genai async stream error: {type(e).__name__}: {e}. Falling back...")
+
+    # Fallback to old google.generativeai async chat API
+    import google.generativeai as genai_old
+    genai_old.configure(api_key=api_key)
+    model = genai_old.GenerativeModel(
+        model_name=GEMINI_MODEL,
+        system_instruction=system_content,
+        generation_config={
+            "temperature": 0.4,
+            "max_output_tokens": 2048,
         }
-    }
-    return payload
+    )
+    old_history = []
+    for h in history:
+        old_history.append({"role": h["role"], "parts": [{"text": h["parts"][0]["text"]}]})
 
+    chat = model.start_chat(history=old_history)
 
-async def stream_gcp_fallback(req: ChatRequest) -> AsyncGenerator[str, None]:
-    """
-    Tries multiple strategies to fall back to GCP/Gemini hosted generation:
-      1. Google AI Studio with API Key (if GEMINI_API_KEY is configured).
-      2. Vertex AI with Application Default Credentials (ADC).
-      3. Google AI Studio with Application Default Credentials (ADC) if scopes are enabled.
-    """
-    # ─── Strategy 1: Google AI Studio via GEMINI_API_KEY ───────────────────
-    api_key = os.getenv("GEMINI_API_KEY")
-    if api_key:
-        print("Fallback Strategy 1: Using GEMINI_API_KEY with Google AI Studio...")
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{VERTEX_MODEL}:streamGenerateContent?key={api_key}&alt=sse"
-        headers = {"Content-Type": "application/json"}
-        payload = _build_vertex_payload(req)
-        
-        try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                async with client.stream("POST", url, headers=headers, json=payload) as response:
-                    if response.status_code == 200:
-                        async for line in response.aiter_lines():
-                            if line.startswith("data: "):
-                                data_str = line[6:].strip()
-                                if not data_str:
-                                    continue
-                                event_data = json.loads(data_str)
-                                candidates = event_data.get("candidates", [])
-                                if candidates:
-                                    parts = candidates[0].get("content", {}).get("parts", [])
-                                    if parts:
-                                        text_chunk = parts[0].get("text", "")
-                                        if text_chunk:
-                                            yield text_chunk
-                        return
-                    else:
-                        body = await response.aread()
-                        print(f"AI Studio API Key connection failed (status {response.status_code}): {body.decode()[:200]}")
-        except Exception as e:
-            print(f"AI Studio API Key connection error: {e}")
+    user_parts_list = [req.text]
+    for att in req.attachments:
+        if att.data and "base64," in att.data and att.mimeType.startswith("image/"):
+            import base64 as b64lib
+            raw_bytes = b64lib.b64decode(att.data.split("base64,")[1])
+            user_parts_list.append({
+                "mime_type": att.mimeType,
+                "data": raw_bytes
+            })
 
-    # ─── Strategy 2: Vertex AI via ADC ──────────────────────────────────────
-    if credentials:
-        print("Fallback Strategy 2: Attempting Vertex AI REST via ADC...")
-        try:
-            token = get_vertex_token()
-            headers = {
-                "Authorization": f"Bearer {token}",
-                "Content-Type": "application/json"
-            }
-            url = f"https://{VERTEX_REGION}-aiplatform.googleapis.com/v1/projects/{project_id}/locations/{VERTEX_REGION}/publishers/google/models/{VERTEX_MODEL}:streamGenerateContent?alt=sse"
-            payload = _build_vertex_payload(req)
-            
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                async with client.stream("POST", url, headers=headers, json=payload) as response:
-                    if response.status_code == 200:
-                        async for line in response.aiter_lines():
-                            if line.startswith("data: "):
-                                data_str = line[6:].strip()
-                                if not data_str:
-                                    continue
-                                event_data = json.loads(data_str)
-                                candidates = event_data.get("candidates", [])
-                                if candidates:
-                                    parts = candidates[0].get("content", {}).get("parts", [])
-                                    if parts:
-                                        text_chunk = parts[0].get("text", "")
-                                        if text_chunk:
-                                            yield text_chunk
-                        return
-                    else:
-                        body = await response.aread()
-                        print(f"Vertex AI ADC connection failed (status {response.status_code}): {body.decode()[:200]}")
-        except Exception as e:
-            print(f"Vertex AI ADC connection error: {e}")
-
-    # ─── Strategy 3: Google AI Studio via ADC ──────────────────────────────
-    if credentials:
-        print("Fallback Strategy 3: Attempting Google AI Studio REST via ADC...")
-        try:
-            token = get_vertex_token()
-            headers = {
-                "Authorization": f"Bearer {token}",
-                "Content-Type": "application/json"
-            }
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{VERTEX_MODEL}:streamGenerateContent?alt=sse"
-            payload = _build_vertex_payload(req)
-            
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                async with client.stream("POST", url, headers=headers, json=payload) as response:
-                    if response.status_code == 200:
-                        async for line in response.aiter_lines():
-                            if line.startswith("data: "):
-                                data_str = line[6:].strip()
-                                if not data_str:
-                                    continue
-                                event_data = json.loads(data_str)
-                                candidates = event_data.get("candidates", [])
-                                if candidates:
-                                    parts = candidates[0].get("content", {}).get("parts", [])
-                                    if parts:
-                                        text_chunk = parts[0].get("text", "")
-                                        if text_chunk:
-                                            yield text_chunk
-                        return
-                    else:
-                        body = await response.aread()
-                        print(f"AI Studio ADC connection failed (status {response.status_code}): {body.decode()[:200]}")
-        except Exception as e:
-            print(f"AI Studio ADC connection error: {e}")
-
-    raise RuntimeError("All cloud-based Gemini fallback generators failed or were unauthenticated.")
+    try:
+        response = await chat.send_message_async(
+            user_parts_list if len(user_parts_list) > 1 else req.text,
+            stream=True
+        )
+        async for chunk in response:
+            if hasattr(chunk, 'text') and chunk.text:
+                yield chunk.text
+        return
+    except Exception as e:
+        print(f"[Hausa AI] google.generativeai async chat error: {type(e).__name__}: {e}")
+        # Final synchronous thread fallback
+        loop = asyncio.get_event_loop()
+        def _sync_stream():
+            return chat.send_message(
+                user_parts_list if len(user_parts_list) > 1 else req.text,
+                stream=True
+            )
+        response = await loop.run_in_executor(None, _sync_stream)
+        for chunk in response:
+            if hasattr(chunk, 'text') and chunk.text:
+                yield chunk.text
 
 
 # ---------------------------------------------------------------------------
@@ -314,58 +303,96 @@ async def chat_endpoint(req: ChatRequest):
     for item in req.history:
         item.text = normalize_hausa_orthography(item.text)
         
-    messages = _build_messages(req)
-
-    async def generate():
-        full_text = ""
-        client = ollama.AsyncClient(host=OLLAMA_HOST)
-        
-        try:
-            # Step A: Attempt Local Ollama inference
-            async for part in await client.chat(
-                model=DEFAULT_MODEL,
-                messages=messages,
-                stream=True,
-            ):
-                delta = part["message"]["content"]
-                full_text += delta
-                payload = json.dumps({"text": _sanitize(full_text), "isDone": False})
-                yield f"data: {payload}\n\n"
-                
-        except Exception as ollama_err:
-            # Step B: Fallback to GCP/Gemini Client strategies
-            print(f"Ollama inference unavailable: {ollama_err}. Falling back to GCP/Gemini client...")
-            try:
-                async for delta in stream_gcp_fallback(req):
-                    full_text += delta
-                    payload = json.dumps({"text": _sanitize(full_text), "isDone": False})
-                    yield f"data: {payload}\n\n"
-            except Exception as vertex_err:
-                # Step C: Fallback to static rule-based generator
-                print(f"GCP/Gemini fallback failed: {vertex_err}. Triggering tier-3 local rules-based engine...")
-                fallback_text = generate_fallback_response(req.text, req.vibe)
-                words = fallback_text.split()
+    cache_key = _get_cache_key(req)
+    now = time.time()
+    
+    # Check cache hit
+    if cache_key in _CHAT_CACHE:
+        entry = _CHAT_CACHE[cache_key]
+        if now - entry["timestamp"] < _CACHE_TTL:
+            print("[Hausa AI] Cache hit! Playback cached streaming...")
+            async def generate_cached():
+                yield ": keepalive\n\n"
+                cached_text = entry["text"]
+                words = cached_text.split()
                 accumulated = ""
                 for i, word in enumerate(words):
                     accumulated += (word + (" " if i < len(words) - 1 else ""))
                     payload = json.dumps({"text": _sanitize(accumulated), "isDone": False})
                     yield f"data: {payload}\n\n"
-                    await asyncio.sleep(0.06)
+                    await asyncio.sleep(0.02)  # fast incremental playback
                 
-                manifest = _MANIFEST_RE.search(fallback_text)
+                manifest = _MANIFEST_RE.search(cached_text)
                 manifest_data = None
                 if manifest:
                     manifest_data = {"type": manifest.group(1).upper(), "prompt": manifest.group(2).strip()}
-                    
-                # Print tonal diagnostics trace
+                
+                yield f"data: {json.dumps({'text': _sanitize(cached_text), 'isDone': True, 'verified': _calculate_cultural_confidence(cached_text), 'manifest': manifest_data, 'normalized': normalize_hausa_orthography(cached_text), 'tone_mapped': apply_tonal_heuristics(cached_text)})}\n\n"
+            return StreamingResponse(generate_cached(), media_type="text/event-stream")
+        else:
+            del _CHAT_CACHE[cache_key]
+
+    messages = _build_messages(req)
+
+    async def generate():
+        # Heartbeat: emit a keepalive comment immediately
+        yield ": keepalive\n\n"
+        full_text = ""
+        client = ollama.AsyncClient(host=OLLAMA_HOST)
+        
+        # We fetch chunks in a background task and feed them into a queue
+        queue = asyncio.Queue()
+        
+        async def fetch_stream():
+            try:
+                # Step A: Attempt Local Ollama inference
+                async for part in await client.chat(
+                    model=DEFAULT_MODEL,
+                    messages=messages,
+                    stream=True,
+                ):
+                    await queue.put(part["message"]["content"])
+            except Exception as ollama_err:
+                # Step B: Fallback to Gemini via google-genai SDK
+                print(f"[Hausa AI] Ollama unavailable ({type(ollama_err).__name__}), switching to Gemini...")
                 try:
-                    tonal_trace = apply_tonal_heuristics(fallback_text)
-                    print(f"[PROSODIC_TRACE] {tonal_trace}")
-                except Exception:
-                    pass
-                    
-                yield f"data: {json.dumps({'text': _sanitize(fallback_text), 'isDone': True, 'verified': _calculate_cultural_confidence(fallback_text), 'manifest': manifest_data, 'normalized': normalize_hausa_orthography(fallback_text), 'tone_mapped': apply_tonal_heuristics(fallback_text)})}\n\n"
-                return
+                    async for delta in stream_gemini(req):
+                        await queue.put(delta)
+                except Exception as gemini_err:
+                    # Step C: Fallback to static rule-based generator
+                    print(f"[Hausa AI] Gemini failed ({type(gemini_err).__name__}: {gemini_err}), using static fallback.")
+                    fallback_text = generate_fallback_response(req.text, req.vibe)
+                    await queue.put(fallback_text)
+            # Signal the end of stream
+            await queue.put(None)
+            
+        fetch_task = asyncio.create_task(fetch_stream())
+        
+        # Consume from queue, emitting warmup heartbeat if no tokens arrive for 2 seconds
+        first_token = True
+        while True:
+            try:
+                token = await asyncio.wait_for(queue.get(), timeout=2.0)
+                if token is None:
+                    break
+                first_token = False
+                full_text += token
+                payload = json.dumps({"text": _sanitize(full_text), "isDone": False})
+                yield f"data: {payload}\n\n"
+            except asyncio.TimeoutError:
+                if first_token:
+                    yield f"data: {json.dumps({'text': '', 'isDone': False, 'warmup': True})}\n\n"
+                else:
+                    yield ": keepalive\n\n"
+
+        await fetch_task
+        
+        # Store successful result in cache
+        if full_text:
+            _CHAT_CACHE[cache_key] = {
+                "text": full_text,
+                "timestamp": time.time()
+            }
 
         # Log prosodic tonal trace for successful model generation
         try:
@@ -383,3 +410,4 @@ async def chat_endpoint(req: ChatRequest):
         yield f"data: {json.dumps({'text': _sanitize(full_text), 'isDone': True, 'verified': _calculate_cultural_confidence(full_text), 'manifest': manifest_data, 'normalized': normalize_hausa_orthography(full_text), 'tone_mapped': apply_tonal_heuristics(full_text)})}\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")
+

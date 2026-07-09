@@ -1,0 +1,23 @@
+A/B GLOTTALIC COMPARISON SET
+Focus: Hausa hooked glottalic consonants (ɓ ɗ ƙ ƴ), which MMS collapses to plain b/d/k/y.
+
+Voice held constant: v2 speaker_id=0 (male voice M1) for all 5 sentences.
+Files:  sN_mms.wav = facebook/mms-tts-hau  |  sN_v2.wav = WAXAL-Piper v2 (custom ONNX)
+Sampling rate: MMS = 16000 Hz, v2 = 24000 Hz.
+
+------------------------------------------------------------------
+Sentence 1: Ɗan Adam yana buƙatar haƙuri.
+  Probes: ɗ (Ɗan), ƙ (buƙatar, haƙuri)   -> hooked D, hooked K
+
+Sentence 2: Ƴaƴa suna kwaɗayin abinci mai daɗi.
+  Probes: ƴ (Ƴaƴa x2), ɗ (kwaɗayin, daɗi)  -> hooked Y, hooked D
+
+Sentence 3: Ka ɓoye wuƙa a cikin ɗaki.
+  Probes: ɓ (ɓoye), ƙ (wuƙa), ɗ (ɗaki)     -> hooked B, hooked K, hooked D
+
+Sentence 4: Maƙeri ya ƙera wuƙa da garma.
+  Probes: ƙ (Maƙeri, ƙera, wuƙa)           -> hooked K (dense)
+
+Sentence 5: Ubangida ya karɓi kuɗi daga ɗansa.
+  Probes: ɓ (karɓi), ɗ (kuɗi, ɗansa)       -> hooked B, hooked D
+------------------------------------------------------------------

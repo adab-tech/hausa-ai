@@ -16,9 +16,58 @@ The system integrates a high-performance **FastAPI backend** running local neura
 | :--- | :--- | :--- |
 | **Text Generation** | **Aya-Expanse 8B / Aya-23** via Ollama | **Vertex AI / Gemini 1.5** (Application Default Credentials fallback) |
 | **Speech-to-Text (STT)** | **Faster-Whisper (base)** (Optimized mono 16kHz) | Local offline rule-based processor |
-| **Text-to-Speech (TTS)** | **Custom Multi-Speaker VITS** (ONNX export) / **Piper TTS** | Google Cloud TTS (`ha-NG` neural voices) |
+| **Text-to-Speech (TTS)** | **WAXAL-Piper 8-voice Hausa model** (grapheme-mode fine-tune, 73.5 MB ONNX, CPU real-time) | Legacy VITS / Piper baseline |
 | **Image Generation** | **FLUX.1-schnell** (Diffusers) | Local offline fallback |
 | **Linguistic Trace** | Right-to-Left Tonal Melody & Hook Normalizer | In-client **Aya-7 Core Axiom Trace** |
+
+---
+
+## 🎙️ The WAXAL–Piper Hausa voices (July 2026)
+
+The app speaks with **8 native Hausa voices** (M1–M4, F1–F4) fine-tuned on
+Google's [WAXAL](https://huggingface.co/datasets/google/WaxalNLP) corpus — to
+our knowledge the **first WAXAL-trained TTS built by a native speaker of the
+target language**. Highlights (full write-up:
+[`docs/waxal_piper_technical_report.md`](docs/waxal_piper_technical_report.md)):
+
+- **Grapheme-mode training** with a custom 42-symbol Hausa alphabet — espeak-ng
+  has no Hausa voice, so the orthography itself (ɓ ɗ ƙ ƴ as first-class
+  symbols) is the model input.
+- **Corpus multiplication:** character-level forced alignment recovered 1,723
+  sentence segments from long/digit-bearing clips, growing usable audio from
+  2.83 h to **6.03 h** with no new recordings.
+- **Native-speaker-in-the-loop evaluation** gated every decision: base-model
+  selection (Meta MMS-Hausa auditioned and rejected), data certification, and
+  the epoch budget (300 → 2,000, verified improving at each probe).
+- Deployed model: `models/piper_hausa_waxal/model.onnx` (73.5 MB, 22.05 kHz,
+  MIT-licensed pipeline; **cite Google WAXAL when publishing derivatives**).
+
+Train / evaluate / segment with:
+
+```bash
+.\utils\run_training.ps1                      # preflight → Modal → log → diagnose
+modal run finetune_piper_hausa_modal.py::evaluate   # audition any checkpoint
+modal run --detach segment_waxal_modal.py     # corpus recovery pipeline
+```
+
+---
+
+## 📚 Reference lexicon: Robinson (1914)
+
+The project archives **Charles H. Robinson’s** *Dictionary of the Hausa Language*, Vol. II (English–Hausa, Cambridge, 1914), digitized by the [Internet Archive](https://archive.org/details/dictionaryofhaus02robiuoft) (University of Toronto Robarts Library).
+
+| Asset | Path |
+| :--- | :--- |
+| PDF + OCR + attribution | `data/sources/robinson-dictionary/` |
+| Parsed JSONL / search index | `robinson_en_ha.jsonl`, `robinson_en_ha_index.json` |
+| ML pair export | `data/processed/robinson/en_ha_pairs.jsonl` |
+
+```bash
+python utils/extract_robinson_dictionary.py
+python utils/prepare_robinson_ml.py
+```
+
+Always cite Robinson and the Archive item when publishing derivatives (see `data/sources/robinson-dictionary/ATTRIBUTION.md`).
 
 ---
 

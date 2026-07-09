@@ -9,7 +9,7 @@
 ## 1. What is your company going to make?
 We are building **Hausa AI**, the first sovereign, edge-optimized conversational AI stack for West African languages, starting with a linguistically-grounded Text-to-Speech (TTS) engine for the 80 million Hausa speakers in Nigeria, Niger, and West Africa. 
 
-Unlike general cloud-based AI tools, Hausa AI runs entirely offline (ONNX + INT8 quantized) on cheap local CPUs or mobile devices. It incorporates strict orthographic validation for Hausa hooked letters (`ɓ`, `ɗ`, `ƙ`, `ƴ`) and enforces native right-to-left pitch accent rules (High/Low tones), producing natural, culturally aligned human-like dialogue instead of robotic or foreign-accented speech.
+Unlike general cloud-based AI tools, Hausa AI runs entirely offline — our shipped multi-speaker model is a **73.5 MB ONNX file that synthesizes in real time on a laptop CPU**, no quantization required. It incorporates strict orthographic validation for Hausa hooked letters (`ɓ`, `ɗ`, `ƙ`, `ƴ`) and enforces native right-to-left pitch accent rules (High/Low tones), producing natural, culturally aligned human-like dialogue instead of robotic or foreign-accented speech. This is not a plan: the engine is deployed in our FastAPI + React stack today, with 8 native voices fine-tuned on Google's WAXAL corpus — to our knowledge the first WAXAL-trained TTS built by a native speaker of the target language.
 
 ---
 
@@ -18,7 +18,7 @@ As an applied computational linguist and PhD candidate in African NLP, I realize
 
 However, Hausa is a **tonal language** with phonemic vowel lengths. Without proper tone mapping, a synthesized word like *fada* is ambiguous: it can mean *fádà* (palace/court) or *fádaá* (speaking/fighting). Existing models also strip native Unicode hooked letters (resolving `ɗan` to `dan`), completely altering the meaning. 
 
-Our unique insight is that **linguistic sovereignty drives model accuracy**. By integrating custom grapheme-to-phoneme rules and *Litvinova's Right-to-Left tonal melody heuristics* directly into the text encoder of a multi-speaker VITS architecture, we achieve human-grade conversational cadences. By quantizing the model to ~250MB, we enable edge deployment, eliminating cloud latency and costly API overhead in infrastructure-constrained regions.
+Our unique insight is that **linguistic sovereignty drives model accuracy** — and we have now demonstrated it end-to-end. We fine-tune a multi-speaker VITS-family (Piper) architecture in **grapheme mode with a custom 42-symbol Hausa alphabet** (espeak-ng has no Hausa voice — we made the orthography itself the model's input, so hooked letters can never be flattened), layered with our orthography normalizer and *Litvinova's Right-to-Left tonal melody heuristics*. When Meta's MMS Hausa model was auditioned as a possible base, our native-speaker evaluation rejected it — our from-WAXAL voices beat it. We also **doubled our usable training corpus (2.83 h → 6.03 h) from the same source recordings** via a character-level forced-alignment segmentation method robust to ASR errors — a data-economics edge every "low-resource" competitor lacks. The shipped model is 73.5 MB — edge deployment without quantization, eliminating cloud latency and API overhead in infrastructure-constrained regions.
 
 ---
 
@@ -49,6 +49,7 @@ Our competitors are:
 2.  **Multilingual Startups (YourTTS derivatives):** These models suffer from **voice leakage**, where the voice embeddings of European base languages (English/Portuguese) bleed into the Hausa audio, causing a noticeable foreign accent.
 
 **Our Advantage:** 
-*   **Linguistic Integrity:** 100% hook validation and R-to-L tone mapping.
-*   **Zero Leakage:** Trained natively on WAXAL native speaker profiles.
-*   **Edge-Native:** 250MB INT8 quantized ONNX, optimized for local CPUs.
+*   **Linguistic Integrity:** 100% hook validation and R-to-L tone mapping; grapheme-native training means the model literally cannot strip a hooked letter.
+*   **Zero Leakage:** Fine-tuned on WAXAL native speaker profiles, every quality gate judged by a native-speaker ear — including the head-to-head audition where our voices beat Meta MMS-Hausa.
+*   **Edge-Native:** 73.5 MB ONNX running real-time on commodity CPUs — shipped, not projected.
+*   **Data Multiplier:** proprietary alignment pipeline that more than doubled training hours from unchanged source audio (documented in our technical report).

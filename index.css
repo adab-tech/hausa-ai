@@ -1,7 +1,140 @@
-/* 
-  index.css — Reset and base scroll styles.
-  Most styling is handled by Tailwind and the inline style block in index.html.
-*/
+@import "tailwindcss";
+
+@theme {
+  --color-silk-gold: #D4AF37;
+  --color-obsidian: #030303;
+  --color-deep-paper: #080808;
+  --color-ivory: #FCFCF9;
+  --color-parchment: rgba(252, 252, 249, 0.03);
+  
+  --font-sans: "Inter", sans-serif;
+  --font-serif: "Instrument Serif", serif;
+  --font-mono: "JetBrains Mono", monospace;
+  
+  --animate-drift: drift 40s linear infinite;
+  --animate-reveal: reveal 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  --animate-glow: glow 3s ease-in-out infinite;
+  --animate-pulse-slow: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-ping-slow: ping 2.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+  
+  /* Dynamic Vibe Theme Tokens mapped to Tailwind utility values */
+  --color-dyn-bg-primary: var(--bg-primary);
+  --color-dyn-bg-secondary: var(--bg-secondary);
+  --color-dyn-bg-tertiary: var(--bg-tertiary);
+  --color-dyn-accent: var(--accent-color);
+  --color-dyn-text-primary: var(--text-primary);
+  --color-dyn-text-secondary: var(--text-secondary);
+  --color-dyn-text-muted: var(--text-muted);
+  --color-dyn-border: var(--border-color);
+  --color-dyn-glass: var(--bg-glass);
+}
+
+@keyframes drift {
+  0% { background-position: 0% 0%; }
+  100% { background-position: 100% 100%; }
+}
+@keyframes reveal {
+  0% { opacity: 0; transform: translateY(30px) scale(0.99); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes glow {
+  0%, 100% { opacity: 0.4; filter: drop-shadow(0 0 5px var(--accent-color)); }
+  50% { opacity: 1; filter: drop-shadow(0 0 20px var(--accent-color)); }
+}
+
+:root {
+  /* Default Theme: Classic Vibe */
+  --bg-primary: #030303;
+  --bg-secondary: #080808;
+  --bg-tertiary: #101010;
+  --accent-color: #D4AF37;
+  --accent-gold-rgb: 212, 175, 55;
+  --text-primary: #FCFCF9;
+  --text-secondary: rgba(252, 252, 249, 0.6);
+  --text-muted: rgba(252, 252, 249, 0.45);
+  --border-color: rgba(212, 175, 55, 0.12);
+  --bubble-bg: linear-gradient(165deg, rgba(12, 12, 12, 0.95) 0%, rgba(5, 5, 5, 1) 100%);
+  --bg-glass: rgba(10, 10, 10, 0.7);
+  --glow-color: rgba(212, 175, 55, 0.3);
+  --accent-glow: 0 0 20px rgba(212, 175, 55, 0.1);
+  --font-family-main: "Inter", sans-serif;
+  --font-family-serif: "Instrument Serif", serif;
+}
+
+.vibe-classic {
+  --bg-primary: #030303;
+  --bg-secondary: #080808;
+  --bg-tertiary: #101010;
+  --accent-color: #D4AF37;
+  --accent-gold-rgb: 212, 175, 55;
+  --text-primary: #FCFCF9;
+  --text-secondary: rgba(252, 252, 249, 0.6);
+  --text-muted: rgba(252, 252, 249, 0.45);
+  --border-color: rgba(212, 175, 55, 0.12);
+  --bubble-bg: linear-gradient(165deg, rgba(12, 12, 12, 0.95) 0%, rgba(5, 5, 5, 1) 100%);
+  --bg-glass: rgba(10, 10, 10, 0.7);
+  --glow-color: rgba(212, 175, 55, 0.3);
+  --accent-glow: 0 0 20px rgba(212, 175, 55, 0.15);
+  --font-family-main: "Inter", sans-serif;
+  --font-family-serif: "Instrument Serif", serif;
+}
+
+.vibe-royal {
+  /* Royal: Deep velvet indigo-purple background with soft gold tones */
+  --bg-primary: #09081f;
+  --bg-secondary: #120e36;
+  --bg-tertiary: #1c154f;
+  --accent-color: #F5E6B3; 
+  --accent-gold-rgb: 245, 230, 179;
+  --text-primary: #FFFFFA;
+  --text-secondary: rgba(245, 230, 179, 0.8);
+  --text-muted: rgba(255, 255, 250, 0.45);
+  --border-color: rgba(245, 230, 179, 0.18);
+  --bubble-bg: linear-gradient(165deg, rgba(22, 18, 56, 0.92) 0%, rgba(10, 7, 33, 0.98) 100%);
+  --bg-glass: rgba(18, 14, 46, 0.75);
+  --glow-color: rgba(245, 230, 179, 0.4);
+  --accent-glow: 0 0 25px rgba(245, 230, 179, 0.25);
+  --font-family-main: "Inter", sans-serif;
+  --font-family-serif: "Instrument Serif", serif;
+}
+
+.vibe-cyberpunk {
+  /* Cyberpunk: Pure black background, neon cyan accents, neon orange/amber alerts, tech-focused */
+  --bg-primary: #000000;
+  --bg-secondary: #08080c;
+  --bg-tertiary: #12121c;
+  --accent-color: #00f0ff; 
+  --accent-gold-rgb: 0, 240, 255;
+  --text-primary: #f0f8ff;
+  --text-secondary: #00f0ff; 
+  --text-muted: #ff9900; 
+  --border-color: rgba(0, 240, 255, 0.3);
+  --bubble-bg: linear-gradient(165deg, rgba(12, 12, 20, 0.96) 0%, rgba(0, 0, 0, 1) 100%);
+  --bg-glass: rgba(5, 5, 10, 0.85);
+  --glow-color: rgba(0, 240, 255, 0.6);
+  --accent-glow: 0 0 15px rgba(0, 240, 255, 0.35);
+  --font-family-main: "JetBrains Mono", monospace; 
+  --font-family-serif: "JetBrains Mono", monospace;
+}
+
+.vibe-academic {
+  /* Academic: Dark sepia paper tone, high-contrast text, structured layouts */
+  --bg-primary: #12100f;
+  --bg-secondary: #1a1715;
+  --bg-tertiary: #24201c;
+  --accent-color: #e3d2b3; 
+  --accent-gold-rgb: 227, 210, 179;
+  --text-primary: #fbf5eb;
+  --text-secondary: rgba(251, 245, 235, 0.7);
+  --text-muted: rgba(227, 210, 179, 0.5);
+  --border-color: rgba(227, 210, 179, 0.16);
+  --bubble-bg: linear-gradient(165deg, rgba(28, 24, 21, 0.95) 0%, rgba(18, 16, 15, 1) 100%);
+  --bg-glass: rgba(22, 19, 17, 0.8);
+  --glow-color: rgba(227, 210, 179, 0.25);
+  --accent-glow: 0 0 12px rgba(227, 210, 179, 0.12);
+  --font-family-main: "Inter", sans-serif;
+  --font-family-serif: "Instrument Serif", serif;
+}
 
 * {
   box-sizing: border-box;
@@ -9,17 +142,116 @@
   padding: 0;
 }
 
-body {
-  font-family: 'Inter', sans-serif;
-  background-color: #030303;
-  color: #FCFCF9;
+html, body, #root {
+  height: 100%;
 }
 
-/* Custom scrollbar hides */
+body {
+  font-family: var(--font-family-main);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  overflow: hidden;
+  height: 100dvh;
+  -webkit-font-smoothing: antialiased;
+  touch-action: manipulation;
+  transition: background-color 0.8s ease, color 0.8s ease, font-family 0.8s ease;
+}
+
+/* Subtle noise texture overlay — inline SVG grain (no external request, works
+   offline; replaces a third-party CDN texture for a fully sovereign asset path). */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity: 0.05;
+  pointer-events: none;
+  z-index: 99;
+}
+
+/* Dynamic design variables for custom scrollbars */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* Manuscript Bubble style */
+.manuscript-bubble {
+  background: var(--bubble-bg);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(20px);
+  position: relative;
+  transition: border-color 0.8s ease, box-shadow 0.8s ease;
+}
+
+.manuscript-bubble::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent-color), transparent);
+  opacity: 0.4;
+  transition: background 0.8s ease;
+}
+
+/* Grid Overlay */
+.zana-grid {
+  position: fixed;
+  inset: 0;
+  background-image: radial-gradient(var(--accent-color) 1px, transparent 1px);
+  background-size: 40px 40px;
+  z-index: -1;
+  opacity: 0.04;
+  mask-image: radial-gradient(circle at center, black, transparent 85%);
+  transition: opacity 0.8s ease, background-image 0.8s ease;
+}
+
+.axiom-trace-container {
+  border-left: 2px solid var(--border-color);
+  padding-left: 1.25rem;
+  margin-top: 1rem;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(var(--accent-gold-rgb), 0.06), transparent);
+  animation: shimmer 2s infinite;
+}
+
+/* Accessibility: keyboard focus ring.
+   Many controls use focus:outline-none for a clean look; restore a visible,
+   on-brand ring for keyboard users only (mouse/touch focus stays clean). */
+:where(button, a, input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Accessibility: honour prefers-reduced-motion. This app is animation-heavy
+   (reveal, shimmer, drift, glow, pulse); users who ask for reduced motion get
+   an essentially static, still-legible interface. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }

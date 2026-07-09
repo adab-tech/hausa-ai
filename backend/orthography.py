@@ -90,8 +90,8 @@ def segment_word_syllables(word: str) -> list[tuple[str, str]]:
             i += 1
             continue
             
-        # Match long vowels
-        v_long_match = re.match(r"^(aa|ee|ii|oo|uu)", lower_word[i:])
+        # Match long vowels and diphthongs
+        v_long_match = re.match(r"^(aa|ee|ii|oo|uu|ai|au)", lower_word[i:])
         if v_long_match:
             tokens.append((clean_word[i:i+2], "V_long"))
             i += 2
@@ -152,7 +152,9 @@ def segment_word_syllables(word: str) -> list[tuple[str, str]]:
 LEXICAL_TONES = {
     # Greetings & Courtesy
     "sannu": ["H", "L"],
+    "sannun": ["H", "L"],
     "barka": ["H", "H"],
+    "barkan": ["H", "H"],
     "lafiya": ["H", "H", "L"],
     "lafiyayye": ["H", "H", "L", "H"],
     "madalla": ["L", "H", "L"],
@@ -294,15 +296,27 @@ def apply_tonal_heuristics(text: str) -> str:
         if word_lower in LEXICAL_TONES:
             melody = LEXICAL_TONES[word_lower]
         else:
-            # Fallback: assign melody based on syllable count and ending
-            # If word ends in heavy syllable, often uses L-H or H-L
-            if syllables[-1][1] == "heavy":
-                melody = ["L", "H"]
+            # Check morpho-phonological rules for Hausa plural suffixes
+            if word_lower.endswith("una"):  # Suffix -una (e.g. kwanduna, kasuna)
+                melody = ["H", "L", "L"]
+            elif word_lower.endswith("oshi") or word_lower.endswith("oshe"):  # Suffix -oshi / -oshe (e.g. akwashi)
+                melody = ["H", "L", "H"]
+            elif word_lower.endswith("aye") or word_lower.endswith("ayi"):  # Suffix -aye / -ayi (e.g. gidaye, wajaje)
+                melody = ["L", "H", "L"]
+            elif word_lower.endswith("oci") or word_lower.endswith("otsi"):  # Suffix -oci / -otsi (e.g. motoci, yatsotsi)
+                melody = ["H", "L", "H"]
+            elif re.search(r"[bdfghjklmnrstwyzɓɗƙƴ']ai$", word_lower):  # Suffix -ai preceded by consonant (e.g. dawakai, litattafai)
+                melody = ["L", "H", "H"]
             else:
-                # Simple deterministic mapping using word hash
-                melodies = [["H", "L"], ["L", "H"], ["H", "H"]]
-                idx = sum(ord(char) for char in word_lower) % len(melodies)
-                melody = melodies[idx]
+                # Fallback: assign melody based on syllable count and ending
+                # If word ends in heavy syllable, often uses L-H or H-L
+                if syllables[-1][1] == "heavy":
+                    melody = ["L", "H"]
+                else:
+                    # Simple deterministic mapping using word hash
+                    melodies = [["H", "L"], ["L", "H"], ["H", "H"]]
+                    idx = sum(ord(char) for char in word_lower) % len(melodies)
+                    melody = melodies[idx]
                 
         # Perform Right-to-Left tone mapping
         tones = []

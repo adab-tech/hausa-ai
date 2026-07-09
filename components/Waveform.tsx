@@ -34,13 +34,13 @@ export const Waveform: React.FC<{ active: boolean; volume?: number }> = ({ activ
             key={i}
             className={`w-[3px] sm:w-[5px] rounded-full transition-all duration-75 ease-out ${
               active 
-                ? 'bg-silk-gold' 
+                ? 'bg-dyn-accent' 
                 : 'bg-white/10'
             }`}
             style={{
               height: `${height}%`,
               opacity: active ? 0.3 + (logVolume * 0.7) : 0.08,
-              boxShadow: active && height > 30 ? `0 0 15px rgba(212, 175, 55, 0.3)` : 'none',
+              boxShadow: active && height > 30 ? `0 0 15px var(--glow-color)` : 'none',
               filter: `brightness(${1 + logVolume})`
             }}
           />

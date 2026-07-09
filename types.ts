@@ -56,12 +56,3 @@ export interface LearnedMemory {
   source: 'human' | 'autonomous';
 }
 
-export interface FlywheelStats {
-  humanAxioms: number;
-  autonomousAxioms: number;
-  neuralMomentum: number;
-  cacheEfficiency: number;
-  learningHistory: Array<{ date: string; human: number; auto: number }>;
-  projectedGrowthRate: number; // Percentage
-  lastOptimized: string;
-}

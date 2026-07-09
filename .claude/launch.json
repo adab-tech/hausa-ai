@@ -1,0 +1,36 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "arewatv-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "C:/Users/Adamu/Desktop/ArewaTV", "run", "dev"],
+      "port": 5174
+    },
+    {
+      "name": "frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 3000
+    },
+    {
+      "name": "backend",
+      "runtimeExecutable": ".venv\\Scripts\\python.exe",
+      "runtimeArgs": ["-m", "uvicorn", "main:app", "--app-dir", "backend", "--reload", "--port", "8000"],
+      "port": 8000
+    },
+    {
+      "name": "landing",
+      "runtimeExecutable": ".venv\\Scripts\\python.exe",
+      "runtimeArgs": ["-m", "http.server", "4321", "--directory", "landing"],
+      "port": 4321
+    },
+    {
+      "name": "opportunityfinder",
+      "runtimeExecutable": "C:/Users/Adamu/Desktop/Project 101/backend/.venv/Scripts/python.exe",
+      "runtimeArgs": ["C:/Users/Adamu/Desktop/Project 101/preview_serve.py"],
+      "port": 8010,
+      "autoPort": true
+    }
+  ]
+}

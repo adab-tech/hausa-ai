@@ -1,0 +1,110 @@
+{
+  "description": "Known Modal training failure signatures for the Hausa AI pipeline. Seeded from the 2026-07-02 fine-tuning session. Used by utils/diagnose_run.py.",
+  "signatures": [
+    {
+      "id": "windows-console-encoding",
+      "pattern": "'charmap' codec can't encode",
+      "diagnosis": "Windows cp1252 console can't print Modal's unicode output (checkmarks, box drawing).",
+      "fix": "Set PYTHONUTF8=1 and PYTHONIOENCODING=utf-8 before 'modal run'. The utils/run_training.ps1 launcher does this automatically.",
+      "prevention": "Always launch via utils/run_training.ps1."
+    },
+    {
+      "id": "unpinned-api-drift",
+      "pattern": "AttributeError: '\\w+Config' object has no attribute|has no attribute 'pad_token_id'",
+      "diagnosis": "A 2024-era training recipe ran against today's latest libraries. Unpinned pip installs pull current transformers/torch whose APIs have drifted.",
+      "fix": "Pin every ML library in the Modal image to versions contemporary with the recipe repo (check the repo's requirements.txt date).",
+      "prevention": "Never install ML libraries unpinned in a training image."
+    },
+    {
+      "id": "espeak-no-hausa",
+      "pattern": "Failed to set eSpeak-ng voice",
+      "diagnosis": "espeak-ng has no Hausa voice; any phonemizer path assuming 'ha' support will fail.",
+      "fix": "Use Piper grapheme mode (--phoneme-type text) with the injected HA_ALPHABET map in finetune_piper_hausa_modal.py.",
+      "prevention": "Verify language support of any external phonemizer before building on it; keep Hausa text processing in-project."
+    },
+    {
+      "id": "missing-transitive-dep",
+      "pattern": "ModuleNotFoundError: No module named '(\\w+)'",
+      "diagnosis": "A --no-deps install (or era-pinning) skipped a transitive dependency; it only surfaces when that code path runs.",
+      "fix": "Add the module (era-pinned) to the image and keep the build-time import smoke-test up to date so this fails at build, not mid-run.",
+      "prevention": "Image build must include: python -c 'import <every training-stack entrypoint>'."
+    },
+    {
+      "id": "digit-transcript-corruption",
+      "pattern": "SILENT — no error; audio/text mismatch degrades quality",
+      "diagnosis": "Transcripts containing digits (dates, units, currency) don't match the spoken words; training on them corrupts alignment silently.",
+      "fix": "Filter digit transcripts during dataset staging (before any text cleaning that strips digits).",
+      "prevention": "utils/preflight_train.py reports digit-transcript counts; staging code must check digits BEFORE normalization."
+    },
+    {
+      "id": "epoch-counter-reset-on-warmstart",
+      "pattern": "SILENT — checkpoints named epoch=<small number> while max_epochs assumes resumed counter",
+      "diagnosis": "piper_train --resume_from_single_speaker_checkpoint loads weights only and resets the epoch counter to 0. Computing max_epochs as base_epoch + extra makes the run ~8x longer than intended, guaranteeing it dies at the Modal timeout BEFORE the export/volume-commit step — losing all checkpoints (lightning writes to container-local /tmp).",
+      "fix": "max_epochs = the actual number of fine-tuning epochs (counter starts at 0). Plus: background thread syncs the newest checkpoint to the volume every 15 min (latest_backup.ckpt).",
+      "prevention": "Watch the first checkpoint filename in the log; epoch number must match expectations. Keep the checkpoint-sync thread in finetune_piper_hausa_modal.py."
+    },
+    {
+      "id": "client-sleep-zombie-app",
+      "pattern": "SILENT — log output stops mid-training; app stays 'ephemeral' with 1 task but no new checkpoint syncs for >20 min",
+      "diagnosis": "The local machine slept, severing the modal run client. The container freezes/zombies and bills idle without training. (Observed 2026-07-03: froze at epoch 274 of 300 at the exact moment of laptop sleep.)",
+      "fix": "Stop the app (modal app stop <id> --yes), then resume from the volume backup: run_training.ps1 -ResumeCkpt /checkpoints/piper_hausa_waxal/latest_backup.ckpt (loses at most 15 min thanks to the sync thread).",
+      "prevention": "run_training.ps1 launches with 'modal run --detach' so the app survives client disconnects and completes server-side."
+    },
+    {
+      "id": "missing-cuda-runtime-libs",
+      "pattern": "libcublas\\.so\\.[0-9]+ is not found|libcudnn.*cannot be loaded",
+      "diagnosis": "CTranslate2/faster-whisper needs CUDA runtime libraries that debian_slim images don't ship — the GPU is attached but the userspace libs are absent.",
+      "fix": "pip install nvidia-cublas-cu12 nvidia-cudnn-cu12==9.* in the image and point LD_LIBRARY_PATH at the pip-installed nvidia/*/lib directories.",
+      "prevention": "Any faster-whisper/ctranslate2 Modal image needs these two packages + LD_LIBRARY_PATH. Also: per-item try/except loops must have a circuit breaker so an environment error fails the run fast instead of 'failing successfully' through every item."
+    },
+    {
+      "id": "auto-restart-uses-stale-resume-path",
+      "pattern": "SILENT — checkpoint step count on latest_backup.ckpt is LOWER than a previously observed value from the same app run, despite the container showing continuously 'live'",
+      "diagnosis": "The launcher passes a fixed --resume-ckpt path at launch time. If Modal silently reschedules/replaces the container (visible as a container-level error in the dashboard, e.g. preemption) without the local orchestration script noticing and relaunching manually, the function re-runs with its ORIGINAL static resume argument -- not the self-updating latest_backup.ckpt -- so it can resume from a point far earlier than the 15-min backup thread had actually reached. Detected 2026-07-04: v2 observed at epoch 2274/step 441000 earlier in a session, later found at epoch 2124/step 375000 on the fresh backup after an unnoticed container replacement -- a ~150-epoch, ~1.5h loss despite the backup thread 'working'.",
+      "fix": "Before relying on any resume, compare the launch-time --resume-ckpt path against the current latest_backup.ckpt on the volume; use whichever has the higher embedded epoch/step. Verify progress by reading the actual checkpoint file (torch.load, check 'epoch'/'global_step') rather than trusting `modal app logs` output, which replays from container start and can appear to show stale/conflicting numbers depending on how long it's allowed to run.",
+      "prevention": "finetune_piper_hausa_modal.py should read the epoch from BOTH the passed resume_ckpt and volume's latest_backup.ckpt at start and pick the newer one automatically, logging which it chose and why."
+    },
+    {
+      "id": "workspace-spend-limit-kill",
+      "pattern": "workspace billing cycle spend limit reached|SILENT — app shows Tasks: 0 with no new backups, model.onnx not re-exported, and relaunch attempts fail at App creation",
+      "diagnosis": "Modal enforces the workspace's monthly spend limit mid-run: the container is killed without any in-log error, the app lingers as 'ephemeral (detached)' with 0 tasks, and new app creation is refused until the limit is raised or the cycle resets. Observed 2026-07-05: v2 died at ~epoch 2520 of 2700 when the $100 limit was hit (~11:30), diagnosed only via the relaunch attempt's error box.",
+      "fix": "User action (billing — never automated): raise the workspace spend limit in Modal Settings -> Usage & Billing, or wait for the cycle reset. Then relaunch from latest_backup.ckpt; the 15-min backup thread bounds the loss.",
+      "prevention": "Before long bakes, compare estimated run cost against remaining budget headroom (Usage page). Treat 'Tasks: 0 + stale backups + old model.onnx' as a kill signature and check billing before assuming timeout."
+    },
+    {
+      "id": "msys-path-mangling",
+      "pattern": "C:/Program Files/Git/(checkpoints|tmp|root|usr)",
+      "diagnosis": "Launching modal from Git Bash (MSYS) auto-converts leading-slash arguments into Windows paths: '/checkpoints/...' becomes 'C:/Program Files/Git/checkpoints/...' before the CLI ever sees it. The container then receives a nonexistent path. Compounded 2026-07-05 by a second bug: a pathlib.PosixPath=WindowsPath alias inside the container broke torch.load for ALL resume candidates, so the freshest-checkpoint fallback scored everything -1 and the mangled path won the tie.",
+      "fix": "Relaunch from PowerShell (no MSYS conversion), or in Git Bash set MSYS_NO_PATHCONV=1 / MSYS2_ARG_CONV_EXCL='*' for the command. Never alias pathlib classes in code that runs inside Linux containers; do it only in Windows-side reader scripts.",
+      "prevention": "Launch Modal runs via utils/run_training.ps1 (PowerShell). The resume-candidate selector now refuses to train when no candidate is readable (raises instead of silently picking a broken path)."
+    },
+    {
+      "id": "gpu-oom",
+      "pattern": "CUDA out of memory|OutOfMemoryError",
+      "diagnosis": "Batch too large for the GPU, or overlong clips exploding memory.",
+      "fix": "Reduce --batch-size (16 -> 8), or filter clips by duration at staging.",
+      "prevention": "Keep max clip duration filters in staging; batch 16 is known-safe on A10G for piper medium."
+    },
+    {
+      "id": "hub-download-failure",
+      "pattern": "hf_hub_download|EntryNotFoundError|RepositoryNotFoundError|401 Client Error|404 Client Error",
+      "diagnosis": "Base checkpoint path wrong, repo moved, or auth needed.",
+      "fix": "Verify the exact file path via the HF API tree endpoint before launching (preflight does a HEAD request).",
+      "prevention": "utils/preflight_train.py checks the checkpoint URL returns 200."
+    },
+    {
+      "id": "monotonic-align-not-built",
+      "pattern": "No module named 'piper_train\\.vits\\.monotonic_align\\.core'|cannot import name 'maximum_path'",
+      "diagnosis": "The Cython alignment extension wasn't compiled in the image.",
+      "fix": "Run build_monotonic_align.sh (or setup.py build_ext --inplace) as an image build step.",
+      "prevention": "Covered by the build-time import smoke-test."
+    },
+    {
+      "id": "phoneme-map-missing-language",
+      "pattern": "KeyError: 'ha'|KeyError: \"ha\"",
+      "diagnosis": "piper-phonemize's compiled codepoint maps only include Ukrainian; 'ha' must be injected.",
+      "fix": "Use the PREPROCESS_WRAPPER monkeypatch in finetune_piper_hausa_modal.py.",
+      "prevention": "Don't call piper_train.preprocess directly for Hausa; always go through the wrapper."
+    }
+  ]
+}

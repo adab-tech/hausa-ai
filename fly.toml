@@ -1,0 +1,32 @@
+app = "hausa-ai-backend"
+primary_region = "jnb"
+
+[build]
+  dockerfile = "backend/Dockerfile"
+
+[env]
+  APP_ENV = "production"
+  PORT = "8080"
+  OLLAMA_HOST = "http://localhost:11434"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    grace_period = "30s"
+    interval = "15s"
+    method = "GET"
+    path = "/health"
+    timeout = "5s"
+
+[[vm]]
+  size = "performance-2x"
+  memory = "8gb"
+
+[mounts]
+  source = "hausa_ai_data"
+  destination = "/app/data"

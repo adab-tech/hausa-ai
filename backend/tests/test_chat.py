@@ -195,3 +195,62 @@ async def test_chat_with_api_key_set(client, monkeypatch):
     assert response2.status_code == 200
 
     monkeypatch.setattr(auth_module, "_CONFIGURED_KEY", None)
+
+
+@pytest.mark.anyio
+async def test_chat_caching(client):
+    """The second identical request should hit cache and stream from cache."""
+    from routers.chat import _CHAT_CACHE
+    _CHAT_CACHE.clear()
+
+    mock_client = AsyncMock()
+    mock_client.chat = AsyncMock(side_effect=_fake_ollama_chat)
+
+    with patch("routers.chat.ollama.AsyncClient", return_value=mock_client):
+        # First request (populates cache)
+        response1 = await client.post(
+            "/api/chat",
+            json={"text": "Ku yini lafiya"},
+        )
+        assert response1.status_code == 200
+        events1 = _iter_sse(response1.content)
+        assert len(events1) > 0
+        
+        # Second request (hits cache)
+        response2 = await client.post(
+            "/api/chat",
+            json={"text": "Ku yini lafiya"},
+        )
+        assert response2.status_code == 200
+        events2 = _iter_sse(response2.content)
+        assert len(events2) > 0
+        # The content should match
+        assert events1[-1]["text"] == events2[-1]["text"]
+        # Since it was served from cache, Ollama should only have been called once
+        assert mock_client.chat.call_count == 1
+
+
+@pytest.mark.anyio
+async def test_chat_warmup(client):
+    """If the LLM takes > 2 seconds to respond, a warmup heartbeat is emitted."""
+    import asyncio
+    
+    async def _slow_ollama_chat(*_args, **_kwargs):
+        async def _gen():
+            await asyncio.sleep(2.5)
+            yield {"message": {"content": "Sannu."}}
+        return _gen()
+
+    mock_client = AsyncMock()
+    mock_client.chat = AsyncMock(side_effect=_slow_ollama_chat)
+
+    with patch("routers.chat.ollama.AsyncClient", return_value=mock_client):
+        response = await client.post(
+            "/api/chat",
+            json={"text": "Barka da yamma"},
+        )
+    assert response.status_code == 200
+    events = _iter_sse(response.content)
+    warmups = [e for e in events if e.get("warmup") is True]
+    assert len(warmups) > 0
+

@@ -62,3 +62,25 @@ async def test_waxal_samples_filtering(client: AsyncClient):
 async def test_waxal_audio_not_found(client: AsyncClient):
     response = await client.get("/api/waxal/audio/nonexistent_file_12345.mp3")
     assert response.status_code == 404
+
+
+@pytest.mark.anyio
+async def test_waxal_tts_match(client: AsyncClient):
+    response = await client.get("/api/waxal/tts?text=kwallo")
+    assert response.status_code == 200
+    data = response.json()
+    assert "sample" in data
+    assert "similarity" in data
+    assert "audio_url" in data
+    assert "kwallo" in data["sample"]["text"].lower()
+
+
+@pytest.mark.anyio
+async def test_waxal_tts_fallback(client: AsyncClient):
+    response = await client.get("/api/waxal/tts?text=unrecognizedpattern")
+    assert response.status_code == 200
+    data = response.json()
+    assert "sample" in data
+    assert "similarity" in data
+    assert "audio_url" in data
+

@@ -39,6 +39,16 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy all backend source files
 COPY backend/ ./
 
+# Bake in the trained WAXAL-Piper v2 TTS model (only the two files the engine
+# needs at runtime; the rest of models/piper_hausa_waxal/ is eval audio). Without
+# this the container has no voice model and TTS 500s. VITS_MODEL_DIR points the
+# engine straight at it (the container flattens backend/ -> /app, so repo-relative
+# auto-detection would miss it). NOTE: model.onnx (~73 MB) is not git-tracked, so
+# a CI build (git checkout) needs it via Git LFS; a local `flyctl deploy` already
+# has it in the build context.
+COPY models/piper_hausa_waxal/model.onnx models/piper_hausa_waxal/model.onnx.json /app/models/piper_hausa_waxal/
+ENV VITS_MODEL_DIR=/app/models/piper_hausa_waxal
+
 # Copy compiled frontend from Stage 1 into the backend container
 COPY --from=frontend-builder /build/dist ./dist
 

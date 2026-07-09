@@ -1,5 +1,13 @@
 # Google Colab VITS Resuming Guide
 
+> [!IMPORTANT]
+> **Superseded (2026-07-06).** This guide covers the from-scratch Coqui-VITS
+> approach, retired after native-speaker evaluation judged the output
+> robotic. Its model files have been deleted (~9.9 GB, see
+> `training_guide.md`). The production voice is the **WAXAL–Piper
+> grapheme-mode fine-tune** — see `docs/waxal_piper_technical_report.md`.
+> Kept for historical reference only.
+
 This guide details the exact steps to transition and resume the training of your custom **VITS Multi-Speaker Hausa TTS model** from Step 10,000 to completion (1,000 epochs) using Google Colab's GPU accelerators.
 
 ---

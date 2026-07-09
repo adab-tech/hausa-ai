@@ -88,7 +88,11 @@ def test_write_wav_non_zero_audio(tmp_path):
 
 
 def test_synthesize_speech_returns_none_when_piper_unavailable():
-    """When Piper is not installed / models not present, TTS returns None."""
-    result = _synthesize_speech("Sannu ranka ya dade.")
-    # In CI, Piper models are not present — must not raise, must return None.
-    assert result is None
+    """When Piper and VITS are not installed / models not present, TTS returns None."""
+    from unittest.mock import patch
+    with patch("routers.audio._get_vits", return_value=None), \
+         patch("routers.audio._get_piper", return_value=None), \
+         patch("routers.audio._find_closest_waxal_sample", return_value=None):
+        result = _synthesize_speech("Sannu ranka ya dade.")
+        assert result is None
+
