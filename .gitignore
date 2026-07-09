@@ -52,3 +52,23 @@ venv/
 # Pitch and Proposals (kept local only)
 docs/project_proposal_hpc_ua.md
 docs/unilorin_ua_ai4d_pitch.md
+
+# OS / drive-sync scratch (not project content)
+.tmp.driveupload/
+New folder/
+
+# Reference papers (large binaries / third-party copyright — kept local only)
+Hausa ASR paper.pdf
+docs/hausa_plurals_paper.pdf
+docs/newman_hausa_bibliography.pdf
+data/sources/robinson-dictionary/*.pdf
+data/sources/robinson-dictionary/*djvu*.txt
+
+# Desktop screenshots dropped into repo root
+/*.png
+
+# Runtime data (grows in production, not source)
+backend/data/
+
+# Local Claude Code settings
+.claude/settings.local.json

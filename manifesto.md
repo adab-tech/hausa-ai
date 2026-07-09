@@ -30,7 +30,7 @@ It is this combination of cultural grounding and continuous feedback that, in es
 This project respects, enforces, and duly attributes all open-source datasets, models, and scientific research utilized in its pipeline:
 *   **Speech Corpus & Primary Dataset**: Google's **WAXAL** Hausa speech dataset. We reference and include the core paper:
     > **WAXAL: A High-Fidelity Multi-Speaker Speech Corpus for Hausa** (arXiv:2602.02734). The PDF is included locally as [**`docs/waxal_white_paper.pdf`**](file:///C:/Users/Adamu/Desktop/HAUSA%20AI/docs/waxal_white_paper.pdf).
-*   **Speech Training Architecture**: The open-source **Coqui TTS** framework and VITS model codebase.
+*   **Speech Training Architecture**: Rhasspy's open-source **Piper** (VITS-family, MIT) — fine-tuned in grapheme mode with a custom Hausa alphabet, warm-started from the public-domain `en_US-lessac` checkpoint (`rhasspy/piper-checkpoints`). Earlier experiments used the **Coqui TTS** VITS codebase. Methods and results: [`docs/waxal_piper_technical_report.md`](docs/waxal_piper_technical_report.md).
 *   **Local Language Models**: Cohere's **Aya-23 / Aya-Expanse 8B** (hosted via Ollama) and standard open LLMs.
 *   **Baseline TTS/STT Engines**: Rhasspy's **Piper TTS** baseline models and **Faster-Whisper** for local audio transcription.
 *   **Linguistic Grounding**:

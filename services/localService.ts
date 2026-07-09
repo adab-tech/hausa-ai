@@ -12,22 +12,24 @@ import { Message, Attachment, Role, SovereignVibe } from "../types.ts";
 import { learning } from "./learningService.ts";
 
 // In production / Codespaces the env var VITE_BACKEND_URL can override this.
-const BACKEND_URL =
+const BACKEND_URL = (
   (import.meta as any).env?.VITE_BACKEND_URL ??
   (typeof window !== "undefined" && window.location.port === "3000"
-    ? "http://localhost:8000"
+    ? "http://127.0.0.1:8000"
     : typeof window !== "undefined"
     ? window.location.origin
-    : "http://localhost:8000");
+    : "http://127.0.0.1:8000")
+).replace("localhost", "127.0.0.1");
 
 // ─── SOVEREIGN CONSTITUTION (unchanged from original) ──────────────────────
 const SOVEREIGN_CONSTITUTION = `
-[IDENTITY]: Hausa AI (Nexus-7 Core).
+[IDENTITY]: Hausa AI (Murya-7 Core).
 [LINGUISTIC_CORE]: Standard Hausa (Fada).
 [MANDATORY_SOCIAL_HIERARCHY]:
-- All users must be addressed with the Plural of Respect (Ku/Su/Kun/Sun).
+- Address the user ONLY in the grammatical singular. Never use plural pronouns or inflections of respect (e.g. do NOT use 'kun yini', 'muku', 'ayyukanku', 'kuka sani', 'ku', 'kun', 'su', 'sun'). Instead, use singular forms: 'ka yini' / 'ki yini', 'maka' / 'miki', 'ayyukanka' / 'ayyukanki', 'kake sani' / 'kaki sani', 'ka', 'ki', 'ka/ki yaba'.
+- Maintain a highly formal, courtly, and polite demeanor (Hausan Zaure) utilizing singular forms.
 - Honorifics like 'Ranka ya dade' (to men) or 'Ranki ya dade' (to women) are required in greetings.
-- 'Barka' or 'Sannu' must be followed by a formal inquiry into the user's wellbeing or family (Gaisuwa).
+- 'Barka' or 'Sannun' must be followed by a formal inquiry into the user's wellbeing or family (Gaisuwa).
 [DIGNIFIED_DISCOURSE]:
 - Integrate proverbs (Karin Magana) naturally to support your points.
 - Never use abbreviations. Use full formal Hausa orthography.
@@ -82,6 +84,10 @@ class LocalService {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
+
+      if (!response.ok) {
+        throw new Error(`Sovereign server returned status ${response.status}`);
+      }
 
       if (!response.body) throw new Error("No response body");
 
@@ -151,7 +157,7 @@ class LocalService {
     } catch (err) {
       console.error("Sovereign Protocol Failure:", err);
       const errorText =
-        "Gafara, ranka ya dade. An samu tangarda a sashen bincikenmu na 'Nexus-7'. " +
+        "Gafara, ranka ya dade. An samu tangarda a sashen bincikenmu na 'Murya-7'. " +
         "Amma kamar yadda karin magana ya nuna, 'Hargitsin duniya ba ya hana safiya wayewa'. " +
         "Don Allah a sake gwadawa.";
       yield {
@@ -308,6 +314,62 @@ class LocalService {
     // We only need the basename for our endpoint
     const basename = filename.split("/").pop() || filename;
     return `${BACKEND_URL}/api/waxal/audio/${encodeURIComponent(basename)}`;
+  }
+
+  getTtsUrl(text: string, speakerId: number | null): string {
+    const spkQuery = speakerId !== null ? `&speaker_id=${speakerId}` : "";
+    return `${BACKEND_URL}/api/tts?text=${encodeURIComponent(text)}${spkQuery}`;
+  }
+
+  // ── Feedback ──────────────────────────────────────────────────────────────
+  async recordFeedback(messageId: string, type: "up" | "down", text: string, correction?: string): Promise<void> {
+    try {
+      await fetch(`${BACKEND_URL}/api/feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messageId, type, text, correction: correction ?? "" }),
+      });
+    } catch (err) {
+      console.error("Failed to record feedback:", err);
+    }
+  }
+
+  // ── Corrections review queue (reviewer-key gated) ─────────────────────────
+  async getCorrections(status: "pending" | "approved" | "rejected", reviewerKey: string): Promise<any[] | null> {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/corrections?status=${status}`, {
+        headers: { "X-Reviewer-Key": reviewerKey },
+      });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch (err) {
+      console.error("Failed to fetch corrections:", err);
+      return null;
+    }
+  }
+
+  async reviewCorrection(id: string, action: "approve" | "reject", reviewerKey: string): Promise<boolean> {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/corrections/${id}/review`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Reviewer-Key": reviewerKey },
+        body: JSON.stringify({ action }),
+      });
+      return res.ok;
+    } catch (err) {
+      console.error("Failed to review correction:", err);
+      return false;
+    }
+  }
+
+  async getFeedbackStats(): Promise<{ up: number; down: number; total: number } | null> {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/feedback/stats`);
+      return await res.json();
+    } catch (err) {
+      console.error("Failed to fetch feedback stats:", err);
+      return null;
+    }
   }
 }
 

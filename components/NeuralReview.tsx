@@ -1,12 +1,34 @@
-
 import React, { useState, useEffect, useRef } from 'react';
-import { learning } from '../services/learningService.ts';
 import { ArewaLogo } from './ArewaLogo.tsx';
 import { gemini } from '../services/localService.ts';
+import { CorrectionsReview } from './CorrectionsReview.tsx';
+import {
+  Activity,
+  Layers,
+  Music,
+  Award,
+  Search,
+  Play,
+  Pause,
+  Users,
+  Sparkles,
+  BookOpen,
+  ShieldCheck,
+  ChevronRight,
+  Sliders,
+  Database,
+  GraduationCap
+} from 'lucide-react';
 
 export const NeuralReview: React.FC<{ onClose: () => void; onOpenWhitePaper?: () => void }> = ({ onClose, onOpenWhitePaper }) => {
-  const stats = learning.getStats() as any;
-  const [activeTab, setActiveTab] = useState<'telemetry' | 'matrix' | 'phonology' | 'vision' | 'waxal'>('telemetry');
+  const [feedbackStats, setFeedbackStats] = useState<{ up: number; down: number; total: number } | null>(null);
+  const [activeTab, setActiveTab] = useState<'telemetry' | 'matrix' | 'phonology' | 'vision' | 'waxal' | 'corrections'>('telemetry');
+
+  useEffect(() => {
+    gemini.getFeedbackStats().then(data => {
+      if (data) setFeedbackStats(data);
+    });
+  }, []);
 
   // WAXAL explorer states
   const [waxalStats, setWaxalStats] = useState<any>(null);
@@ -80,7 +102,7 @@ export const NeuralReview: React.FC<{ onClose: () => void; onOpenWhitePaper?: ()
   };
   
   const competitiveEdge = [
-    { metric: 'Scholarly Sources', sovereign: '7 (Nexus-7 Core)', others: 'Generic Web Data', advantage: 'Primary Grounding' },
+    { metric: 'Scholarly Sources', sovereign: '7 (Murya-7 Core)', others: 'Generic Web Data', advantage: 'Primary Grounding' },
     { metric: 'Prosodic Logic', sovereign: 'Litvinova R-to-L', others: 'Statistical Stress', advantage: 'Native Rhythm' },
     { metric: 'Unit of Tone', sovereign: 'Mora-Aware', others: 'Syllable-Approx', advantage: 'Phonetic Truth' },
     { metric: 'Purity', sovereign: 'Hausar Fada', others: 'Mixed (Enghausa)', advantage: 'Zero-Switch' },
@@ -96,88 +118,170 @@ export const NeuralReview: React.FC<{ onClose: () => void; onOpenWhitePaper?: ()
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-8 animate-reveal">
-      <div className="absolute inset-0 bg-black/98 backdrop-blur-3xl" onClick={onClose}></div>
+      <div className="absolute inset-0 bg-black/85 backdrop-blur-[20px]" onClick={onClose}></div>
       
-      <div className="relative w-full max-w-6xl bg-obsidian border border-silk-gold/20 rounded-[30px] sm:rounded-[80px] shadow-[0_0_100px_rgba(212,175,55,0.15)] overflow-hidden flex flex-col max-h-[95vh]">
-        <header className="p-6 sm:p-12 md:p-16 pb-4 sm:pb-8 flex flex-col md:flex-row items-center justify-between border-b border-silk-gold/10 gap-6">
-          <div className="flex items-center gap-6 sm:gap-10 text-center md:text-left">
-            <ArewaLogo size={60} className="sm:w-20 sm:h-20" active />
+      <div className="relative w-full max-w-6xl bg-dyn-bg-secondary border border-dyn-border rounded-[40px] shadow-[0_0_80px_var(--glow-color)] overflow-hidden flex flex-col max-h-[92vh] z-10 transition-all duration-700">
+        
+        {/* Animated grid ambient background */}
+        <div className="absolute inset-0 opacity-[0.03] zana-grid pointer-events-none" />
+        
+        {/* Modal Header */}
+        <header className="relative z-10 p-6 sm:p-10 pb-4 sm:pb-6 flex flex-col lg:flex-row items-center justify-between border-b border-dyn-border gap-6 bg-dyn-bg-primary/50 backdrop-blur-md">
+          <div className="flex items-center gap-5 text-center sm:text-left">
+            <ArewaLogo size={50} className="w-16 h-16 shrink-0" active />
             <div>
-              <h2 className="font-serif italic text-3xl sm:text-5xl md:text-6xl text-silk-gold leading-none">The Matrix</h2>
-              <p className="text-[8px] sm:text-[10px] opacity-40 uppercase tracking-[0.4em] sm:tracking-[0.8em] mt-2 text-white">Linguistic Grounding: Prosodic Core</p>
+              <h2 className="font-serif italic text-3xl sm:text-5xl text-dyn-accent leading-none">Matattarar Bayanai</h2>
+              <p className="text-[9px] opacity-50 uppercase tracking-[0.4em] mt-1 text-dyn-text-primary">Sovereign Linguistic Analytics Matrix</p>
             </div>
           </div>
-          <div className="flex bg-white/5 p-1.5 rounded-full w-full md:w-auto overflow-x-auto no-scrollbar border border-white/5">
-            {['telemetry', 'matrix', 'phonology', 'vision', 'waxal'].map((tab) => (
-              <button 
-                key={tab}
-                onClick={() => setActiveTab(tab as any)}
-                className={`flex-1 md:flex-none px-6 sm:px-8 py-2 sm:py-3 rounded-full text-[8px] sm:text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab ? 'bg-silk-gold text-black' : 'text-white/40 hover:text-white'}`}
-              >
-                {tab}
-              </button>
-            ))}
+          
+          {/* Navigation Tabs */}
+          <div className="flex bg-dyn-bg-tertiary/60 p-1 rounded-full w-full lg:w-auto overflow-x-auto no-scrollbar border border-dyn-border">
+            {[
+              { id: 'telemetry', label: 'Telemetry', icon: Activity },
+              { id: 'matrix', label: 'Matrix', icon: Layers },
+              { id: 'phonology', label: 'Phonology', icon: Music },
+              { id: 'vision', label: 'Core Vibe', icon: Sparkles },
+              { id: 'waxal', label: 'WAXAL Corpus', icon: Database },
+              { id: 'corrections', label: 'Corrections', icon: GraduationCap }
+            ].map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button 
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`flex items-center justify-center gap-2 px-5 py-2.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap shrink-0 ${
+                    activeTab === tab.id 
+                      ? 'bg-dyn-accent text-dyn-bg-primary shadow-lg font-bold' 
+                      : 'text-dyn-text-secondary hover:text-dyn-text-primary hover:bg-white/5'
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-6 sm:p-12 md:p-16 space-y-12 no-scrollbar">
+        {/* Tab Body */}
+        <div className="flex-1 overflow-y-auto p-6 sm:p-10 space-y-10 no-scrollbar relative z-10 bg-dyn-bg-secondary/40">
+          
+          {/* Telemetry Tab */}
           {activeTab === 'telemetry' && (
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-8 animate-reveal">
-              {[
-                { label: 'Scholarly Nexus', val: '7', sub: 'Primary Research' },
-                { label: 'Neural Axioms', val: stats.humanAxioms + stats.autonomousAxioms, sub: 'Prosodic Gates' },
-                { label: 'Tone Rule', val: 'R→L', sub: 'Litvinova Standard' },
-                { label: 'Stability', val: stats.forecast[0].stabilityScore + '%', sub: 'Linguistic Consistency' }
-              ].map((item, i) => (
-                <div key={i} className="p-8 sm:p-12 rounded-[40px] sm:rounded-[60px] bg-white/[0.02] border border-white/5 text-center group hover:border-silk-gold/30 transition-all duration-700">
-                  <span className="text-[8px] sm:text-[10px] text-white/30 uppercase tracking-widest block mb-4">{item.label}</span>
-                  <div className="text-4xl sm:text-7xl md:text-8xl font-serif italic text-silk-gold group-hover:scale-110 transition-transform">{item.val}</div>
-                  <p className="text-[7px] sm:text-[9px] text-white/20 mt-4 uppercase tracking-widest">{item.sub}</p>
+            <div className="space-y-8 animate-reveal">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+                {[
+                  { label: 'Scholarly Murya', val: '7', sub: 'Primary Research Sources', desc: ' Newman, Litvinova, and Fada standard papers integrated.' },
+                  { label: 'Community Feedback', val: feedbackStats ? feedbackStats.total : '—', sub: 'Total Ratings Recorded', desc: 'Real thumbs up/down submitted by users, stored server-side.' },
+                  { label: 'Tone Heuristics', val: 'R→L', sub: 'Tone Mapping Direction', desc: 'Tone melody calculated from Right-to-Left.' },
+                  { label: 'Approval Rate', val: feedbackStats && feedbackStats.total > 0 ? Math.round((feedbackStats.up / feedbackStats.total) * 100) + '%' : '—', sub: 'Thumbs Up / Total', desc: 'Share of feedback marked as a good response.' }
+                ].map((item, i) => (
+                  <div key={i} className="p-6 rounded-3xl bg-dyn-bg-tertiary/30 border border-dyn-border text-center group hover:border-dyn-accent/40 hover:bg-dyn-bg-tertiary/50 transition-all duration-500 shadow-xl">
+                    <span className="text-[9px] text-dyn-text-secondary uppercase tracking-widest block mb-3 font-semibold">{item.label}</span>
+                    <div className="text-5xl sm:text-6xl font-serif italic text-dyn-accent group-hover:scale-105 transition-transform duration-500">{item.val}</div>
+                    <p className="text-[9px] text-dyn-text-muted mt-3 uppercase tracking-wider font-medium">{item.sub}</p>
+                    <div className="h-[1px] w-12 bg-dyn-border mx-auto my-3 group-hover:w-20 transition-all"></div>
+                    <p className="text-[10px] text-dyn-text-primary/40 italic">{item.desc}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Dynamic Stats Chart Area */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="p-6 rounded-3xl bg-dyn-bg-tertiary/20 border border-dyn-border">
+                  <h3 className="text-xs uppercase tracking-widest text-dyn-accent mb-4 font-bold flex items-center gap-2">
+                    <Sliders className="w-4 h-4" /> Active Processing Pipeline
+                  </h3>
+                  <p className="text-[10px] text-dyn-text-muted mb-4 italic">Stages run on every response. No accuracy benchmark exists yet — see White Paper for the roadmap.</p>
+                  <div className="space-y-3">
+                    {[
+                      'Hooked Orthography Normalization',
+                      'Tonal Heuristic Mapping (R→L)',
+                      'Cultural Confidence Scoring',
+                    ].map((name, index) => (
+                      <div key={index} className="flex items-center justify-between text-[11px] font-mono">
+                        <span className="text-dyn-text-secondary">{name}</span>
+                        <span className="flex items-center gap-1.5 text-green-400 font-bold uppercase text-[10px]">
+                          <span className="w-1.5 h-1.5 rounded-full bg-green-400" /> Active
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              ))}
+
+                <div className="p-6 rounded-3xl bg-dyn-bg-tertiary/20 border border-dyn-border flex flex-col justify-between">
+                  <div>
+                    <h3 className="text-xs uppercase tracking-widest text-dyn-accent mb-3 font-bold flex items-center gap-2">
+                      <ShieldCheck className="w-4 h-4" /> Orthography Normalization
+                    </h3>
+                    <p className="text-[11px] text-dyn-text-secondary leading-relaxed mb-4">
+                      Every chat response is passed through orthography normalization and tonal heuristics before display (see <code>backend/orthography.py</code>) to guard against spelling drift and Enghausa code-mixing.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-3 bg-white/[0.02] border border-dyn-border rounded-xl text-center">
+                      <span className="text-[8px] uppercase tracking-wider text-dyn-text-muted block">Pipeline</span>
+                      <span className="text-[10px] text-green-400 font-bold uppercase">Active</span>
+                    </div>
+                    <div className="p-3 bg-white/[0.02] border border-dyn-border rounded-xl text-center">
+                      <span className="text-[8px] uppercase tracking-wider text-dyn-text-muted block">Coverage</span>
+                      <span className="text-[10px] text-dyn-accent font-bold uppercase">Every Response</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
+          {/* Phonology Tab */}
           {activeTab === 'phonology' && (
-            <div className="space-y-12 animate-reveal">
+            <div className="space-y-8 animate-reveal">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {primaryAxioms.map((ax, i) => (
-                  <div key={i} className="p-10 rounded-[40px] border border-silk-gold/10 bg-silk-gold/[0.02] flex flex-col gap-4">
-                    <span className="text-silk-gold font-mono text-[9px] uppercase tracking-widest">Prosodic Axiom {i + 1}: {ax.rule}</span>
-                    <h3 className="text-3xl font-serif italic text-white/90">{ax.desc}</h3>
-                    <div className="h-[1px] w-full bg-silk-gold/20 my-2"></div>
-                    <div className="flex items-center gap-3">
-                      <div className="w-2 h-2 rounded-full bg-silk-gold shadow-[0_0_10px_#D4AF37]"></div>
-                      <span className="text-[10px] text-white/40 uppercase tracking-widest">Implementation: {ax.proof}</span>
+                  <div key={i} className="p-6 rounded-3xl border border-dyn-border bg-dyn-bg-tertiary/20 flex flex-col justify-between gap-4 group hover:border-dyn-accent/30 transition-all duration-300">
+                    <div className="space-y-2">
+                      <span className="text-dyn-accent font-mono text-[9px] uppercase tracking-widest font-bold">Axiom {i + 1}: {ax.rule}</span>
+                      <h3 className="text-xl sm:text-2xl font-serif italic text-dyn-text-primary">{ax.desc}</h3>
+                    </div>
+                    <div className="border-t border-dyn-border pt-4 mt-2 flex items-center gap-3">
+                      <Award className="w-4 h-4 text-dyn-accent shrink-0" />
+                      <span className="text-[11px] text-dyn-text-secondary"><strong className="text-dyn-text-primary">System Proof:</strong> {ax.proof}</span>
                     </div>
                   </div>
                 ))}
               </div>
-              <div className="p-12 rounded-[60px] bg-white/5 border border-white/10 text-center">
-                 <p className="text-xl sm:text-3xl font-serif italic text-white/60 leading-relaxed">
-                   "By implementing Right-to-Left tone mapping, we treat Hausa not as a translated language, but as a primary prosodic system."
+              <div className="p-8 rounded-[40px] bg-dyn-bg-tertiary/10 border border-dyn-border text-center max-w-3xl mx-auto">
+                 <p className="text-lg sm:text-xl font-serif italic text-dyn-text-secondary leading-relaxed">
+                   "Axiom mapping ensures our deep generative layers respect the tonal logic of Hausa as a Primary African Prosodic System."
                  </p>
               </div>
             </div>
           )}
 
+          {/* Matrix Tab */}
           {activeTab === 'matrix' && (
-            <div className="animate-reveal overflow-x-auto">
-               <div className="min-w-[700px] overflow-hidden rounded-[40px] sm:rounded-[60px] border border-white/10 bg-white/[0.01]">
-                <table className="w-full text-left">
-                  <thead className="bg-white/5 text-[10px] uppercase tracking-[0.3em] text-white/50">
-                    <tr>
-                      <th className="p-10">Neural Metric</th>
-                      <th className="p-10 text-silk-gold">Hausa AI (Prosodic)</th>
-                      <th className="p-10">Standard AI Models</th>
+            <div className="animate-reveal overflow-x-auto rounded-3xl border border-dyn-border bg-dyn-bg-tertiary/10 shadow-xl">
+               <div className="min-w-[700px]">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-dyn-bg-primary/50 text-[10px] uppercase tracking-[0.25em] text-dyn-text-secondary border-b border-dyn-border">
+                      <th className="p-6 pl-10 font-bold">Neural Parameter Matrix</th>
+                      <th className="p-6 text-dyn-accent font-black">Hausa AI (Murya-7)</th>
+                      <th className="p-6 font-bold">Generic Web LLMs</th>
+                      <th className="p-6 pr-10 font-bold">Engineering Edge</th>
                     </tr>
                   </thead>
-                  <tbody className="text-xl sm:text-2xl">
+                  <tbody className="text-base font-medium">
                     {competitiveEdge.map((row, i) => (
-                      <tr key={i} className="border-t border-white/5 hover:bg-white/[0.03] transition-colors">
-                        <td className="p-10 font-serif italic text-white/80">{row.metric}</td>
-                        <td className="p-10 text-silk-gold font-bold">{row.sovereign}</td>
-                        <td className="p-10 text-white/10">{row.others}</td>
+                      <tr key={i} className="border-b border-dyn-border/40 hover:bg-white/[0.02] transition-colors duration-300">
+                        <td className="p-6 pl-10 font-serif italic text-dyn-text-primary">{row.metric}</td>
+                        <td className="p-6 text-dyn-accent font-bold">{row.sovereign}</td>
+                        <td className="p-6 text-dyn-text-muted">{row.others}</td>
+                        <td className="p-6 pr-10 text-[11px] font-mono text-dyn-text-secondary flex items-center gap-1.5 py-7">
+                          <span className="w-1.5 h-1.5 rounded-full bg-dyn-accent" />
+                          {row.advantage}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -186,22 +290,28 @@ export const NeuralReview: React.FC<{ onClose: () => void; onOpenWhitePaper?: ()
             </div>
           )}
 
+          {/* Vision/Vibe Tab */}
           {activeTab === 'vision' && (
-            <div className="max-w-4xl mx-auto space-y-16 py-12 text-white animate-reveal text-center">
-              <div className="flex justify-center"><ArewaLogo size={100} className="sm:w-32 sm:h-32" active /></div>
-              <h3 className="font-serif italic text-6xl sm:text-8xl md:text-9xl text-silk-gold leading-tight">Digital Prosody</h3>
-              <p className="text-white/50 text-2xl sm:text-4xl font-light italic leading-relaxed px-4">
-                We have moved beyond words. Hausa AI calculates the vibration of Standard Hausa through the laws of moraic TBUs and R-to-L melody mapping.
+            <div className="max-w-3xl mx-auto space-y-12 py-6 text-center animate-reveal">
+              <div className="flex justify-center"><ArewaLogo size={90} className="w-24 h-24" active /></div>
+              <div className="space-y-4">
+                <h3 className="font-serif italic text-5xl sm:text-7xl text-dyn-accent leading-none">Martabar Harshe</h3>
+                <p className="text-[10px] text-dyn-text-secondary uppercase tracking-[0.4em] font-black">Advisory Board & Architecture</p>
+              </div>
+              <p className="text-dyn-text-secondary text-lg sm:text-2xl font-light italic leading-relaxed px-4">
+                "Hausa is not a code to be translated word-by-word. It is a vibrating sonic system of high-frequency tonal distinctions. We build digital architectures that capture this dignity."
               </p>
-              <div className="p-12 rounded-[80px] bg-gradient-to-br from-silk-gold/10 to-transparent border border-silk-gold/20 flex flex-col md:flex-row items-center justify-between gap-8">
-                <div className="text-center md:text-left">
-                  <p className="text-silk-gold text-[10px] uppercase tracking-[0.5em] font-black mb-4">Lead Architect</p>
-                  <p className="text-4xl sm:text-6xl font-serif italic">Adamu Danjuma Abubakar</p>
+              
+              <div className="p-8 rounded-[35px] bg-gradient-to-br from-dyn-accent/10 to-transparent border border-dyn-border flex flex-col sm:flex-row items-center justify-between gap-6 text-left">
+                <div className="space-y-1">
+                  <p className="text-dyn-accent text-[9px] uppercase tracking-[0.4em] font-black">Lead Engineer / Architect</p>
+                  <p className="text-3xl font-serif italic text-dyn-text-primary">Adamu Danjuma Abubakar</p>
+                  <p className="text-[10px] text-dyn-text-muted uppercase tracking-widest font-mono">ADAB-TECH RESEARCH LABS, KANO</p>
                 </div>
                 {onOpenWhitePaper && (
                    <button 
                      onClick={() => { onClose(); onOpenWhitePaper(); }}
-                     className="px-10 py-5 rounded-full bg-silk-gold text-black text-[12px] font-black uppercase tracking-widest hover:scale-110 active:scale-95 transition-all shadow-2xl"
+                     className="px-8 py-4 rounded-full bg-dyn-accent text-dyn-bg-primary text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl shrink-0"
                    >
                      Read White Paper
                    </button>
@@ -210,61 +320,116 @@ export const NeuralReview: React.FC<{ onClose: () => void; onOpenWhitePaper?: ()
             </div>
           )}
 
+          {/* WAXAL Corpus Tab */}
           {activeTab === 'waxal' && (
-             <div className="space-y-12 animate-reveal">
+             <div className="space-y-8 animate-reveal">
+               
                {/* Dashboard Stats */}
                {waxalStats ? (
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="p-8 rounded-[30px] bg-white/[0.02] border border-white/5">
-                      <span className="text-[10px] text-white/40 uppercase tracking-wider block mb-2">Speaker & Demographics</span>
-                      <div className="text-3xl font-serif text-silk-gold">{waxalStats.general.total_samples} Total Samples</div>
-                      <div className="text-[11px] text-white/50 mt-2">
-                        {waxalStats.general.total_speakers} Speakers (4 Male, 4 Female)<br/>
-                        Male: {waxalStats.general.male_samples} | Female: {waxalStats.general.female_samples}
+                    {/* Stat Card 1 */}
+                    <div className="p-6 rounded-3xl bg-dyn-bg-tertiary/20 border border-dyn-border flex flex-col justify-between shadow-lg">
+                      <div>
+                        <span className="text-[9px] text-dyn-text-secondary uppercase tracking-wider block mb-1 font-bold">Demographics & Voice Counts</span>
+                        <div className="text-2xl font-serif text-dyn-accent font-bold">{waxalStats.general.total_samples} Total Samples</div>
+                        <div className="text-[10px] text-dyn-text-muted mt-1 uppercase tracking-wider">
+                          {waxalStats.general.total_speakers} Speakers (4 Male / 4 Female)
+                        </div>
+                      </div>
+                      
+                      {/* Visual Progress Bar for Gender Balance */}
+                      <div className="mt-5 space-y-1.5">
+                        <div className="flex justify-between text-[9px] font-mono font-bold text-dyn-text-secondary">
+                          <span>NAMIJI (MALE): {((waxalStats.general.male_samples/waxalStats.general.total_samples)*100).toFixed(0)}%</span>
+                          <span>MACE (FEMALE): {((waxalStats.general.female_samples/waxalStats.general.total_samples)*100).toFixed(0)}%</span>
+                        </div>
+                        <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden flex">
+                          <div 
+                            className="h-full bg-dyn-accent" 
+                            style={{ width: `${(waxalStats.general.male_samples/waxalStats.general.total_samples)*100}%` }}
+                          />
+                          <div 
+                            className="h-full bg-pink-500/70" 
+                            style={{ width: `${(waxalStats.general.female_samples/waxalStats.general.total_samples)*100}%` }}
+                          />
+                        </div>
                       </div>
                     </div>
-                    <div className="p-8 rounded-[30px] bg-white/[0.02] border border-white/5">
-                      <span className="text-[10px] text-white/40 uppercase tracking-wider block mb-2">Lexical / Linguistic Metrics</span>
-                      <div className="text-3xl font-serif text-silk-gold">{waxalStats.linguistic.vocab_size} Vocab Size</div>
-                      <div className="text-[11px] text-white/50 mt-2">
-                        Total Words: {waxalStats.linguistic.total_words}<br/>
-                        Avg length: {waxalStats.linguistic.avg_sentence_length} words (TTR: {waxalStats.linguistic.type_token_ratio})
+
+                    {/* Stat Card 2 */}
+                    <div className="p-6 rounded-3xl bg-dyn-bg-tertiary/20 border border-dyn-border flex flex-col justify-between shadow-lg">
+                      <div>
+                        <span className="text-[9px] text-dyn-text-secondary uppercase tracking-wider block mb-1 font-bold">Lexical Profile</span>
+                        <div className="text-2xl font-serif text-dyn-accent font-bold">{waxalStats.linguistic.vocab_size} Vocab Size</div>
+                        <div className="text-[10px] text-dyn-text-muted mt-1 uppercase tracking-wider">
+                          Total Words: {waxalStats.linguistic.total_words}
+                        </div>
+                      </div>
+
+                      {/* Visual bar graph representation */}
+                      <div className="mt-5 grid grid-cols-2 gap-4 border-t border-dyn-border/30 pt-3 text-[10px] font-mono">
+                        <div>
+                          <span className="text-dyn-text-muted block text-[8px] uppercase tracking-wider">Avg Sentence</span>
+                          <span className="text-dyn-text-primary font-bold text-sm">{waxalStats.linguistic.avg_sentence_length} words</span>
+                        </div>
+                        <div>
+                          <span className="text-dyn-text-muted block text-[8px] uppercase tracking-wider">Token Ratio</span>
+                          <span className="text-dyn-text-primary font-bold text-sm">{waxalStats.linguistic.type_token_ratio}</span>
+                        </div>
                       </div>
                     </div>
-                    <div className="p-8 rounded-[30px] bg-white/[0.02] border border-white/5">
-                      <span className="text-[10px] text-white/40 uppercase tracking-wider block mb-2">Orthography Hook Contrast</span>
-                      <div className="text-3xl font-serif text-silk-gold">
-                        {waxalStats.orthography.unicode.d_hook + waxalStats.orthography.unicode.k_hook + waxalStats.orthography.unicode.b_hook + waxalStats.orthography.unicode.y_hook} Hooks
+
+                    {/* Stat Card 3 */}
+                    <div className="p-6 rounded-3xl bg-dyn-bg-tertiary/20 border border-dyn-border flex flex-col justify-between shadow-lg">
+                      <div>
+                        <span className="text-[9px] text-dyn-text-secondary uppercase tracking-wider block mb-1 font-bold">Orthography Hook Contrast</span>
+                        <div className="text-2xl font-serif text-dyn-accent font-bold">
+                          {waxalStats.orthography.unicode.d_hook + waxalStats.orthography.unicode.k_hook + waxalStats.orthography.unicode.b_hook + waxalStats.orthography.unicode.y_hook} Hooks
+                        </div>
+                        <div className="text-[10px] text-dyn-text-muted mt-1 uppercase tracking-wider">
+                          Hooked characters in dataset
+                        </div>
                       </div>
-                      <div className="text-[11px] text-white/50 mt-2">
-                        Unicode: ɗ:{waxalStats.orthography.unicode.d_hook} | ƙ:{waxalStats.orthography.unicode.k_hook} | ɓ:{waxalStats.orthography.unicode.b_hook} | ƴ:{waxalStats.orthography.unicode.y_hook}<br/>
-                        ASCII Hooks (requires Normalization): 'y:{waxalStats.orthography.ascii["'y"] || 0} | k':{waxalStats.orthography.ascii["k'"] || 0} | d':{waxalStats.orthography.ascii["d'"] || 0}
+
+                      {/* Hooks visual chips */}
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {[
+                          { char: 'ɗ', count: waxalStats.orthography.unicode.d_hook },
+                          { char: 'ƙ', count: waxalStats.orthography.unicode.k_hook },
+                          { char: 'ɓ', count: waxalStats.orthography.unicode.b_hook },
+                          { char: 'ƴ', count: waxalStats.orthography.unicode.y_hook }
+                        ].map((hk) => (
+                          <div key={hk.char} className="px-2.5 py-1 bg-white/5 border border-dyn-border rounded-lg text-center flex items-center gap-1.5">
+                            <span className="text-xs font-serif font-black text-dyn-accent">{hk.char}</span>
+                            <span className="text-[9px] font-mono text-dyn-text-secondary">{hk.count}</span>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </div>
                ) : (
-                  <div className="text-center py-6 text-white/40">Loading dataset statistics...</div>
+                  <div className="text-center py-6 text-dyn-text-secondary/40 font-mono text-xs animate-pulse">Loading corpus dataset analytics...</div>
                )}
 
                {/* Filter & Search Bar */}
-               <div className="flex flex-col md:flex-row gap-6 p-6 rounded-[30px] bg-white/5 border border-white/10 items-center justify-between">
-                 <div className="flex items-center gap-4 bg-black/40 rounded-full px-6 py-3 border border-white/5 w-full md:w-1/2">
-                   <svg className="w-5 h-5 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeWidth="2" strokeLinecap="round"/></svg>
+               <div className="flex flex-col md:flex-row gap-4 p-5 rounded-3xl bg-dyn-bg-tertiary/10 border border-dyn-border items-center justify-between">
+                 <div className="flex items-center gap-3 bg-black/40 rounded-full px-5 py-2.5 border border-dyn-border w-full md:w-1/2">
+                   <Search className="w-4 h-4 text-dyn-text-muted" />
                    <input 
                      type="text" 
                      value={searchQuery}
                      onChange={(e) => { setSearchQuery(e.target.value); setWaxalPage(1); }}
                      placeholder="Bincika rubutu (Search transcript)..." 
-                     className="bg-transparent border-none text-white focus:outline-none w-full text-[14px]"
+                     className="bg-transparent border-none text-dyn-text-primary focus:outline-none w-full text-xs placeholder:text-dyn-text-muted"
                    />
                  </div>
-                 <div className="flex gap-4 w-full md:w-auto">
+                 <div className="flex flex-wrap gap-3 w-full md:w-auto">
                    <select 
                      value={speakerFilter} 
                      onChange={(e) => { setSpeakerFilter(e.target.value); setWaxalPage(1); }}
-                     className="bg-black/60 border border-white/10 rounded-full px-6 py-3 text-[12px] text-white/70 focus:outline-none"
+                     className="bg-dyn-bg-tertiary border border-dyn-border rounded-full px-5 py-2.5 text-[11px] text-dyn-text-secondary focus:outline-none cursor-pointer"
                    >
-                     <option value="">Duk Masu Magana (All Speakers)</option>
+                     <option value="">Masu Magana (All Speakers)</option>
                      {Array.from({length: 8}, (_, i) => i + 1).map(num => (
                        <option key={num} value={num.toString()}>Speaker {num}</option>
                      ))}
@@ -272,9 +437,9 @@ export const NeuralReview: React.FC<{ onClose: () => void; onOpenWhitePaper?: ()
                    <select 
                      value={genderFilter} 
                      onChange={(e) => { setGenderFilter(e.target.value); setWaxalPage(1); }}
-                     className="bg-black/60 border border-white/10 rounded-full px-6 py-3 text-[12px] text-white/70 focus:outline-none"
+                     className="bg-dyn-bg-tertiary border border-dyn-border rounded-full px-5 py-2.5 text-[11px] text-dyn-text-secondary focus:outline-none cursor-pointer"
                    >
-                     <option value="">Duk Jinsi (All Genders)</option>
+                     <option value="">Jinsi (All Genders)</option>
                      <option value="Male">Namiji (Male)</option>
                      <option value="Female">Mace (Female)</option>
                    </select>
@@ -282,52 +447,62 @@ export const NeuralReview: React.FC<{ onClose: () => void; onOpenWhitePaper?: ()
                </div>
 
                {/* Samples Table */}
-               <div className="overflow-x-auto rounded-[30px] border border-white/10 bg-white/[0.01]">
-                 <table className="w-full text-left">
-                   <thead className="bg-white/5 text-[9px] uppercase tracking-wider text-white/40">
-                     <tr>
-                       <th className="p-6">ID</th>
-                       <th className="p-6">Speaker</th>
-                       <th className="p-6">Gender</th>
-                       <th className="p-6 w-1/2">Transcript (Rubutu)</th>
-                       <th className="p-6 text-center">Audio</th>
+               <div className="overflow-x-auto rounded-3xl border border-dyn-border bg-dyn-bg-tertiary/10 shadow-lg">
+                 <table className="w-full text-left border-collapse">
+                   <thead>
+                     <tr className="bg-dyn-bg-primary/50 text-[9px] uppercase tracking-wider text-dyn-text-secondary border-b border-dyn-border">
+                       <th className="p-4 pl-6">ID</th>
+                       <th className="p-4">Speaker</th>
+                       <th className="p-4">Gender</th>
+                       <th className="p-4 w-1/2">Transcript (Rubutu)</th>
+                       <th className="p-4 text-center">Audio Preview</th>
                      </tr>
                    </thead>
-                   <tbody className="text-[13px] text-white/80">
+                   <tbody className="text-xs text-dyn-text-primary/90 font-medium">
                      {waxalSamples.length > 0 ? (
                        waxalSamples.map(sample => (
-                         <tr key={sample.id} className="border-t border-white/5 hover:bg-white/[0.02] transition-colors">
-                           <td className="p-6 font-mono text-[11px] text-white/40">{sample.id}</td>
-                           <td className="p-6 font-semibold">Speaker {sample.speaker_id}</td>
-                           <td className="p-6 text-white/50">{sample.gender}</td>
-                           <td className="p-6 font-serif italic text-white/90 leading-relaxed">{sample.text}</td>
-                           <td className="p-6 text-center">
-                             <button 
-                               onClick={() => playAudio(sample.audio_file)}
-                               className={`px-6 py-3 rounded-full text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-2 mx-auto ${
-                                 playingAudio === sample.audio_file 
-                                   ? 'bg-red-600 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)] animate-pulse' 
-                                   : 'bg-silk-gold text-black hover:scale-105'
-                               }`}
-                             >
-                               {playingAudio === sample.audio_file ? (
-                                  <>
-                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15.75 5.25v13.5m-7.5-13.5v13.5" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                                    PAUSE
-                                  </>
-                               ) : (
-                                  <>
-                                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                                    PLAY
-                                  </>
+                         <tr key={sample.id} className="border-b border-dyn-border/30 hover:bg-white/[0.01] transition-colors">
+                           <td className="p-4 pl-6 font-mono text-[10px] text-dyn-text-muted">{sample.id}</td>
+                           <td className="p-4 font-semibold text-dyn-text-primary">Speaker {sample.speaker_id}</td>
+                           <td className="p-4 text-dyn-text-muted">{sample.gender}</td>
+                           <td className="p-4 font-serif italic text-dyn-text-primary/95 leading-relaxed pr-6">{sample.text}</td>
+                           <td className="p-4 text-center">
+                             <div className="flex items-center justify-center gap-3">
+                               {playingAudio === sample.audio_file && (
+                                 <div className="flex gap-0.5 items-center h-4 shrink-0">
+                                   <div className="w-0.5 bg-dyn-accent rounded-full animate-bounce h-2" style={{ animationDelay: '0.1s' }}></div>
+                                   <div className="w-0.5 bg-dyn-accent rounded-full animate-bounce h-3.5" style={{ animationDelay: '0.3s' }}></div>
+                                   <div className="w-0.5 bg-dyn-accent rounded-full animate-bounce h-1.5" style={{ animationDelay: '0.2s' }}></div>
+                                   <div className="w-0.5 bg-dyn-accent rounded-full animate-bounce h-3" style={{ animationDelay: '0.4s' }}></div>
+                                 </div>
                                )}
-                             </button>
+                               <button 
+                                 onClick={() => playAudio(sample.audio_file)}
+                                 className={`px-5 py-2 rounded-full text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${
+                                   playingAudio === sample.audio_file 
+                                     ? 'bg-red-600 text-white shadow-[0_0_12px_rgba(220,38,38,0.4)] animate-pulse' 
+                                     : 'bg-dyn-accent text-dyn-bg-primary hover:scale-105 active:scale-95'
+                                 }`}
+                               >
+                                 {playingAudio === sample.audio_file ? (
+                                    <>
+                                      <Pause className="w-3.5 h-3.5" />
+                                      <span>TSAYA</span>
+                                    </>
+                                 ) : (
+                                    <>
+                                      <Play className="w-3.5 h-3.5 fill-current" />
+                                      <span>SAURA</span>
+                                    </>
+                                 )}
+                               </button>
+                             </div>
                            </td>
                          </tr>
                        ))
                      ) : (
                        <tr>
-                         <td colSpan={5} className="p-12 text-center text-white/30 italic">Babu wani samfuri da ya dace da bincikenka.</td>
+                         <td colSpan={5} className="p-10 text-center text-dyn-text-muted italic">Babu wani samfuri da ya dace da bincikenka.</td>
                        </tr>
                      )}
                    </tbody>
@@ -336,36 +511,40 @@ export const NeuralReview: React.FC<{ onClose: () => void; onOpenWhitePaper?: ()
 
                {/* Pagination Controls */}
                {waxalTotalPages > 1 && (
-                 <div className="flex items-center justify-between px-4 py-2 border-t border-white/5 pt-6">
-                   <button 
-                     disabled={waxalPage === 1}
-                     onClick={() => setWaxalPage(prev => Math.max(1, prev - 1))}
-                     className="px-6 py-3 rounded-full border border-white/10 text-[11px] uppercase tracking-wider text-silk-gold disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/5 transition-all"
-                   >
-                     Baya (Prev)
-                   </button>
-                   <span className="text-[12px] font-mono text-white/50">
-                     Shafi {waxalPage} na {waxalTotalPages} ({waxalTotalCount} samples)
-                   </span>
-                   <button 
-                     disabled={waxalPage === waxalTotalPages}
-                     onClick={() => setWaxalPage(prev => Math.min(waxalTotalPages, prev + 1))}
-                     className="px-6 py-3 rounded-full border border-white/10 text-[11px] uppercase tracking-wider text-silk-gold disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/5 transition-all"
-                   >
-                     Gaba (Next)
-                   </button>
-                 </div>
+                  <div className="flex items-center justify-between px-2 pt-2 border-t border-dyn-border/20">
+                    <button 
+                      disabled={waxalPage === 1}
+                      onClick={() => setWaxalPage(prev => Math.max(1, prev - 1))}
+                      className="px-5 py-2.5 rounded-full border border-dyn-border text-[10px] font-bold uppercase tracking-wider text-dyn-accent disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/5 transition-all"
+                    >
+                      Baya (Prev)
+                    </button>
+                    <span className="text-[11px] font-mono text-dyn-text-muted">
+                      Shafi {waxalPage} na {waxalTotalPages} ({waxalTotalCount} samples)
+                    </span>
+                    <button 
+                      disabled={waxalPage === waxalTotalPages}
+                      onClick={() => setWaxalPage(prev => Math.min(waxalTotalPages, prev + 1))}
+                      className="px-5 py-2.5 rounded-full border border-dyn-border text-[10px] font-bold uppercase tracking-wider text-dyn-accent disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/5 transition-all"
+                    >
+                      Gaba (Next)
+                    </button>
+                  </div>
                )}
              </div>
           )}
+
+          {/* Corrections Review Tab */}
+          {activeTab === 'corrections' && <CorrectionsReview />}
         </div>
-        
-        <footer className="p-8 bg-white/[0.02] border-t border-white/5 flex justify-between items-center px-16 text-[9px] text-white/20 uppercase tracking-[0.5em] font-black italic">
-           <div className="flex items-center gap-3">
-              <div className="w-2 h-2 rounded-full bg-silk-gold animate-pulse"></div>
-              <span>Grounding Nexus: Litvinova Standard</span>
+
+        {/* Modal Footer */}
+        <footer className="p-5 bg-dyn-bg-primary border-t border-dyn-border flex flex-col sm:flex-row justify-between items-center px-10 text-[9px] text-dyn-text-muted uppercase tracking-[0.4em] font-black italic gap-3 relative z-10">
+           <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-dyn-accent animate-pulse"></span>
+              <span>Grounding Murya: Litvinova Standard</span>
            </div>
-           <span>System Prosody: 100% Scholarly Verified</span>
+           <span>Prosody Rules Sourced From Litvinova &amp; Newman</span>
         </footer>
       </div>
     </div>

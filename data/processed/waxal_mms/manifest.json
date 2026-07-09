@@ -1,0 +1,36 @@
+{
+  "source": "waxal_hausa (google/WaxalNLP, CC-BY-4.0 / CC-BY-SA-4.0)",
+  "target_vocab": "facebook/mms-tts-hau (CC-BY-NC-4.0)",
+  "clip_count": 1310,
+  "skipped_digit_transcripts": 262,
+  "skipped_missing_audio": 0,
+  "speakers": {
+    "F1": 154,
+    "F2": 158,
+    "F3": 171,
+    "F4": 157,
+    "M1": 166,
+    "M2": 176,
+    "M3": 146,
+    "M4": 182
+  },
+  "dropped_oov_chars": {
+    "'.'": 2344,
+    "','": 1605,
+    "'\"'": 249,
+    "'?'": 160,
+    "'“'": 60,
+    "':'": 52,
+    "'!'": 44,
+    "'”'": 42,
+    "'('": 32,
+    "')'": 32,
+    "'='": 16,
+    "';'": 8,
+    "'\\u200b'": 4,
+    "'/'": 1
+  },
+  "text_column": "text",
+  "audio_column": "audio",
+  "speaker_column": "speaker_id"
+}

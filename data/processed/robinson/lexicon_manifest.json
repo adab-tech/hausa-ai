@@ -1,0 +1,11 @@
+{
+  "source": "robinson_1914_vol2",
+  "pairs_file": "data\\processed\\robinson\\en_ha_pairs.jsonl",
+  "pair_count": 20628,
+  "attribution": "data/sources/robinson-dictionary/ATTRIBUTION.md",
+  "suggested_use": [
+    "translation fine-tuning",
+    "lexical retrieval",
+    "Hausa embedding warm-start"
+  ]
+}

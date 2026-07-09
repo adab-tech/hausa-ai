@@ -15,7 +15,7 @@ if hasattr(sys.stdout, "reconfigure"):
 from orthography import normalize_hausa_orthography, apply_tonal_heuristics, LEXICAL_TONES, segment_word_syllables
 
 TEST_SENTENCES = [
-    "Sannu ku da zuwa barka da yamma.",
+    "Sannun ku da zuwa barka da yamma.",
     "Lafiyar yara da mutane tana da matuƙar muhimmanci a yau.",
     "b'aki da d'umi ne a cikin k'asar Hausa.",
     "d'an k'asa da mace sun ci abinci lafiyayye a gida.",

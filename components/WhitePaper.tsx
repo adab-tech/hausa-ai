@@ -36,7 +36,7 @@ export const WhitePaper: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           </h1>
           <div className="h-[1px] w-64 bg-silk-gold/30 mx-auto"></div>
           <div className="space-y-4">
-            <p className="text-3xl sm:text-5xl font-serif italic text-ivory/60 tracking-tight">The Nexus-7 Protocol: High-Fidelity Hausa OS</p>
+            <p className="text-3xl sm:text-5xl font-serif italic text-ivory/60 tracking-tight">The Murya-7 Protocol: High-Fidelity Hausa OS</p>
             <p className="text-[12px] uppercase tracking-[0.5em] font-black opacity-30 mt-8">Linguistic Foundation & Tonal Logic Paper</p>
           </div>
           <div className="pt-24 grid grid-cols-1 sm:grid-cols-3 gap-16 text-left border-t border-white/5">
@@ -46,7 +46,7 @@ export const WhitePaper: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             </div>
             <div>
                <span className="text-[9px] uppercase tracking-widest text-silk-gold block mb-2">Core Revision</span>
-               <span className="text-xl font-serif italic">Nexus-7.4 (Axiom-Ready)</span>
+               <span className="text-xl font-serif italic">Murya-7.4 (Axiom-Ready)</span>
             </div>
             <div>
                <span className="text-[9px] uppercase tracking-widest text-silk-gold block mb-2">Foundation</span>
@@ -60,7 +60,7 @@ export const WhitePaper: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           <div className="absolute top-0 right-0 p-8 opacity-[0.03] text-[10rem] font-serif italic select-none">A</div>
           <h2 className="text-[11px] uppercase tracking-[0.8em] text-silk-gold font-black">Executive Summary</h2>
           <p className="text-2xl sm:text-4xl leading-relaxed font-serif italic text-ivory/80">
-            Hausa AI represents a paradigm shift in indigenous language modeling. By moving beyond statistical word-mapping and into "Digital Prosody," our research corrects the colonial phonetic bias inherent in standard LLMs. We leverage the Nexus-7 core to enforce the Fada Protocol—a high-dignity sociolinguistic layer grounded in the laws of Litvinova and Newman.
+            Hausa AI represents a paradigm shift in indigenous language modeling. By moving beyond statistical word-mapping and into "Digital Prosody," our research corrects the colonial phonetic bias inherent in standard LLMs. We leverage the Murya-7 core to enforce the Fada Protocol—a high-dignity sociolinguistic layer grounded in the laws of Litvinova and Newman.
           </p>
         </section>
 
@@ -90,7 +90,7 @@ export const WhitePaper: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                   <div className="w-[1px] h-full bg-silk-gold/20 absolute left-1/2 -translate-x-1/2 top-0" />
                   <div className="h-[1px] w-full bg-silk-gold/20 absolute top-1/2 -translate-y-1/2 left-0" />
                   <span className="text-[10px] font-black uppercase tracking-[1em] text-silk-gold z-10">Phonetic Matrix</span>
-                  <div className="text-9xl font-serif italic text-silk-gold/40 z-10">Nexus</div>
+                  <div className="text-9xl font-serif italic text-silk-gold/40 z-10">Murya</div>
                   <p className="text-xs font-mono text-white/30 tracking-widest z-10 px-12 italic">
                     Real-time visualization of moraic timing and tonal melody synchronization.
                   </p>
@@ -147,7 +147,7 @@ export const WhitePaper: React.FC<{ onClose: () => void }> = ({ onClose }) => {
              {[
                { date: "Oct 2025", event: "Initial core extraction from standard Hausa dataset.", status: "Baseline" },
                { date: "Dec 2025", event: "Verification of Litvinova's Tonal Mapping through high-fidelity tests.", status: "Breakthrough" },
-               { date: "Feb 2026", event: "Deployment of Nexus-7 Core with real-time Grounding Node.", status: "Production" },
+               { date: "Feb 2026", event: "Deployment of Murya-7 Core with real-time Grounding Node.", status: "Production" },
                { date: "Mar 2026", event: "Manifestation Engine V2: 4K Cultural Image Synthesis.", status: "Creative" },
                { date: "Apr 2026", event: "Formalizing Axiom-8: Socio-Linguistic Autonomy.", status: "Pending" }
              ].map((m, i) => (
@@ -174,7 +174,7 @@ export const WhitePaper: React.FC<{ onClose: () => void }> = ({ onClose }) => {
            
            <div className="flex flex-col items-center pt-24 font-mono text-[8px] uppercase tracking-[1em] text-white/20">
               <span>Hausa AI Artifact</span>
-              <span>Nexus-7.4 Series Document</span>
+              <span>Murya-7.4 Series Document</span>
               <span>(C) 2026 ADAB-TECH Research</span>
            </div>
         </section>

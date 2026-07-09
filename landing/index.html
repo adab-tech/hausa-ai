@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#030303" />
+<title>Murya — Sovereign Hausa AI Voice</title>
+<meta name="description" content="Murya: a sovereign, native-speaker-built Hausa AI voice. The first open, multi-speaker Hausa text-to-speech, trained on native recordings and judged by a native ear." />
+<meta property="og:title" content="Murya — Sovereign Hausa AI Voice" />
+<meta property="og:description" content="A native-speaker-built Hausa AI voice. Hear the first open, multi-speaker Hausa TTS." />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://murya.ng" />
+<!-- Inline SVG favicon: octagon (8 speakers · Arewa geometry) + voice waves -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Cpolygon%20points='90.6,66.9%2066.9,90.6%2033.1,90.6%209.4,66.9%209.4,33.1%2033.1,9.4%2066.9,9.4%2090.6,33.1'%20fill='none'%20stroke='%23D4AF37'%20stroke-width='4'%20stroke-linejoin='round'/%3E%3Ccircle%20cx='37'%20cy='50'%20r='4.5'%20fill='%23D4AF37'/%3E%3Cpath%20d='M44.1,41.6%20A11%2011%200%200%201%2044.1,58.4'%20fill='none'%20stroke='%23D4AF37'%20stroke-width='4'%20stroke-linecap='round'/%3E%3Cpath%20d='M49.2,35.4%20A19%2019%200%200%201%2049.2,64.6'%20fill='none'%20stroke='%23D4AF37'%20stroke-width='4'%20stroke-linecap='round'/%3E%3C/svg%3E" />
+<style>
+  :root {
+    --obsidian: #030303;
+    --paper: #0a0a0a;
+    --panel: #101010;
+    --gold: #D4AF37;
+    --gold-soft: #E6C35A;
+    --gold-rgb: 212,175,55;
+    --ivory: #FCFCF9;
+    --secondary: rgba(252,252,249,0.68);
+    --muted: rgba(252,252,249,0.5);
+    --border: rgba(212,175,55,0.16);
+    --serif: Georgia, "Times New Roman", "Noto Serif", serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --maxw: 880px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+  body {
+    background: var(--obsidian);
+    color: var(--ivory);
+    font-family: var(--serif);
+    line-height: 1.6;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  /* inline SVG grain — no external request */
+  body::after {
+    content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 99; opacity: 0.05;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  .grid {
+    position: fixed; inset: 0; z-index: -1; opacity: 0.05;
+    background-image: radial-gradient(var(--gold) 1px, transparent 1px);
+    background-size: 42px 42px;
+    -webkit-mask-image: radial-gradient(circle at 50% 30%, black, transparent 78%);
+    mask-image: radial-gradient(circle at 50% 30%, black, transparent 78%);
+  }
+  .wrap { width: 100%; max-width: var(--maxw); margin-inline: auto; padding-inline: clamp(20px, 5vw, 28px); }
+
+  /* Skip link (accessibility) */
+  .skip { position: absolute; left: -999px; top: 0; background: var(--gold); color: var(--obsidian);
+    padding: 10px 16px; border-radius: 0 0 8px 0; z-index: 200; font-family: var(--sans); font-weight: 700; }
+  .skip:focus { left: 0; }
+
+  /* Header / brand */
+  header { padding-top: clamp(28px, 6vw, 44px); }
+  .brand { display: flex; align-items: center; gap: 13px; }
+  .logo { width: clamp(38px, 9vw, 46px); height: auto; color: var(--gold); flex: none;
+    filter: drop-shadow(0 0 16px rgba(var(--gold-rgb), 0.22)); }
+  .brand h1 { font-style: italic; font-size: clamp(26px, 6.5vw, 32px); color: var(--gold);
+    letter-spacing: -0.5px; font-weight: 400; line-height: 1; }
+  .brand small { display: block; font-family: var(--mono); font-size: 9.5px; letter-spacing: 2.5px;
+    color: var(--muted); text-transform: uppercase; margin-top: 4px; }
+
+  /* Hero */
+  .hero { padding: clamp(56px, 12vw, 96px) 0 clamp(40px, 8vw, 56px); text-align: center; }
+  .eyebrow { font-family: var(--mono); font-size: clamp(9px, 2.4vw, 10.5px); letter-spacing: 3px;
+    text-transform: uppercase; color: var(--muted); }
+  .hero h2 { font-style: italic; font-weight: 400; letter-spacing: -1px; line-height: 1.04;
+    font-size: clamp(38px, 10vw, 76px); color: var(--gold); margin-top: 14px; }
+  .hero .sub { color: var(--secondary); font-size: clamp(16px, 3.8vw, 21px); margin: clamp(20px,4vw,26px) auto 0;
+    max-width: 620px; font-style: italic; }
+  .rule { width: 88px; height: 1px; background: linear-gradient(90deg, transparent, var(--gold), transparent);
+    margin: clamp(26px,5vw,34px) auto; opacity: 0.6; }
+
+  /* Audio players */
+  .player {
+    display: inline-flex; align-items: center; gap: 14px;
+    background: linear-gradient(165deg, rgba(14,14,14,0.96), rgba(5,5,5,1));
+    border: 1px solid var(--border); border-radius: 44px; padding: 10px 20px 10px 10px;
+    box-shadow: 0 20px 50px -18px rgba(0,0,0,0.85);
+    transition: border-color .3s, transform .2s; cursor: pointer; max-width: 100%;
+  }
+  .player:hover { border-color: rgba(var(--gold-rgb),0.42); transform: translateY(-1px); }
+  .player .label { font-family: var(--mono); font-size: clamp(10px,2.6vw,11px); text-transform: uppercase;
+    letter-spacing: 2px; color: var(--secondary); }
+  .play-btn {
+    width: 48px; height: 48px; min-width: 48px; border-radius: 50%; border: none;
+    background: var(--gold); color: var(--obsidian); cursor: pointer; flex: none;
+    display: grid; place-items: center; transition: transform .15s, background .2s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .play-btn svg { width: 18px; height: 18px; }
+  .play-btn:hover { transform: scale(1.06); }
+  .play-btn.is-playing { background: #c0392b; color: #fff; animation: pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{ box-shadow:0 0 0 0 rgba(192,57,43,0.5);} 50%{ box-shadow:0 0 0 9px rgba(192,57,43,0);} }
+  .hero-caption { color: var(--muted); font-size: clamp(12px,3vw,13.5px); margin-top: 16px; font-style: italic; }
+
+  section { padding: clamp(48px, 9vw, 66px) 0; }
+  h3 { font-style: italic; font-weight: 400; color: var(--gold);
+    font-size: clamp(26px, 6vw, 40px); margin-bottom: 6px; line-height: 1.1; }
+  p.body { color: var(--secondary); font-size: clamp(16px, 3.6vw, 18px); margin-top: 16px; }
+
+  /* Voice cards */
+  .voices { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr));
+    gap: 16px; margin-top: clamp(26px,5vw,34px); }
+  .voice {
+    background: linear-gradient(165deg, rgba(16,16,16,0.92), rgba(6,6,6,1));
+    border: 1px solid var(--border); border-radius: 22px; padding: clamp(18px,4vw,22px);
+    display: flex; align-items: center; gap: 16px;
+  }
+  .voice .meta .name { color: var(--ivory); font-size: 16px; }
+  .voice .meta .txt { color: var(--muted); font-size: 13px; font-style: italic; margin-top: 4px; line-height: 1.45; }
+
+  /* Facts */
+  .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 14px; margin-top: 30px; }
+  .fact { border: 1px solid var(--border); border-radius: 18px; padding: clamp(18px,4vw,22px);
+    text-align: center; background: rgba(255,255,255,0.014); }
+  .fact .n { font-style: italic; color: var(--gold); font-size: clamp(32px,8vw,40px); line-height: 1; }
+  .fact .l { color: var(--muted); font-size: 11.5px; text-transform: uppercase; letter-spacing: 1.5px; margin-top: 10px; }
+
+  blockquote { border-left: 3px solid rgba(var(--gold-rgb),0.42); padding-left: clamp(18px,4vw,24px);
+    margin: 30px 0; font-style: italic; color: var(--ivory); font-size: clamp(19px,4.5vw,23px); line-height: 1.5; }
+  blockquote .ha { color: var(--gold); display: block; margin-bottom: 12px; }
+  blockquote cite { display: block; font-size: 13px; color: var(--muted); font-style: normal;
+    margin-top: 14px; letter-spacing: 1px; }
+
+  .cta { text-align: center; padding: clamp(60px,11vw,84px) 0; }
+  .btn {
+    display: inline-block; background: var(--gold); color: var(--obsidian);
+    padding: 15px 36px; border-radius: 40px; text-decoration: none; font-weight: 700;
+    font-family: var(--mono); font-size: 12px; letter-spacing: 2px; text-transform: uppercase;
+    transition: transform .15s, background .2s; margin: 6px; min-height: 48px; line-height: 1.5;
+  }
+  .btn:hover { transform: scale(1.03); background: var(--gold-soft); }
+  .btn.ghost { background: transparent; color: var(--gold); border: 1px solid var(--border); }
+  .btn.ghost[aria-disabled="true"] { opacity: 0.55; cursor: default; }
+  .contact-line { color: var(--muted); font-size: 14px; margin-top: 22px; }
+  .contact-line a { color: var(--secondary); text-decoration: underline; text-underline-offset: 3px; }
+
+  footer { border-top: 1px solid var(--border); padding: clamp(36px,7vw,48px) 0 clamp(48px,9vw,64px); text-align: center; }
+  .dedication { font-style: italic; font-family: var(--serif); color: var(--secondary);
+    font-size: clamp(17px,4vw,19px); line-height: 1.55; margin-bottom: 30px; }
+  .dedication .ha { color: var(--gold); }
+  .dedication .en { color: var(--muted); font-size: 13.5px; display: block; margin-top: 3px; }
+  footer .credit { color: var(--muted); font-size: 14px; }
+  footer .credit a { color: var(--secondary); text-decoration: none; border-bottom: 1px solid var(--border); }
+  footer .fine { font-family: var(--mono); font-size: 10px; letter-spacing: 1px; margin-top: 16px;
+    text-transform: uppercase; color: var(--muted); }
+
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; border-radius: 8px; }
+
+  /* Accessibility: motion + contrast */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important;
+      transition-duration: .001ms !important; scroll-behavior: auto !important; }
+  }
+  @media (prefers-contrast: more) {
+    :root { --secondary: rgba(252,252,249,0.9); --muted: rgba(252,252,249,0.72); --border: rgba(212,175,55,0.4); }
+  }
+  .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
+    clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="grid" aria-hidden="true"></div>
+
+<header class="wrap">
+  <a class="brand" href="/" aria-label="Murya — home" style="text-decoration:none;">
+    <svg class="logo" viewBox="0 0 100 100" role="img" aria-label="Murya logo">
+      <title>Murya — a voice within the eight, in the Arewa geometric frame</title>
+      <polygon points="90.6,66.9 66.9,90.6 33.1,90.6 9.4,66.9 9.4,33.1 33.1,9.4 66.9,9.4 90.6,33.1"
+        fill="none" stroke="currentColor" stroke-width="3.6" stroke-linejoin="round"/>
+      <circle cx="37" cy="50" r="4.3" fill="currentColor"/>
+      <path d="M44.1,41.6 A11 11 0 0 1 44.1,58.4" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round"/>
+      <path d="M49.2,35.4 A19 19 0 0 1 49.2,64.6" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round"/>
+      <path d="M54.4,29.3 A27 27 0 0 1 54.4,70.7" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round"/>
+    </svg>
+    <span>
+      <h1>Murya</h1>
+      <small>Sovereign Hausa AI</small>
+    </span>
+  </a>
+</header>
+
+<main id="main">
+  <div class="wrap hero">
+    <p class="eyebrow"><span lang="ha">&ldquo;Murya&rdquo;</span> — &ldquo;voice,&rdquo; in Hausa</p>
+    <h2>Built by Hausa,<br/>for Hausa.</h2>
+    <p class="sub">The first open, multi-speaker Hausa text-to-speech — trained on native recordings, judged by a native ear, owned by the community it serves.</p>
+    <div class="rule" aria-hidden="true"></div>
+    <button class="player" data-src="samples/hero.wav" aria-pressed="false"
+      aria-label="Play the welcome sample: Barka da zuwa cibiyar Muryar Hausa">
+      <span class="play-btn" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      </span>
+      <span class="label">Ji Murya · Hear the voice</span>
+    </button>
+    <p class="hero-caption" lang="ha">&ldquo;Barka da zuwa cibiyar Muryar Hausa&rdquo;</p>
+  </div>
+
+  <section class="wrap" aria-labelledby="voices-h">
+    <p class="eyebrow"><span lang="ha">Muryoyi</span> · The Voices</p>
+    <h3 id="voices-h">Eight native speakers</h3>
+    <p class="body">One model, eight distinct Hausa voices — men and women — articulating the full sound system of the language, hooked consonants and all.</p>
+    <div class="voices">
+      <!-- Mace (female) on the left, Namiji (male) on the right -->
+      <div class="voice">
+        <button class="play-btn" data-src="samples/female.wav" aria-pressed="false"
+          aria-label="Play female voice (Mace) saying: Gaskiya ta fi ƙarfin takobi, in ji magabata">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+        </button>
+        <span class="meta"><span class="name" lang="ha">Mace · Female</span>
+          <span class="txt" lang="ha">&ldquo;Gaskiya ta fi ƙarfin takobi, in ji magabata.&rdquo;</span></span>
+      </div>
+      <div class="voice">
+        <button class="play-btn" data-src="samples/male.wav" aria-pressed="false"
+          aria-label="Play male voice (Namiji) saying: Sannu da zuwa, ina fatan kana lafiya">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+        </button>
+        <span class="meta"><span class="name" lang="ha">Namiji · Male</span>
+          <span class="txt" lang="ha">&ldquo;Sannu da zuwa, ina fatan kana lafiya.&rdquo;</span></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap" aria-labelledby="why-h">
+    <p class="eyebrow"><span lang="ha">Me ya sa</span> · Why it matters</p>
+    <h3 id="why-h">The sounds that make Hausa, Hausa</h3>
+    <p class="body">Hausa's hooked consonants — <strong lang="ha" style="color:var(--ivory)">ɓ, ɗ, ƙ, ƴ</strong> — are not decoration; they change meaning. <em lang="ha">ɗa</em> (son) is not <em lang="ha">da</em> (with). Existing systems flatten them. Murya was built to preserve them, because a voice that loses them is not, fully, a Hausa voice.</p>
+    <div class="facts">
+      <div class="fact"><div class="n">8</div><div class="l">Native voices</div></div>
+      <div class="fact"><div class="n">4</div><div class="l">Hooked consonants</div></div>
+      <div class="fact"><div class="n">MIT</div><div class="l">Open license</div></div>
+      <div class="fact"><div class="n">90M+</div><div class="l">Hausa speakers</div></div>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <blockquote>
+      <span class="ha" lang="ha">Motsi ya fi laɓewa.</span>
+      From consumers to producers. We stopped waiting for someone else to build a voice for our language — so we built it ourselves.
+      <cite>— Adamu Danjuma Abubakar · ADAB-TECH</cite>
+    </blockquote>
+  </section>
+
+  <div class="wrap cta">
+    <p class="eyebrow"><span lang="ha">Nan ba da jimawa ba</span> · Coming soon</p>
+    <h3 style="margin: 12px 0 26px;">The full assistant is on its way.</h3>
+    <a class="btn" href="mailto:hi@murya.ng?subject=Murya%20—%20Hausa%20AI">Get in touch</a>
+    <a class="btn ghost" href="#" aria-disabled="true" onclick="return false;">Try the app (soon)</a>
+    <p class="contact-line">or write to <a href="mailto:hi@murya.ng">hi@murya.ng</a></p>
+  </div>
+</main>
+
+<footer class="wrap">
+  <p class="dedication">
+    <span class="ha" lang="ha">Ga duniyar Hausa — ba nawa kaɗai ba ne.</span>
+    <span class="en">For the Hausa world — this is not mine alone.</span>
+  </p>
+  <div class="credit">Built by <a href="https://adamu.tech" target="_blank" rel="noopener">Adamu Danjuma Abubakar</a> · <a href="https://github.com/adab-tech" target="_blank" rel="noopener">ADAB-TECH</a></div>
+  <div class="fine">Voice model trained on the WAXAL Hausa corpus (Google, CC-BY-SA-4.0) · © 2026</div>
+</footer>
+
+<div aria-live="polite" class="sr-only" id="au-status"></div>
+<audio id="au" preload="none"></audio>
+<script>
+  (function () {
+    var au = document.getElementById('au');
+    var status = document.getElementById('au-status');
+    var current = null;
+    function visualOf(el){ return el.classList.contains('play-btn') ? el : el.querySelector('.play-btn'); }
+    function setState(el, on){
+      el.setAttribute('aria-pressed', on ? 'true' : 'false');
+      var v = visualOf(el); if (v) v.classList.toggle('is-playing', on);
+    }
+    function playFrom(el){
+      var src = el.getAttribute('data-src');
+      if (current === el && !au.paused){ au.pause(); setState(el, false); current=null; status.textContent='Paused'; return; }
+      document.querySelectorAll('[data-src]').forEach(function(x){ setState(x, false); });
+      au.src = src;
+      au.play().then(function(){ setState(el, true); current = el; status.textContent='Playing'; })
+               .catch(function(){ status.textContent='Could not play audio'; });
+      au.onended = function(){ setState(el, false); current=null; status.textContent='Finished'; };
+    }
+    document.querySelectorAll('[data-src]').forEach(function(el){
+      el.addEventListener('click', function(){ playFrom(el); });
+    });
+  })();
+</script>
+</body>
+</html>

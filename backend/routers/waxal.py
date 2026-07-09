@@ -171,6 +171,59 @@ async def get_waxal_samples(
         "page_size": page_size
     }
 
+@router.get("/waxal/tts")
+async def get_waxal_tts(
+    text: str,
+    speaker_id: Optional[str] = None
+):
+    """Find the closest WAXAL sample matching the input text."""
+    samples = _load_metadata()
+    if not samples:
+        raise HTTPException(status_code=404, detail="WAXAL metadata not found")
+
+    # Filter by speaker if provided
+    if speaker_id:
+        spk_str = str(speaker_id)
+        filtered = [s for s in samples if str(s.get("speaker_id")) == spk_str]
+        if filtered:
+            samples = filtered
+
+    # Compute similarity for each sample
+    best_sample = None
+    best_score = -1.0
+    
+    import re
+    words_input = set(re.findall(r'\w+', text.lower()))
+    
+    if words_input:
+        for s in samples:
+            s_text = s.get("text_normalized", s.get("text", ""))
+            words_s = set(re.findall(r'\w+', s_text.lower()))
+            if not words_s:
+                continue
+            # Jaccard similarity
+            score = len(words_input.intersection(words_s)) / len(words_input.union(words_s))
+            if score > best_score:
+                best_score = score
+                best_sample = s
+
+    if not best_sample:
+        # Fallback
+        if samples:
+            best_sample = samples[0]
+            best_score = 0.0
+        else:
+            raise HTTPException(status_code=404, detail="No samples found")
+
+    audio_file = best_sample.get("audio_file", "")
+    basename = os.path.basename(audio_file)
+
+    return {
+        "sample": best_sample,
+        "similarity": best_score,
+        "audio_url": f"/api/waxal/audio/{basename}"
+    }
+
 @router.get("/waxal/audio/{filename}")
 async def get_waxal_audio(filename: str):
     """Serve a local audio file from the staged WAXAL audio folder."""

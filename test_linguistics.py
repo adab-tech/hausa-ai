@@ -15,7 +15,7 @@ def test_orthography():
         "d'an k'asa",
         "y'anci da daidaito",
         "b'aki da d'umi",
-        "sannu barka da zuwa",
+        "sannun barka da zuwa",
         "K'asar Hausa",
         "'yanci",
         "B'aure"
@@ -29,7 +29,7 @@ def test_orthography():
 def test_tonal_mapping():
     print("\n--- Testing R-to-L Tonal Mapping Heuristics ---")
     inputs = [
-        "Sannu ku da zuwa",
+        "Sannun ku da zuwa",
         "Barka da yamma ranka ya dade",
         "Kunya da girmamawa sune tushen mutunci"
     ]

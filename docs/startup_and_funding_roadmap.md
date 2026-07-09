@@ -60,11 +60,22 @@ To support the business goals, the core technical tasks must be completed on sch
 - [x] **Linguistic Hardening (Completed)**
   - Normalized hooked orthography (`ɗ`, `ɓ`, `ƙ`, `ƴ`) and integrated standard R-to-L tone heuristics.
   - Tested and achieved a 96.67% sovereign linguistic score on the validation test suite.
-- [ ] **Local Model Deployment**
-  - [ ] Complete training Epochs (1,000 epochs goal) on the active `hausa-ai-train-vm` instance.
-  - [ ] Export the final multi-speaker VITS model weights (`best_model.pth`) to ONNX format.
-  - [ ] Run INT8 quantization using `flywheel_optimizer.py` to reduce model footprint to ~250MB.
-  - [ ] Sync the optimized model files to the local `models/vits/` directory.
-- [ ] **Frontend & Dashboard Release**
-  - [ ] Connect the frontend UI to the local VITS FastAPI websocket stream.
-  - [ ] Verify the *Axiom Trace / Hanya* dashboard displays correct syllable-level pitch markings for live syntheses.
+- [x] **Local Model Deployment (Completed 2026-07-04 — exceeded targets)**
+  - [x] Pivoted from from-scratch VITS to a **grapheme-mode Piper fine-tune** (MIT)
+        after native-speaker evaluation rejected both the from-scratch output and
+        the Meta MMS base — see `docs/waxal_piper_technical_report.md`.
+  - [x] Trained 2,000 epochs on Modal (A10G), multi-speaker (all 8 WAXAL voices
+        in one model), every quality gate passed by native-speaker audition.
+  - [x] Final model exported to ONNX: **73.5 MB** — beating the 250 MB INT8
+        target by 3.4× *without* quantization; CPU real-time.
+  - [x] Deployed to `models/piper_hausa_waxal/` and live in the app.
+  - [ ] v2 in training: same recipe on the enlarged 6.03 h corpus (2,693
+        utterances; +1,723 segments recovered via whisper forced alignment).
+- [x] **Frontend & Dashboard Release**
+  - [x] Frontend serves the fine-tuned voices through the FastAPI `/api/tts`
+        pipeline; Murya dial exposes all 8 WAXAL speakers (M1–M4, F1–F4).
+  - [x] Axiom Trace panel shows raw → normalized → tone-mapped stages.
+- [ ] **Publication & Demo Assets (new)**
+  - [ ] Publish v2 model to Hugging Face (MIT, WAXAL attribution) + GitHub release.
+  - [ ] Record the YC founder video using the live app with the fine-tuned voices.
+  - [ ] Technical report (`docs/waxal_piper_technical_report.md`) as grant exhibit.

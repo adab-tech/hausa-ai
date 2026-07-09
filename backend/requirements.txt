@@ -16,12 +16,19 @@ faster-whisper~=1.0.3
 # Text-to-Speech — Piper (has ha_NG-openbible-medium Hausa voice)
 piper-tts~=1.2.0
 
+# WAXAL sample fallback for TTS (MP3 -> PCM resampling) — needs audioop-lts on Python 3.13+
+pydub>=0.25,<1
+audioop-lts>=0.2,<1; python_version >= "3.13"
+
+# Custom VITS ONNX inference engine (see requirements-inference.txt for pinned version)
+onnxruntime>=1.18,<2
+
 # Image & video generation — Diffusers + FLUX/Stable Diffusion / ModelScope T2V
 diffusers>=0.30,<1
 transformers>=4.44,<5
 accelerate>=0.33,<1
-torch~=2.3.0; python_version < "3.14"
-torch>=2.9,<2.12; python_version >= "3.14"
+torch~=2.3.0; python_version < "3.13"
+torch>=2.5.0; python_version >= "3.13"
 Pillow>=10.4,<13
 
 # Video export (used by diffusers.utils.export_to_video)

@@ -1,0 +1,3 @@
+# Post-training inference dependencies (VITS ONNX runtime)
+onnxruntime>=1.18,<2
+soundfile>=0.12,<1

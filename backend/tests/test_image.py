@@ -1,6 +1,7 @@
 """Tests for /api/generate-image and /api/generate-video."""
 
-from unittest.mock import MagicMock, patch
+import base64
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -34,42 +35,78 @@ async def test_video_rejects_missing_prompt(client):
 
 
 # ---------------------------------------------------------------------------
-# Happy path — diffusers pipeline is mocked
+# Image generation tests
 # ---------------------------------------------------------------------------
 
 
-def _make_fake_image():
-
-    from PIL import Image
-
-    img = Image.new("RGB", (64, 64), color=(100, 100, 100))
-    return img
+@pytest.mark.anyio
+async def test_image_generation_success(client, monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "fake-key")
+    
+    tiny_png_bytes = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk"
+        "YPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+    )
+    
+    mock_img = MagicMock()
+    mock_img.image.image_bytes = tiny_png_bytes
+    
+    mock_res = MagicMock()
+    mock_res.generated_images = [mock_img]
+    
+    mock_client_instance = MagicMock()
+    mock_client_instance.aio.models.generate_images = AsyncMock(return_value=mock_res)
+    
+    with patch("google.genai.Client", return_value=mock_client_instance):
+        response = await client.post(
+            "/api/generate-image",
+            json={"prompt": "Hausa market scene", "vibe": "Classic"}
+        )
+        
+    assert response.status_code == 200
+    data = response.json()
+    assert data["data"] == f"data:image/png;base64,{base64.b64encode(tiny_png_bytes).decode()}"
+    assert "error" not in data
 
 
 @pytest.mark.anyio
-async def test_image_generation_success(client):
-    fake_result = MagicMock()
-    fake_result.images = [_make_fake_image()]
-
-    fake_pipe = MagicMock(return_value=fake_result)
-
-    with patch("routers.image._get_image_pipeline", return_value=fake_pipe):
-        response = await client.post("/api/generate-image", json={"prompt": "Hausa market scene"})
-
+async def test_image_generation_fallback(client, monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "fake-key")
+    
+    # Force API failure to trigger PIL fallback
+    mock_client_instance = MagicMock()
+    mock_client_instance.aio.models.generate_images = AsyncMock(side_effect=Exception("API limit"))
+    
+    with patch("google.genai.Client", return_value=mock_client_instance):
+        response = await client.post(
+            "/api/generate-image",
+            json={"prompt": "Hausa market scene", "vibe": "Classic"}
+        )
+        
     assert response.status_code == 200
     data = response.json()
     assert data["data"].startswith("data:image/png;base64,")
+    assert "error" in data
+    assert "fallback" in data["error"].lower()
 
 
 @pytest.mark.anyio
-async def test_image_generation_failure_returns_error(client):
-    """When the pipeline raises, the endpoint must return an error payload (not 500)."""
-    with patch(
-        "routers.image._get_image_pipeline",
-        side_effect=RuntimeError("CUDA OOM"),
+async def test_image_generation_failure_returns_error(client, monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "fake-key")
+    
+    # Force API failure AND PIL failure
+    mock_client_instance = MagicMock()
+    mock_client_instance.aio.models.generate_images = AsyncMock(side_effect=Exception("API limit"))
+    
+    with (
+        patch("google.genai.Client", return_value=mock_client_instance),
+        patch("PIL.Image.new", side_effect=RuntimeError("PIL error")),
     ):
-        response = await client.post("/api/generate-image", json={"prompt": "test"})
-
+        response = await client.post(
+            "/api/generate-image",
+            json={"prompt": "Hausa market scene", "vibe": "Classic"}
+        )
+        
     assert response.status_code == 200
     data = response.json()
     assert data["data"] is None
@@ -77,40 +114,32 @@ async def test_image_generation_failure_returns_error(client):
 
 
 # ---------------------------------------------------------------------------
-# Video generation
+# Video generation tests
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.anyio
-async def test_video_generation_success(client):
-    import sys
-    from types import ModuleType
-
-    fake_frame = _make_fake_image()
-    fake_output = MagicMock()
-    fake_output.frames = [[fake_frame] * 4]
-    fake_pipe = MagicMock(return_value=fake_output)
-
-    def _fake_export(frames, path, fps=8):
-        with open(path, "wb") as f:
-            f.write(b"\x00\x00\x00\x18ftyp")  # fake MP4 header bytes
-
-    # diffusers is not installed in the CI test environment, so stub the modules
-    # that are imported lazily inside generate_video.
-    fake_diffusers = ModuleType("diffusers")
-    fake_diffusers_utils = ModuleType("diffusers.utils")
-    fake_diffusers_utils.export_to_video = _fake_export
-    fake_diffusers.utils = fake_diffusers_utils
-
-    with (
-        patch.dict(
-            sys.modules,
-            {"diffusers": fake_diffusers, "diffusers.utils": fake_diffusers_utils},
-        ),
-        patch("routers.image._get_video_pipeline", return_value=fake_pipe),
-    ):
-        response = await client.post("/api/generate-video", json={"prompt": "Hausa night market"})
-
+async def test_video_generation_success(client, monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "fake-key")
+    
+    tiny_png_bytes = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk"
+        "YPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+    )
+    
+    mock_img = MagicMock()
+    mock_img.image.image_bytes = tiny_png_bytes
+    mock_res = MagicMock()
+    mock_res.generated_images = [mock_img]
+    mock_client_instance = MagicMock()
+    mock_client_instance.aio.models.generate_images = AsyncMock(return_value=mock_res)
+    
+    with patch("google.genai.Client", return_value=mock_client_instance):
+        response = await client.post(
+            "/api/generate-video",
+            json={"prompt": "Hausa night market"}
+        )
+        
     assert response.status_code == 200
     data = response.json()
     assert data["uri"].startswith("data:video/mp4;base64,")
@@ -118,13 +147,15 @@ async def test_video_generation_success(client):
 
 
 @pytest.mark.anyio
-async def test_video_generation_failure_returns_error(client):
-    with patch(
-        "routers.image._get_video_pipeline",
-        side_effect=RuntimeError("OOM"),
-    ):
-        response = await client.post("/api/generate-video", json={"prompt": "test"})
-
+async def test_video_generation_failure_returns_error(client, monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "fake-key")
+    
+    with patch("imageio.get_writer", side_effect=RuntimeError("FFMPEG error")):
+        response = await client.post(
+            "/api/generate-video",
+            json={"prompt": "test"}
+        )
+        
     assert response.status_code == 200
     data = response.json()
     assert data["uri"] is None

@@ -92,61 +92,117 @@ async def generate_image(req: ImageRequest):
         f"A majestic Hausa cultural scene in {req.vibe} style: {req.prompt}. "
         "Dignified, scholarly, authentic, 8k."
     )
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        logger.error("GEMINI_API_KEY not set in environment.")
+        return {"data": None, "error": "GEMINI_API_KEY not set in environment."}
+
     try:
-        pipe = _get_image_pipeline()
-        result = pipe(full_prompt, num_inference_steps=4, guidance_scale=0.0)
-        img = result.images[0]
-        buf = io.BytesIO()
-        img.save(buf, format="PNG")
-        b64 = base64.b64encode(buf.getvalue()).decode()
+        from google import genai
+        from google.genai import types
+
+        client = genai.Client(api_key=api_key)
+        # Using the async client to prevent blocking the event loop
+        response = await client.aio.models.generate_images(
+            model='imagen-3.0-fast-generate-001',
+            prompt=full_prompt,
+            config=types.GenerateImagesConfig(
+                number_of_images=1,
+                output_mime_type="image/png",
+                aspect_ratio="1:1"
+            )
+        )
+        img_bytes = response.generated_images[0].image.image_bytes
+        b64 = base64.b64encode(img_bytes).decode()
         return {"data": f"data:image/png;base64,{b64}"}
-    except Exception:
-        logger.exception("Image generation failed")
-        return {"data": None, "error": "Image generation failed. Check backend logs."}
+
+    except Exception as e:
+        logger.warning("google.genai image generation failed: %s. Using local fallback.", e)
+        # Dynamic local fallback using PIL
+        try:
+            from PIL import Image, ImageDraw
+            img = Image.new('RGB', (512, 512), color=(20, 20, 20))
+            d = ImageDraw.Draw(img)
+            # Draw cultural border
+            d.rectangle([(16, 16), (496, 496)], outline=(212, 175, 55), width=4)
+            # Draw text
+            text_line1 = "Hausa AI Artifact"
+            text_line2 = f"Vibe: {req.vibe}"
+            text_line3 = f"{req.prompt[:30]}..."
+            d.text((256, 200), text_line1, fill=(212, 175, 55), align="center", anchor="mm")
+            d.text((256, 260), text_line2, fill=(255, 255, 255), align="center", anchor="mm")
+            d.text((256, 320), text_line3, fill=(180, 180, 180), align="center", anchor="mm")
+            
+            buf = io.BytesIO()
+            img.save(buf, format="PNG")
+            b64 = base64.b64encode(buf.getvalue()).decode()
+            return {"data": f"data:image/png;base64,{b64}", "error": "Using local fallback placeholder."}
+        except Exception as err:
+            logger.exception("Image fallback failed")
+            return {"data": None, "error": f"Image generation failed: {str(err)}"}
 
 
 @router.post("/generate-video")
 async def generate_video(req: VideoRequest):
     """
-    Text-to-video generation using the ModelScope TextToVideoSD pipeline.
-
-    Default model: damo-vilab/text-to-video-ms-1.7b (Apache 2.0, ~3.5 GB download).
-    Override via VIDEO_MODEL env var (e.g. a CogVideoX or SVD model).
-    VIDEO_DEVICE defaults to IMAGE_DEVICE (cpu or cuda).
-
-    Note: CPU inference is slow (~several minutes for 16 frames at 256×256).
-    For interactive use, run on a CUDA GPU.
+    Video generation using the Imagen static output + Ken Burns pan/zoom animation.
+    This creates an instant, lightweight MP4 without local GPU requirements.
     """
-    full_prompt = (
-        f"A majestic Hausa cultural scene: {req.prompt}. "
-        "Cinematic, dignified, authentic Arewa aesthetic."
-    )
     try:
-        from diffusers.utils import export_to_video
+        import numpy as np
+        from PIL import Image, ImageDraw
+        import imageio
 
-        pipe = _get_video_pipeline()
-        output = pipe(
-            full_prompt,
-            num_frames=16,
-            num_inference_steps=25,
-            height=256,
-            width=256,
-        )
-        frames = output.frames[0]  # first (and only) clip in the batch — a list of PIL Images
-
-        # Write frames to a temporary MP4, read back, then encode as data URI
+        # 1. Try to generate a single image first
+        img_res = await generate_image(ImageRequest(prompt=req.prompt, vibe="Classic"))
+        if img_res and img_res.get("data") and "base64," in img_res["data"]:
+            b64_data = img_res["data"].split("base64,")[1]
+            base_img = Image.open(io.BytesIO(base64.b64decode(b64_data)))
+        else:
+            # Create a placeholder base image
+            base_img = Image.new('RGB', (256, 256), color=(20, 20, 20))
+            d = ImageDraw.Draw(base_img)
+            d.rectangle([(32, 32), (224, 224)], outline=(212, 175, 55), width=3)
+            d.text((128, 128), "Arewa Motion", fill=(212, 175, 55), anchor="mm")
+            
+        base_img = base_img.resize((256, 256))
+        
+        # 2. Create 16 frames with a smooth panning/zooming effect (Ken Burns effect)
+        frames = []
+        num_frames = 16
+        for i in range(num_frames):
+            # Calculate zoom factor (e.g. from 1.0 to 1.15)
+            zoom = 1.0 + (i / (num_frames - 1)) * 0.15
+            new_size = (int(256 * zoom), int(256 * zoom))
+            resized = base_img.resize(new_size, Image.Resampling.LANCZOS)
+            
+            # Crop to center 256x256
+            left = (resized.width - 256) // 2
+            top = (resized.height - 256) // 2
+            cropped = resized.crop((left, top, left + 256, top + 256))
+            
+            # Convert to numpy array
+            frames.append(np.array(cropped))
+            
+        # 3. Write frames to temporary MP4 using imageio
         tmp_fd, tmp_path = tempfile.mkstemp(suffix=".mp4")
         os.close(tmp_fd)
         try:
-            export_to_video(frames, tmp_path, fps=8)
+            # Use imageio to write video
+            writer = imageio.get_writer(tmp_path, fps=8, codec='libx264', format='FFMPEG')
+            for frame in frames:
+                writer.append_data(frame)
+            writer.close()
+            
             with open(tmp_path, "rb") as fh:
                 mp4_bytes = fh.read()
         finally:
             with suppress(OSError):
                 os.unlink(tmp_path)
-
+                
         b64 = base64.b64encode(mp4_bytes).decode()
         return {"uri": f"data:video/mp4;base64,{b64}", "error": None}
-    except Exception:
+        
+    except Exception as e:
         logger.exception("Video generation failed")
-        return {"uri": None, "error": "Video generation failed. Check backend logs."}
+        return {"uri": None, "error": f"Video generation failed: {str(e)}"}
