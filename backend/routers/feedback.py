@@ -23,7 +23,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from auth import verify_reviewer_key
+from auth import verify_admin_session
 import corrections_store
 
 router = APIRouter()
@@ -61,14 +61,21 @@ async def record_feedback(req: FeedbackRequest):
     return {"status": "recorded"}
 
 
-@router.get("/corrections", dependencies=[Depends(verify_reviewer_key)])
-async def get_corrections(status: Literal["pending", "approved", "rejected"] | None = None):
+@router.get("/corrections")
+async def get_corrections(
+    status: Literal["pending", "approved", "rejected"] | None = None,
+    _admin: str = Depends(verify_admin_session),
+):
     return corrections_store.list_corrections(status)
 
 
-@router.post("/corrections/{correction_id}/review", dependencies=[Depends(verify_reviewer_key)])
-async def review_correction_endpoint(correction_id: str, req: ReviewRequest):
-    updated = corrections_store.review_correction(correction_id, req.action)
+@router.post("/corrections/{correction_id}/review")
+async def review_correction_endpoint(
+    correction_id: str,
+    req: ReviewRequest,
+    admin: str = Depends(verify_admin_session),
+):
+    updated = corrections_store.review_correction(correction_id, req.action, reviewed_by=admin)
     if updated is None:
         raise HTTPException(status_code=404, detail="Correction not found")
     return updated

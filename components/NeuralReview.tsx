@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ArewaLogo } from './ArewaLogo.tsx';
 import { gemini } from '../services/localService.ts';
-import { CorrectionsReview } from './CorrectionsReview.tsx';
 import {
   Activity,
   Layers,
@@ -16,13 +15,12 @@ import {
   ShieldCheck,
   ChevronRight,
   Sliders,
-  Database,
-  GraduationCap
+  Database
 } from 'lucide-react';
 
 export const NeuralReview: React.FC<{ onClose: () => void; onOpenWhitePaper?: () => void }> = ({ onClose, onOpenWhitePaper }) => {
   const [feedbackStats, setFeedbackStats] = useState<{ up: number; down: number; total: number } | null>(null);
-  const [activeTab, setActiveTab] = useState<'telemetry' | 'matrix' | 'phonology' | 'vision' | 'waxal' | 'corrections'>('telemetry');
+  const [activeTab, setActiveTab] = useState<'telemetry' | 'matrix' | 'phonology' | 'vision' | 'waxal'>('telemetry');
 
   useEffect(() => {
     gemini.getFeedbackStats().then(data => {
@@ -153,7 +151,6 @@ export const NeuralReview: React.FC<{ onClose: () => void; onOpenWhitePaper?: ()
               { id: 'phonology', label: 'Phonology', icon: Music },
               { id: 'vision', label: 'Core Vibe', icon: Sparkles },
               { id: 'waxal', label: 'WAXAL Corpus', icon: Database },
-              { id: 'corrections', label: 'Corrections', icon: GraduationCap }
             ].map((tab) => {
               const Icon = tab.icon;
               return (
@@ -544,8 +541,6 @@ export const NeuralReview: React.FC<{ onClose: () => void; onOpenWhitePaper?: ()
              </div>
           )}
 
-          {/* Corrections Review Tab */}
-          {activeTab === 'corrections' && <CorrectionsReview />}
         </div>
 
         {/* Modal Footer */}

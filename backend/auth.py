@@ -13,8 +13,10 @@ authentication is disabled and all requests are allowed through.
 import hmac
 import os
 
-from fastapi import HTTPException, Security, status
+from fastapi import HTTPException, Request, Security, status
 from fastapi.security.api_key import APIKeyHeader
+
+import admin_store
 
 _API_KEY_NAME = "X-API-Key"
 _api_key_header = APIKeyHeader(name=_API_KEY_NAME, auto_error=False)
@@ -42,13 +44,10 @@ _CONFIGURED_REVIEWER_KEY: str | None = os.getenv("REVIEWER_API_KEY")
 
 
 async def verify_reviewer_key(reviewer_key: str | None = Security(_reviewer_key_header)) -> None:
-    """FastAPI dependency — gates correction review/approval endpoints.
-
-    Distinct from API_KEY: API_KEY (when set) gates general API access for all
-    callers; REVIEWER_API_KEY specifically gates who may approve/reject user
-    corrections that get folded into the model's prompt. Set this before
-    exposing the app publicly — corrections are how the model actually
-    learns, so this is the one gate that must not be left open in production.
+    """Deprecated: superseded by verify_admin_session (real accounts + a
+    session cookie instead of one shared secret). Kept only as a documented,
+    unused fallback in case admin.db is ever lost and REVIEWER_API_KEY needs
+    to re-seed a fresh bootstrap admin (see admin_store.init_db).
     """
     if _CONFIGURED_REVIEWER_KEY is None:
         # No reviewer key configured → open access (self-hosted/dev default).
@@ -59,3 +58,24 @@ async def verify_reviewer_key(reviewer_key: str | None = Security(_reviewer_key_
             detail="Invalid or missing reviewer key. Set the X-Reviewer-Key header.",
             headers={"WWW-Authenticate": "ApiKey"},
         )
+
+
+async def verify_admin_session(request: Request) -> str:
+    """FastAPI dependency — gates correction review/approval endpoints.
+
+    Real per-admin identity via a server-side session (SQLite-backed,
+    HttpOnly cookie) instead of a single shared bearer secret — see
+    admin_store.py and routers/admin_auth.py. Returns the authenticated
+    admin's username (so callers can record who approved what); raises 401
+    if there's no valid session. This is the gate that decides what the
+    model actually learns from user corrections, so it must not be left
+    open — see routers/feedback.py.
+    """
+    token = request.cookies.get(admin_store.SESSION_COOKIE_NAME)
+    username = admin_store.get_session_username(token) if token else None
+    if username is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Admin session required. Log in at /admin/login.",
+        )
+    return username

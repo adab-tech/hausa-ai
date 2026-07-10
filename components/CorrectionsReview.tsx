@@ -1,8 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { gemini } from '../services/localService.ts';
-import { CheckCircle2, XCircle, KeyRound } from 'lucide-react';
-
-const REVIEWER_KEY_STORAGE = 'hausa_ai_reviewer_key';
+import { CheckCircle2, XCircle } from 'lucide-react';
 
 interface Correction {
   id: string;
@@ -11,25 +9,23 @@ interface Correction {
   correction: string;
   status: 'pending' | 'approved' | 'rejected';
   timestamp: number;
+  reviewedBy?: string | null;
 }
 
 /**
- * Human-in-the-loop review queue. Gated by a reviewer key (X-Reviewer-Key),
- * separate from the general API_KEY — this is the one control that decides
- * what the model actually learns from user corrections, so it stays behind
- * its own explicit gate rather than opening whenever the app is unlocked.
+ * Human-in-the-loop review queue. Only reachable from within AdminPanel,
+ * which already confirmed a valid admin session (see admin_store.py) —
+ * every request here rides that session cookie automatically.
  */
 export const CorrectionsReview: React.FC = () => {
-  const [reviewerKey, setReviewerKey] = useState(() => sessionStorage.getItem(REVIEWER_KEY_STORAGE) || '');
-  const [keyInput, setKeyInput] = useState('');
   const [pending, setPending] = useState<Correction[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const loadPending = async (key: string) => {
+  const loadPending = async () => {
     setError(null);
-    const data = await gemini.getCorrections('pending', key);
+    const data = await gemini.getCorrections('pending');
     if (data === null) {
-      setError('Ba a iya samun bayanai ba — duba maballin bita (reviewer key).');
+      setError('Ba a iya samun bayanai ba.');
       setPending(null);
     } else {
       setPending(data);
@@ -37,56 +33,23 @@ export const CorrectionsReview: React.FC = () => {
   };
 
   useEffect(() => {
-    if (reviewerKey) loadPending(reviewerKey);
-  }, [reviewerKey]);
-
-  const unlock = () => {
-    sessionStorage.setItem(REVIEWER_KEY_STORAGE, keyInput);
-    setReviewerKey(keyInput);
-  };
+    loadPending();
+  }, []);
 
   const review = async (id: string, action: 'approve' | 'reject') => {
-    const ok = await gemini.reviewCorrection(id, action, reviewerKey);
+    const ok = await gemini.reviewCorrection(id, action);
     if (ok) {
       setPending(prev => (prev ? prev.filter(c => c.id !== id) : prev));
     }
   };
-
-  if (!reviewerKey) {
-    return (
-      <div className="max-w-md mx-auto py-12 text-center space-y-6 animate-reveal">
-        <KeyRound className="w-10 h-10 text-dyn-accent mx-auto" />
-        <p className="text-sm text-dyn-text-secondary">
-          Wannan sashe don masu bita ne kawai. Shigar da reviewer key (X-Reviewer-Key) domin ci gaba.
-        </p>
-        <input
-          type="password"
-          value={keyInput}
-          onChange={(e) => setKeyInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') unlock(); }}
-          placeholder="Reviewer key"
-          className="w-full px-4 py-3 bg-dyn-bg-tertiary/60 border border-dyn-border rounded-2xl text-sm text-dyn-text-primary focus:outline-none focus:border-dyn-accent/50"
-        />
-        <button
-          onClick={unlock}
-          className="px-8 py-3 rounded-full bg-dyn-accent text-dyn-bg-primary text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all"
-        >
-          Buɗe (Unlock)
-        </button>
-        <p className="text-[10px] text-dyn-text-muted italic">
-          Idan ba a saita REVIEWER_API_KEY a backend ba tukuna, kowace shigarwa za ta yi aiki (dev mode).
-        </p>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6 animate-reveal">
       {error && (
         <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm flex items-center justify-between">
           <span>{error}</span>
-          <button onClick={() => { sessionStorage.removeItem(REVIEWER_KEY_STORAGE); setReviewerKey(''); }} className="text-xs underline">
-            Sake shigarwa
+          <button onClick={loadPending} className="text-xs underline">
+            Sake gwadawa
           </button>
         </div>
       )}

@@ -29,7 +29,8 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from auth import verify_api_key
-from routers import audio, chat, feedback, image, waxal
+from routers import admin_auth, audio, chat, feedback, image, waxal
+import admin_store
 
 
 def _validate_runtime_config() -> None:
@@ -52,17 +53,21 @@ def _validate_runtime_config() -> None:
                 "ALLOWED_ORIGINS='*' is not allowed in production. "
                 "Set explicit trusted origins."
             )
-        # The reviewer gate is the security boundary that actually matters for a
-        # PUBLIC deployment (a tool real Hausa speakers use freely): it controls
-        # who may approve user-submitted corrections that get folded into the
-        # model's system prompt. Left open, anyone could poison the model through
-        # the corrections queue — so it is required in production.
+        # Corrections review/approval is gated by real admin accounts + server-
+        # side sessions now (admin_store.py, routers/admin_auth.py), not a
+        # shared bearer key. REVIEWER_API_KEY's role is just to seed the first
+        # admin account on first boot (see admin_store.init_db) — it must
+        # still be set once so there's a way to log in at all; after that
+        # first login it plays no further role in gating requests. Left
+        # unset, there would be no admin account and no way to approve
+        # corrections, but a fresh production deploy must have SOME path in.
         reviewer_key = os.getenv("REVIEWER_API_KEY", "").strip()
         if not reviewer_key:
             raise RuntimeError(
-                "REVIEWER_API_KEY must be set when APP_ENV=production. It gates "
-                "who can approve model-affecting corrections; without it the "
-                "human-in-the-loop learning queue is open to poisoning."
+                "REVIEWER_API_KEY must be set when APP_ENV=production. It seeds "
+                "the first admin account (see admin_store.py); without it "
+                "there is no way to log in and approve model-affecting "
+                "corrections."
             )
         # API_KEY is OPTIONAL. Set it only for a private/firewalled deployment —
         # in a public single-page app it cannot be a real secret (the frontend
@@ -89,6 +94,9 @@ from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Startup: create/seed the admin accounts + sessions DB (see admin_store.py)
+    admin_store.init_db()
+
     # Startup: Pre-load STT and TTS models to avoid cold-start latency
     import logging
     startup_logger = logging.getLogger("uvicorn.error")
@@ -151,6 +159,7 @@ app.include_router(image.router, prefix="/api", dependencies=_auth)
 app.include_router(audio.router, prefix="/api")
 app.include_router(waxal.router, prefix="/api", dependencies=_auth)
 app.include_router(feedback.router, prefix="/api", dependencies=_auth)
+app.include_router(admin_auth.router, prefix="/api")
 
 
 @app.get("/health")

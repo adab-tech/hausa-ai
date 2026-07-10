@@ -1,0 +1,71 @@
+"""
+/api/admin/login, /api/admin/logout, /api/admin/me — real admin sessions.
+
+Replaces the old pattern of typing REVIEWER_API_KEY into the frontend and
+sending it as a raw X-Reviewer-Key header on every request. A login here
+issues an HttpOnly, Secure session cookie instead — the credential never
+touches JS, and corrections finally get a real "reviewed by" identity
+(see admin_store.py, corrections_store.py).
+"""
+
+import os
+
+from fastapi import APIRouter, HTTPException, Request, Response
+from pydantic import BaseModel, Field
+
+import admin_store
+
+router = APIRouter()
+
+_IS_PROD = os.getenv("APP_ENV", "development").strip().lower() == "production"
+
+
+class LoginRequest(BaseModel):
+    username: str = Field(..., max_length=100)
+    password: str = Field(..., max_length=200)
+
+
+def _set_session_cookie(response: Response, token: str) -> None:
+    # Cross-site by design: the frontend (app.murya.ng) and this API
+    # (hausa-ai-backend.fly.dev) are different registrable domains, so the
+    # cookie must be SameSite=None (requires Secure) to be sent at all. In
+    # dev (APP_ENV != production) both typically run over plain HTTP on the
+    # same machine, where Secure/None cookies would be silently dropped by
+    # the browser — fall back to Lax + non-Secure there.
+    response.set_cookie(
+        key=admin_store.SESSION_COOKIE_NAME,
+        value=token,
+        httponly=True,
+        secure=_IS_PROD,
+        samesite="none" if _IS_PROD else "lax",
+        max_age=12 * 3600,
+        path="/",
+    )
+
+
+@router.post("/admin/login")
+async def admin_login(req: LoginRequest, response: Response):
+    admin_id = admin_store.verify_login(req.username, req.password)
+    if admin_id is None:
+        raise HTTPException(status_code=401, detail="Invalid username or password.")
+    token = admin_store.create_session(admin_id)
+    _set_session_cookie(response, token)
+    return {"username": req.username}
+
+
+@router.post("/admin/logout")
+async def admin_logout(request: Request, response: Response):
+    token = request.cookies.get(admin_store.SESSION_COOKIE_NAME)
+    if token:
+        admin_store.delete_session(token)
+    response.delete_cookie(admin_store.SESSION_COOKIE_NAME, path="/")
+    return {"ok": True}
+
+
+@router.get("/admin/me")
+async def admin_me(request: Request):
+    token = request.cookies.get(admin_store.SESSION_COOKIE_NAME)
+    username = admin_store.get_session_username(token) if token else None
+    if username is None:
+        raise HTTPException(status_code=401, detail="Not authenticated.")
+    return {"username": username}
