@@ -52,7 +52,7 @@ export const LiveCallPanel: React.FC<LiveCallPanelProps> = ({ voiceStatus, callD
         ) : (
           liveTranscripts.map((t, idx) => (
             <div key={idx} className={`flex flex-col ${t.role === 'user' ? 'items-end' : 'items-start'} animate-reveal`}>
-              <span className="text-[8px] uppercase tracking-wider opacity-40 font-mono mb-0.5">{t.role === 'user' ? 'Kai (User)' : 'Hausa AI'}</span>
+              <span className="text-[8px] uppercase tracking-wider opacity-40 font-mono mb-0.5">{t.role === 'user' ? 'Kai (User)' : 'Murya'}</span>
               <div className={`px-4 py-2 rounded-2xl text-sm max-w-[85%] ${t.role === 'user' ? 'bg-white/10 text-white' : 'bg-red-900/40 text-red-100 border border-red-800/50 font-serif italic'}`}>
                 {t.text}
               </div>

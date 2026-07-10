@@ -126,7 +126,7 @@ async def generate_image(req: ImageRequest):
             # Draw cultural border
             d.rectangle([(16, 16), (496, 496)], outline=(212, 175, 55), width=4)
             # Draw text
-            text_line1 = "Hausa AI Artifact"
+            text_line1 = "Murya Artifact"
             text_line2 = f"Vibe: {req.vibe}"
             text_line3 = f"{req.prompt[:30]}..."
             d.text((256, 200), text_line1, fill=(212, 175, 55), align="center", anchor="mm")

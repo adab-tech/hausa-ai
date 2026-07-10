@@ -60,7 +60,7 @@ export const WhitePaper: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           <div className="absolute top-0 right-0 p-8 opacity-[0.03] text-[10rem] font-serif italic select-none">A</div>
           <h2 className="text-[11px] uppercase tracking-[0.8em] text-silk-gold font-black">Executive Summary</h2>
           <p className="text-2xl sm:text-4xl leading-relaxed font-serif italic text-ivory/80">
-            Hausa AI represents a paradigm shift in indigenous language modeling. By moving beyond statistical word-mapping and into "Digital Prosody," our research corrects the colonial phonetic bias inherent in standard LLMs. We leverage Murya to enforce the Fada Protocol—a high-dignity sociolinguistic layer grounded in the laws of Litvinova and Newman.
+            Murya represents a paradigm shift in indigenous language modeling. By moving beyond statistical word-mapping and into "Digital Prosody," our research corrects the colonial phonetic bias inherent in standard LLMs. We leverage Murya to enforce the Fada Protocol—a high-dignity sociolinguistic layer grounded in the laws of Litvinova and Newman.
           </p>
         </section>
 
@@ -168,12 +168,12 @@ export const WhitePaper: React.FC<{ onClose: () => void }> = ({ onClose }) => {
            <div className="space-y-6">
               <h2 className="text-5xl sm:text-8xl font-serif italic leading-tight text-white/90">"Hargitsin duniya ba ya hana safiya wayewa."</h2>
               <p className="text-xl sm:text-2xl text-ivory/40 italic font-serif max-w-2xl mx-auto">
-                Hausa AI is more than an OS—it is a digital guardian for the dignity of the Hausa language and culture in the age of global intelligence.
+                Murya is more than an OS—it is a digital guardian for the dignity of the Hausa language and culture in the age of global intelligence.
               </p>
            </div>
            
            <div className="flex flex-col items-center pt-24 font-mono text-[8px] uppercase tracking-[1em] text-white/20">
-              <span>Hausa AI Artifact</span>
+              <span>Murya Artifact</span>
               <span>Murya Series Document</span>
               <span>(C) 2026 ADAB-TECH Research</span>
            </div>

@@ -344,7 +344,7 @@ const App: React.FC = () => {
             </button>
             <div className="flex items-center gap-3 md:hidden">
               <ArewaLogo size={32} active={isLoading || isLiveActive} />
-              <h2 className="font-serif italic text-xl text-dyn-accent tracking-tighter">Hausa AI</h2>
+              <h2 className="font-serif italic text-xl text-dyn-accent tracking-tighter">Murya</h2>
             </div>
           </div>
 
@@ -369,7 +369,7 @@ const App: React.FC = () => {
               <div className="h-[60vh] flex flex-col items-center justify-center text-center space-y-8 animate-reveal">
                 <div className="flex justify-center select-none"><ArewaLogo size={100} active={isLoading || isLiveActive} watermark /></div>
                 <div className="space-y-4 max-w-2xl">
-                  <h2 className="text-4xl sm:text-6xl font-serif italic text-dyn-accent leading-none tracking-tight">Barka da zuwa cibiyar Hausa AI</h2>
+                  <h2 className="text-4xl sm:text-6xl font-serif italic text-dyn-accent leading-none tracking-tight">Barka da zuwa Murya</h2>
                   <p className="text-dyn-text-secondary text-base sm:text-xl font-serif italic leading-relaxed">
                     Ingantaccen harshe, martabar al'ada, da zurfin tunanin ilimi. Rubuta umarni a kasa don fara tattaunawa ko danna alamar makirufo domin sautin murya na kai-tsaye.
                   </p>
