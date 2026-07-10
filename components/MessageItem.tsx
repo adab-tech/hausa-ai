@@ -76,7 +76,7 @@ export const MessageItem = memo(({
             <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-6">
               {m.attachments.map((at, i) => (
                 <div key={i} className="rounded-2xl overflow-hidden border border-dyn-border shadow-2xl relative group bg-black/40 shimmer">
-                  {at.type === 'image' && <img src={at.data} className="w-full h-auto max-h-[300px] object-cover group-hover:scale-105 transition-all duration-1000" loading="lazy" />}
+                  {at.type === 'image' && <img src={at.data} alt={at.name || 'Hoto (generated or attached image)'} className="w-full h-auto max-h-[300px] object-cover group-hover:scale-105 transition-all duration-1000" loading="lazy" />}
                   {at.type === 'video' && <video src={at.uri || at.data} controls className="w-full h-auto max-h-[300px]" />}
                   <div className="absolute bottom-4 left-4 px-3 py-1.5 bg-black/80 backdrop-blur-md border border-dyn-border rounded-full text-[9px] font-bold uppercase tracking-wider text-dyn-accent opacity-0 group-hover:opacity-100 transition-opacity">
                     {at.name}
