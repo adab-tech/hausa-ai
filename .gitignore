@@ -75,3 +75,4 @@ backend/data/
 
 .vercel
 .fly_token
+.claude/worktrees/
