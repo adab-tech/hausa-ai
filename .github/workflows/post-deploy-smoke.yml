@@ -24,7 +24,7 @@ jobs:
       - name: Check health endpoint
         run: |
           set -euo pipefail
-          RESPONSE=$(curl -fsS "$SERVICE_URL/health")
+          RESPONSE=$(curl -fsS --retry 6 --retry-all-errors --retry-delay 10 --max-time 30 "$SERVICE_URL/health")
           echo "Health response: $RESPONSE"
           echo "$RESPONSE" | grep -q '"status"'
           echo "$RESPONSE" | grep -q '"sovereign"'
