@@ -82,6 +82,20 @@ DEFAULT_MODEL = os.getenv("OLLAMA_MODEL", "aya-expanse:8b")
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 GEMINI_MODEL = os.getenv("VERTEX_MODEL", "gemini-2.5-flash")
 
+# Explicitly pin the CPU thread count Ollama uses for this request rather than
+# trusting its own auto-detection. Ollama's thread auto-detect (Go's
+# runtime.NumCPU()) has a known class of bugs under container CPU limits — see
+# https://github.com/ollama/ollama/issues/2496 and the (as of this writing,
+# still-open) fix at https://github.com/ollama/ollama/pull/12396, which
+# explicitly only handles the --cpuset-cpus limiting method, not others. Fly
+# Machines are Firecracker microVMs with their own dedicated vCPUs (not a
+# cgroup-quota-limited slice of a bigger host), so this box likely isn't hit by
+# that bug — but hardcoding the known-correct value for this
+# performance-2x (2 vCPU) machine costs nothing and removes the uncertainty.
+# NOTE: if this machine's size ever changes, update this constant to match.
+_OLLAMA_NUM_THREAD = int(os.getenv("OLLAMA_INFERENCE_THREADS", "2"))
+_OLLAMA_OPTIONS = {"num_thread": _OLLAMA_NUM_THREAD}
+
 
 # ---------------------------------------------------------------------------
 # Pydantic models
@@ -402,6 +416,7 @@ async def chat_endpoint(request: Request, req: ChatRequest):
                     model=DEFAULT_MODEL,
                     messages=messages,
                     stream=True,
+                    options=_OLLAMA_OPTIONS,
                 ):
                     await queue.put(part["message"]["content"])
             except Exception as ollama_err:

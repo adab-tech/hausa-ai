@@ -10,6 +10,21 @@ primary_region = "jnb"
   OLLAMA_HOST = "http://localhost:11434"
   OLLAMA_MODEL = "aya-expanse:8b"
   OLLAMA_MODELS = "/app/data/ollama-models"
+  # Pinned explicitly (matches Ollama's built-in default) so a future Ollama
+  # upgrade can't silently shrink it out from under SOVEREIGN_CONSTITUTION —
+  # measured at ~950-1050 tokens alone, before history/memoryPrompt/corrections
+  # are added, so context length must stay well above that headroom.
+  OLLAMA_CONTEXT_LENGTH = "4096"
+  # Quantized KV cache (q8_0: ~half the f16 memory footprint, published
+  # perplexity delta of 0.002-0.05 — not audibly/legibly different in chat use).
+  # Deliberately NOT q4_0: this app's whole point is correctness of gendered
+  # Hausa grammar and diacritics, so we take the safer of the two options the
+  # guide offers. Flash attention must be on for the KV cache type to take
+  # effect; on this CPU-only box its own speed benefit is unproven (it's
+  # primarily a GPU optimization) but it's required as a precondition and is
+  # not known to hurt CPU inference.
+  OLLAMA_FLASH_ATTENTION = "1"
+  OLLAMA_KV_CACHE_TYPE = "q8_0"
 
 [http_service]
   internal_port = 8080

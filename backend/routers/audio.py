@@ -39,6 +39,9 @@ logger = logging.getLogger(__name__)
 
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://ollama:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "aya-expanse:8b")
+# See routers/chat.py's _OLLAMA_OPTIONS comment for why this is hardcoded
+# rather than left to Ollama's own thread auto-detection.
+_OLLAMA_OPTIONS = {"num_thread": int(os.getenv("OLLAMA_INFERENCE_THREADS", "2"))}
 PIPER_MODEL = os.getenv("PIPER_MODEL", "ha_NG-openbible-medium")
 WHISPER_MODEL = os.getenv("WHISPER_MODEL", "base")  # tiny/base/small/medium
 
@@ -346,7 +349,7 @@ async def _llm_respond(transcript: str, history: list[dict], addressee_gender: s
     messages.append({"role": "user", "content": transcript})
 
     try:
-        response = await client.chat(model=OLLAMA_MODEL, messages=cast(Any, messages))
+        response = await client.chat(model=OLLAMA_MODEL, messages=cast(Any, messages), options=_OLLAMA_OPTIONS)
         return response["message"]["content"].strip()
     except Exception as ollama_err:
         logger.warning("Ollama unavailable for voice (%s), switching to Gemini...", ollama_err)
