@@ -92,7 +92,7 @@ async def lifespan(app: FastAPI):
     # Startup: Pre-load STT and TTS models to avoid cold-start latency
     import logging
     startup_logger = logging.getLogger("uvicorn.error")
-    startup_logger.info("[Hausa AI] Pre-loading speech models to prevent live cold-starts...")
+    startup_logger.info("[Murya] Pre-loading speech models to prevent live cold-starts...")
     try:
         from routers.audio import _get_whisper, _get_vits, _get_piper
         import asyncio
@@ -100,22 +100,22 @@ async def lifespan(app: FastAPI):
         
         # Pre-load Whisper model in executor
         await loop.run_in_executor(None, _get_whisper)
-        startup_logger.info("[Hausa AI] Pre-load: Whisper STT model loaded successfully.")
+        startup_logger.info("[Murya] Pre-load: Whisper STT model loaded successfully.")
         
         # Pre-load custom VITS ONNX model in executor
         await loop.run_in_executor(None, _get_vits)
-        startup_logger.info("[Hausa AI] Pre-load: Custom VITS ONNX model loaded successfully.")
+        startup_logger.info("[Murya] Pre-load: Custom VITS ONNX model loaded successfully.")
         
         # Pre-load baseline Piper TTS in executor
         await loop.run_in_executor(None, _get_piper)
-        startup_logger.info("[Hausa AI] Pre-load: Baseline Piper TTS model loaded successfully.")
+        startup_logger.info("[Murya] Pre-load: Baseline Piper TTS model loaded successfully.")
     except Exception as startup_err:
-        startup_logger.warning("[Hausa AI] Pre-load warning: %s", startup_err)
+        startup_logger.warning("[Murya] Pre-load warning: %s", startup_err)
         
     yield
 
 app = FastAPI(
-    title="Hausa AI — Local AI Backend",
+    title="Murya — Sovereign Hausa AI Backend",
     description="Self-hosted replacement for Google Gemini APIs",
     version="1.0.0",
     lifespan=lifespan,

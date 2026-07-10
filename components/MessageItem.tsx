@@ -5,7 +5,7 @@ import { CheckCircle2, ChevronRight, Volume2, ThumbsUp, ThumbsDown } from 'lucid
 
 export const AXIOM_PHRASES = [
   "Ana nazarin harshe da al'adu (Linguistic Analysis)...",
-  "Hausa AI na yin tunani sosai (Deep Thinking)...",
+  "Murya na yin tunani sosai (Deep Thinking)...",
   "Ana auna Litvinova's Tonal Laws...",
   "Ana shirya Hikimar Karin Magana (Proverb Engine)...",
   "Ana daidaita Ingancin Harshe (Orthographic Calibration)...",

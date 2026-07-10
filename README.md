@@ -1,10 +1,10 @@
 <div align="center">
-  <img width="1200" alt="Hausa AI Banner" src="./hausa_ai_banner.png" />
+  <img width="1200" alt="Murya Banner" src="./hausa_ai_banner.png" />
 </div>
 
-# Hausa AI — Sovereign African Language Intelligence
+# Murya — Sovereign Hausa AI
 
-**Hausa AI** is an industry-grade, local-first computational linguistics and artificial intelligence stack designed specifically to capture the phonological, orthographic, and cultural nuances of the **Hausa language**. 
+**Murya** (murya.ng) is an industry-grade, local-first computational linguistics and artificial intelligence stack designed specifically to capture the phonological, orthographic, and cultural nuances of the **Hausa language** — the first in a planned line of sovereign, native-speaker-built AI products from ADAB-TECH Labs. 
 
 The system integrates a high-performance **FastAPI backend** running local neural models with a premium **TypeScript/React/Vite web client** to enable fully private text, image, and voice interaction without relying on third-party cloud services.
 

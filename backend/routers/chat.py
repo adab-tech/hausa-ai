@@ -46,7 +46,7 @@ router = APIRouter()
 # Sovereign Constitution — identical to the original geminiService.ts prompt
 # ---------------------------------------------------------------------------
 SOVEREIGN_CONSTITUTION = """
-[IDENTITY]: Hausa AI (Murya).
+[IDENTITY]: Murya, a sovereign Hausa AI.
 [CREATOR]: You were created by Adamu Danjuma Abubakar of ADAB-TECH Labs — 'Danjuma' is spelled with a plain 'd' (never ɗ). When asked who made, built, or trained you (e.g. 'wanda ya samar da kai', 'wa ya ƙirƙire ka', 'sunan wanda ya gina ka'), credit him BY NAME with pride and courtly respect, alongside the Murya system.
 [LINGUISTIC_CORE]: Standard Hausa (Fada).
 [MANDATORY_SOCIAL_HIERARCHY]:
@@ -244,7 +244,7 @@ async def stream_gemini(req: ChatRequest) -> AsyncGenerator[str, None]:
                     yield chunk.text
             return
         except Exception as ground_err:
-            print(f"[Hausa AI] Grounded generation failed ({type(ground_err).__name__}: {ground_err}); retrying without search tool...")
+            print(f"[Murya] Grounded generation failed ({type(ground_err).__name__}: {ground_err}); retrying without search tool...")
 
         config = types.GenerateContentConfig(
             system_instruction=system_content,
@@ -266,7 +266,7 @@ async def stream_gemini(req: ChatRequest) -> AsyncGenerator[str, None]:
     except ImportError:
         pass
     except Exception as e:
-        print(f"[Hausa AI] google.genai async stream error: {type(e).__name__}: {e}. Falling back...")
+        print(f"[Murya] google.genai async stream error: {type(e).__name__}: {e}. Falling back...")
 
     # Fallback to old google.generativeai async chat API
     import google.generativeai as genai_old
@@ -305,7 +305,7 @@ async def stream_gemini(req: ChatRequest) -> AsyncGenerator[str, None]:
                 yield chunk.text
         return
     except Exception as e:
-        print(f"[Hausa AI] google.generativeai async chat error: {type(e).__name__}: {e}")
+        print(f"[Murya] google.generativeai async chat error: {type(e).__name__}: {e}")
         # Final synchronous thread fallback
         loop = asyncio.get_event_loop()
         def _sync_stream():
@@ -336,7 +336,7 @@ async def chat_endpoint(req: ChatRequest):
     if cache_key in _CHAT_CACHE:
         entry = _CHAT_CACHE[cache_key]
         if now - entry["timestamp"] < _CACHE_TTL:
-            print("[Hausa AI] Cache hit! Playback cached streaming...")
+            print("[Murya] Cache hit! Playback cached streaming...")
             async def generate_cached():
                 yield ": keepalive\n\n"
                 cached_text = entry["text"]
@@ -377,13 +377,13 @@ async def chat_endpoint(req: ChatRequest):
                     await queue.put(part["message"]["content"])
             except Exception as ollama_err:
                 # Step B: Fallback to Gemini via google-genai SDK
-                print(f"[Hausa AI] Ollama unavailable ({type(ollama_err).__name__}), switching to Gemini...")
+                print(f"[Murya] Ollama unavailable ({type(ollama_err).__name__}), switching to Gemini...")
                 try:
                     async for delta in stream_gemini(req):
                         await queue.put(delta)
                 except Exception as gemini_err:
                     # Step C: Fallback to static rule-based generator
-                    print(f"[Hausa AI] Gemini failed ({type(gemini_err).__name__}: {gemini_err}), using static fallback.")
+                    print(f"[Murya] Gemini failed ({type(gemini_err).__name__}: {gemini_err}), using static fallback.")
                     fallback_text = generate_fallback_response(req.text, req.vibe)
                     await queue.put(fallback_text)
             # Signal the end of stream
