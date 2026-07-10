@@ -70,43 +70,21 @@ async def test_image_generation_success(client, monkeypatch):
 
 
 @pytest.mark.anyio
-async def test_image_generation_fallback(client, monkeypatch):
+async def test_image_generation_unavailable_returns_none(client, monkeypatch):
+    """When the real backend fails, the endpoint must report failure honestly
+    (data: None) rather than drawing a stand-in placeholder graphic — a fake
+    image would mislead the user into thinking generation succeeded."""
     monkeypatch.setenv("GEMINI_API_KEY", "fake-key")
-    
-    # Force API failure to trigger PIL fallback
+
     mock_client_instance = MagicMock()
     mock_client_instance.aio.models.generate_images = AsyncMock(side_effect=Exception("API limit"))
-    
+
     with patch("google.genai.Client", return_value=mock_client_instance):
         response = await client.post(
             "/api/generate-image",
             json={"prompt": "Hausa market scene", "vibe": "Classic"}
         )
-        
-    assert response.status_code == 200
-    data = response.json()
-    assert data["data"].startswith("data:image/png;base64,")
-    assert "error" in data
-    assert "fallback" in data["error"].lower()
 
-
-@pytest.mark.anyio
-async def test_image_generation_failure_returns_error(client, monkeypatch):
-    monkeypatch.setenv("GEMINI_API_KEY", "fake-key")
-    
-    # Force API failure AND PIL failure
-    mock_client_instance = MagicMock()
-    mock_client_instance.aio.models.generate_images = AsyncMock(side_effect=Exception("API limit"))
-    
-    with (
-        patch("google.genai.Client", return_value=mock_client_instance),
-        patch("PIL.Image.new", side_effect=RuntimeError("PIL error")),
-    ):
-        response = await client.post(
-            "/api/generate-image",
-            json={"prompt": "Hausa market scene", "vibe": "Classic"}
-        )
-        
     assert response.status_code == 200
     data = response.json()
     assert data["data"] is None
