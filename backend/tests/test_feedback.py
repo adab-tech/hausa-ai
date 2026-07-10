@@ -49,6 +49,50 @@ async def test_feedback_records_and_stats_reflect_it(client):
 
 
 @pytest.mark.anyio
+async def test_feedback_attributes_contributor_id(client, _isolated_feedback_file):
+    """A valid X-Contributor-Id header is recorded on the feedback entry."""
+    import json
+
+    cid = "12345678-1234-4123-8123-123456789abc"
+    resp = await client.post(
+        "/api/feedback",
+        json={"messageId": "m1", "type": "up", "text": "Barka"},
+        headers={"X-Contributor-Id": cid},
+    )
+    assert resp.status_code == 200
+
+    lines = [l for l in _isolated_feedback_file.read_text(encoding="utf-8").splitlines() if l.strip()]
+    entry = json.loads(lines[-1])
+    assert entry["contributorId"] == cid
+
+
+@pytest.mark.anyio
+async def test_feedback_without_contributor_id_is_null(client, _isolated_feedback_file):
+    """No header -> contributorId is null, not an error."""
+    import json
+
+    resp = await client.post("/api/feedback", json={"messageId": "m2", "type": "down", "text": "x"})
+    assert resp.status_code == 200
+    lines = [l for l in _isolated_feedback_file.read_text(encoding="utf-8").splitlines() if l.strip()]
+    entry = json.loads(lines[-1])
+    assert entry["contributorId"] is None
+
+
+@pytest.mark.anyio
+async def test_correction_carries_contributor_id(client, _isolated_feedback_file):
+    """A correction submitted with feedback records the contributor id too."""
+    cid = "abcdef01-2345-4678-89ab-cdef01234567"
+    resp = await client.post(
+        "/api/feedback",
+        json={"messageId": "m3", "type": "down", "text": "kuskure", "correction": "gyara"},
+        headers={"X-Contributor-Id": cid},
+    )
+    assert resp.status_code == 200
+    pending = corrections_store.list_corrections("pending")
+    assert any(c["contributorId"] == cid for c in pending)
+
+
+@pytest.mark.anyio
 async def test_corrections_endpoint_requires_admin_session(client):
     """No session cookie -> 401, not an open gate. Regression guard for the
     verify_reviewer_key -> verify_admin_session migration."""

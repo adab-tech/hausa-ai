@@ -22,6 +22,47 @@ export const BACKEND_URL = (
     : "http://127.0.0.1:8000")
 ).replace("localhost", "127.0.0.1");
 
+// ─── Anonymous contributor identity (Level 1 — no login wall) ──────────────
+// A PII-free device token, generated once and kept in localStorage. Sent as
+// the X-Contributor-Id header (or a contributor_id query param where headers
+// aren't possible — the TTS <audio> element and the live WebSocket) so the
+// backend can rate-limit per device instead of per shared IP (carrier-grade
+// NAT is the norm across the Sahel) and attribute feedback/corrections
+// without anyone logging in. Identifies a device, not a person.
+const _CONTRIBUTOR_KEY = "murya_contributor_id";
+let _cachedContributorId: string | null = null;
+
+function _uuidv4(): string {
+  // Fallback for environments without crypto.randomUUID (older WebViews).
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
+
+export function getContributorId(): string {
+  if (_cachedContributorId) return _cachedContributorId;
+  const make = () => globalThis.crypto?.randomUUID?.() ?? _uuidv4();
+  try {
+    let id = localStorage.getItem(_CONTRIBUTOR_KEY);
+    if (!id) {
+      id = make();
+      localStorage.setItem(_CONTRIBUTOR_KEY, id);
+    }
+    _cachedContributorId = id;
+  } catch {
+    // localStorage blocked (private mode / SSR): use an in-memory id so the
+    // token is at least stable for this page's lifetime.
+    _cachedContributorId = make();
+  }
+  return _cachedContributorId;
+}
+
+/** Merge the contributor-id header into a headers object for fetch(). */
+function withContributor(headers: Record<string, string> = {}): Record<string, string> {
+  return { ...headers, "X-Contributor-Id": getContributorId() };
+}
+
 // ─── SOVEREIGN CONSTITUTION (unchanged from original) ──────────────────────
 const SOVEREIGN_CONSTITUTION = `
 [IDENTITY]: Murya, a sovereign Hausa AI.
@@ -85,7 +126,7 @@ class LocalService {
     try {
       const response = await fetch(`${BACKEND_URL}/api/chat`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: withContributor({ "Content-Type": "application/json" }),
         body: JSON.stringify(body),
       });
 
@@ -233,6 +274,9 @@ class LocalService {
     const params = new URLSearchParams();
     if (speakerId !== null) params.set("speaker_id", String(speakerId));
     params.set("addressee_gender", addresseeGender);
+    // Browser WebSocket can't set custom headers, so the contributor id rides
+    // as a query param (backend reads it from either place, see contributor.py).
+    params.set("contributor_id", getContributorId());
     const wsUrl = BACKEND_URL.replace(/^http/, "ws") + `/api/live?${params.toString()}`;
     const ws = new WebSocket(wsUrl);
     ws.binaryType = "arraybuffer";
@@ -325,7 +369,10 @@ class LocalService {
 
   getTtsUrl(text: string, speakerId: number | null): string {
     const spkQuery = speakerId !== null ? `&speaker_id=${speakerId}` : "";
-    return `${BACKEND_URL}/api/tts?text=${encodeURIComponent(text)}${spkQuery}`;
+    // <audio src> can't set headers, so the contributor id rides as a query
+    // param — the backend reads it from either place (see contributor.py).
+    const cidQuery = `&contributor_id=${encodeURIComponent(getContributorId())}`;
+    return `${BACKEND_URL}/api/tts?text=${encodeURIComponent(text)}${spkQuery}${cidQuery}`;
   }
 
   // ── Feedback ──────────────────────────────────────────────────────────────
@@ -333,7 +380,7 @@ class LocalService {
     try {
       await fetch(`${BACKEND_URL}/api/feedback`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: withContributor({ "Content-Type": "application/json" }),
         body: JSON.stringify({ messageId, type, text, correction: correction ?? "" }),
       });
     } catch (err) {

@@ -142,7 +142,10 @@ app.add_middleware(
     allow_origins=_allowed_origins,
     allow_credentials=_allow_credentials,
     allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type", "X-API-Key", "X-Reviewer-Key"],
+    # X-Contributor-Id carries the anonymous per-device token (see
+    # contributor.py). It MUST be listed here or the browser's CORS preflight
+    # blocks every cross-origin chat/feedback request from app.murya.ng.
+    allow_headers=["Content-Type", "X-API-Key", "X-Reviewer-Key", "X-Contributor-Id"],
 )
 
 

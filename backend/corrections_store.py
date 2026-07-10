@@ -63,12 +63,18 @@ def _write_all(entries: list[dict]) -> None:
     os.replace(tmp_path, _CORRECTIONS_FILE)
 
 
-def add_correction(message_id: str, original_text: str, correction: str) -> dict:
+def add_correction(
+    message_id: str,
+    original_text: str,
+    correction: str,
+    contributor_id: str | None = None,
+) -> dict:
     entry = {
         "id": uuid.uuid4().hex,
         "messageId": message_id,
         "originalText": original_text,
         "correction": correction,
+        "contributorId": contributor_id,
         "status": "pending",
         "timestamp": time.time(),
         "reviewedAt": None,

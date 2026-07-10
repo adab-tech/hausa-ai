@@ -24,6 +24,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from auth import verify_admin_session
+from contributor import get_contributor_id
 from rate_limit import limiter
 import corrections_store
 
@@ -48,17 +49,21 @@ class ReviewRequest(BaseModel):
 @limiter.limit("30/minute")
 async def record_feedback(request: Request, req: FeedbackRequest):
     _DATA_DIR.mkdir(parents=True, exist_ok=True)
+    contributor_id = get_contributor_id(request)
     entry = {
         "messageId": req.messageId,
         "type": req.type,
         "text": req.text,
+        "contributorId": contributor_id,
         "timestamp": time.time(),
     }
     with open(_FEEDBACK_FILE, "a", encoding="utf-8") as f:
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
     if req.correction.strip():
-        corrections_store.add_correction(req.messageId, req.text, req.correction.strip())
+        corrections_store.add_correction(
+            req.messageId, req.text, req.correction.strip(), contributor_id=contributor_id
+        )
 
     return {"status": "recorded"}
 
