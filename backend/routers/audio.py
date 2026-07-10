@@ -444,7 +444,7 @@ async def tts_endpoint(text: str, speaker_id: int = 0):
         return Response(content=wav_bytes, media_type="audio/wav")
     except Exception as e:
         logger.exception("TTS endpoint failed")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 # ---------------------------------------------------------------------------

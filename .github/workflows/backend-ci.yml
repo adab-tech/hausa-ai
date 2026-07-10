@@ -69,8 +69,10 @@ jobs:
 
       - name: Install runtime dependencies (lightweight stubs only)
         working-directory: backend
-        # Install only the FastAPI / Pydantic stack for unit tests;
-        # torch / diffusers etc. are mocked and do not need to be installed in CI.
+        # Install only the FastAPI / Pydantic stack for unit tests, plus the
+        # handful of lazy-imported packages routers/image.py actually touches
+        # at import time even when their calls are mocked (google-genai,
+        # imageio); torch / diffusers proper are mocked and not installed.
         run: |
           pip install \
             fastapi~=0.115.0 \
@@ -82,6 +84,9 @@ jobs:
             numpy~=1.26 \
             Pillow~=10.4.0 \
             google-auth>=2.30.0 \
+            google-genai>=1.0.0 \
+            imageio>=2.34.0 \
+            imageio-ffmpeg>=0.5.0 \
             requests>=2.31.0
 
       - name: Install dev/test dependencies
