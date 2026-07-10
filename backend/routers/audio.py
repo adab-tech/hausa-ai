@@ -209,25 +209,34 @@ def _load_mp3_as_pcm24k(mp3_path: Path) -> bytes | None:
 
 
 def _download_piper_assets(model_path: Path, config_path: Path):
-    """Download baseline Piper model and config files from Hugging Face if missing."""
+    """Download the baseline Piper model/config from Hugging Face if missing.
+
+    Previously pointed at rhasspy/piper-voices' "ha_NG-openbible-medium"
+    voice, which 404'd on every deploy — that repo has no "ha" (Hausa)
+    language at all, and never did. There is no third-party Hausa Piper
+    voice to fall back to. Instead this now re-downloads OUR OWN trained
+    WAXAL model from adab-tech/murya-piper-hausa-tts on the Hub — the same
+    model baked into the Docker image at build time — so this path is a
+    genuine self-healing fallback (e.g. if the persistent volume's copy is
+    ever missing or corrupted) rather than a dead link to a voice that was
+    never Hausa-specific to begin with.
+    """
     import urllib.request
-    
-    base_url = "https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/ha/ha_NG/openbible/medium"
-    
+
+    base_url = "https://huggingface.co/adab-tech/murya-piper-hausa-tts/resolve/main"
+
     if not model_path.exists():
-        logger.info("Downloading baseline Piper model from HF: %s.onnx...", PIPER_MODEL)
-        url = f"{base_url}/{PIPER_MODEL}.onnx"
+        logger.info("Downloading baseline Hausa Piper model from HF: adab-tech/murya-piper-hausa-tts...")
         try:
-            urllib.request.urlretrieve(url, str(model_path))
+            urllib.request.urlretrieve(f"{base_url}/model.onnx", str(model_path))
             logger.info("Baseline Piper model downloaded successfully.")
         except Exception as e:
             logger.error("Failed to download baseline model ONNX: %s", e)
-            
+
     if not config_path.exists():
-        logger.info("Downloading baseline Piper config from HF: %s.onnx.json...", PIPER_MODEL)
-        url = f"{base_url}/{PIPER_MODEL}.onnx.json"
+        logger.info("Downloading baseline Hausa Piper config from HF: adab-tech/murya-piper-hausa-tts...")
         try:
-            urllib.request.urlretrieve(url, str(config_path))
+            urllib.request.urlretrieve(f"{base_url}/model.onnx.json", str(config_path))
             logger.info("Baseline Piper config downloaded successfully.")
         except Exception as e:
             logger.error("Failed to download baseline model config JSON: %s", e)
