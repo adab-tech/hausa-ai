@@ -61,16 +61,18 @@ _VOICE_SYSTEM = """
 [IDENTITY]: Hausa AI (Murya).
 [LINGUISTIC_CORE]: Standard Hausa (Fada).
 [ROLE]: You are a live voice assistant. Respond naturally and conversationally in Hausa.
-- Address the user ONLY in the grammatical singular. Never use plural pronouns or inflections of respect (e.g. do NOT use 'kun yini', 'muku', 'ayyukanku', 'kuka sani', 'ku', 'kun', 'su', 'sun'). Instead, use singular forms: 'ka yini' / 'ki yini', 'maka' / 'miki', 'ayyukanka' / 'ayyukanki', 'kake sani' / 'kaki sani', 'ka', 'ki'.
+- Address the user ONLY in the grammatical singular. Never use plural pronouns or inflections of respect (e.g. do NOT use 'kun yini', 'muku', 'ayyukanku', 'kuka sani', 'ku', 'kun', 'su', 'sun').
+- Hausa singular address is grammatically gendered — 'ka yini' vs 'ki yini', 'maka' vs 'miki', 'ka' vs 'ki'. Use ONLY the form matching the [ADDRESSEE_GENDER] value given below, consistently — never mix masculine and feminine forms.
+- If [ADDRESSEE_GENDER] is 'unspecified', do NOT guess. Ask once, briefly, at the start of the call which form to use, then use it for the rest of the call.
 - Maintain a highly formal, courtly, and polite demeanor (Hausan Zaure) utilizing singular forms.
 - Keep responses concise for voice delivery.
 """
 
 
-def _voice_system_prompt() -> str:
+def _voice_system_prompt(addressee_gender: str = "unspecified") -> str:
     """_VOICE_SYSTEM plus any human-approved corrections, refreshed per call
     so newly-approved corrections take effect without a server restart."""
-    return f"{_VOICE_SYSTEM}\n{corrections_store.get_approved_corrections_prompt()}"
+    return f"{_VOICE_SYSTEM}\n[ADDRESSEE_GENDER]: {addressee_gender}\n{corrections_store.get_approved_corrections_prompt()}"
 
 
 # ---------------------------------------------------------------------------
@@ -333,23 +335,23 @@ def _write_wav(path: str, audio: np.ndarray, sample_rate: int):
 # ---------------------------------------------------------------------------
 # LLM chat (non-streaming, for voice — we want the full response at once)
 # ---------------------------------------------------------------------------
-async def _llm_respond(transcript: str, history: list[dict]) -> str:
+async def _llm_respond(transcript: str, history: list[dict], addressee_gender: str = "unspecified") -> str:
     import ollama
 
     client = ollama.AsyncClient(host=OLLAMA_HOST)
-    messages = [{"role": "system", "content": _voice_system_prompt()}]
+    messages = [{"role": "system", "content": _voice_system_prompt(addressee_gender)}]
     messages.extend(history[-6:])
     messages.append({"role": "user", "content": transcript})
-    
+
     try:
         response = await client.chat(model=OLLAMA_MODEL, messages=cast(Any, messages))
         return response["message"]["content"].strip()
     except Exception as ollama_err:
         logger.warning("Ollama unavailable for voice (%s), switching to Gemini...", ollama_err)
-        return await _llm_respond_gemini(transcript, history)
+        return await _llm_respond_gemini(transcript, history, addressee_gender)
 
 
-async def _llm_respond_gemini(transcript: str, history: list[dict]) -> str:
+async def _llm_respond_gemini(transcript: str, history: list[dict], addressee_gender: str = "unspecified") -> str:
     """Fallback: use Gemini SDK for voice LLM responses."""
     import os
     api_key = os.getenv("GEMINI_API_KEY")
@@ -379,7 +381,7 @@ async def _llm_respond_gemini(transcript: str, history: list[dict]) -> str:
                 model=gemini_model,
                 contents=contents,
                 config=types.GenerateContentConfig(
-                    system_instruction=_voice_system_prompt(),
+                    system_instruction=_voice_system_prompt(addressee_gender),
                     temperature=0.4,
                     max_output_tokens=512,
                 )
@@ -398,7 +400,7 @@ async def _llm_respond_gemini(transcript: str, history: list[dict]) -> str:
     genai_old.configure(api_key=api_key)
     model = genai_old.GenerativeModel(
         model_name=gemini_model,
-        system_instruction=_voice_system_prompt(),
+        system_instruction=_voice_system_prompt(addressee_gender),
         generation_config={"temperature": 0.4, "max_output_tokens": 512}
     )
     old_history = [{"role": h["role"], "parts": [{"text": h["parts"][0]["text"]}]} for h in gemini_history]
@@ -449,7 +451,9 @@ async def tts_endpoint(text: str, speaker_id: int = 0):
 # WebSocket handler
 # ---------------------------------------------------------------------------
 @router.websocket("/live")
-async def live_endpoint(ws: WebSocket, speaker_id: int = 0):
+async def live_endpoint(ws: WebSocket, speaker_id: int = 0, addressee_gender: str = "unspecified"):
+    if addressee_gender not in ("masculine", "feminine", "unspecified"):
+        addressee_gender = "unspecified"
     await ws.accept()
     pcm_buffer = bytearray()
     conversation_history: list[dict] = []
@@ -487,7 +491,7 @@ async def live_endpoint(ws: WebSocket, speaker_id: int = 0):
 
             # 2. LLM
             try:
-                reply_text = await _llm_respond(transcript, conversation_history)
+                reply_text = await _llm_respond(transcript, conversation_history, addressee_gender)
             except Exception as exc:
                 logger.exception("LLM failed, using fallback response")
                 reply_text = generate_fallback_response(transcript)

@@ -8,7 +8,7 @@
  * App.tsx requires only minimal changes.
  */
 
-import { Message, Attachment, Role, SovereignVibe } from "../types.ts";
+import { Message, Attachment, Role, SovereignVibe, AddresseeGender } from "../types.ts";
 import { learning } from "./learningService.ts";
 
 // In production / Codespaces the env var VITE_BACKEND_URL can override this.
@@ -26,9 +26,10 @@ const SOVEREIGN_CONSTITUTION = `
 [IDENTITY]: Hausa AI (Murya).
 [LINGUISTIC_CORE]: Standard Hausa (Fada).
 [MANDATORY_SOCIAL_HIERARCHY]:
-- Address the user ONLY in the grammatical singular. Never use plural pronouns or inflections of respect (e.g. do NOT use 'kun yini', 'muku', 'ayyukanku', 'kuka sani', 'ku', 'kun', 'su', 'sun'). Instead, use singular forms: 'ka yini' / 'ki yini', 'maka' / 'miki', 'ayyukanka' / 'ayyukanki', 'kake sani' / 'kaki sani', 'ka', 'ki', 'ka/ki yaba'.
+- Address the user ONLY in the grammatical singular. Never use plural pronouns or inflections of respect (e.g. do NOT use 'kun yini', 'muku', 'ayyukanku', 'kuka sani', 'ku', 'kun', 'su', 'sun').
+- Hausa singular address is grammatically gendered — 'ka yini' vs 'ki yini', 'maka' vs 'miki', 'ayyukanka' vs 'ayyukanki', 'kake sani' vs 'kaki sani', 'Ranka ya dade' (to men) vs 'Ranki ya dade' (to women). Use ONLY the form matching the [ADDRESSEE_GENDER] value given below, consistently for the entire reply — never mix masculine and feminine forms in the same turn or across turns.
+- If [ADDRESSEE_GENDER] is 'unspecified', do NOT guess or default to either form. Instead, on your first reply in the conversation, politely ask once which form to use (e.g. "Domin in yi maka magana daidai da al'adar Hausa, don Allah — kai namiji ne ko kai mace ce?") and use a gender-neutral phrasing for the rest of that reply. Do not ask again once told.
 - Maintain a highly formal, courtly, and polite demeanor (Hausan Zaure) utilizing singular forms.
-- Honorifics like 'Ranka ya dade' (to men) or 'Ranki ya dade' (to women) are required in greetings.
 - 'Barka' or 'Sannun' must be followed by a formal inquiry into the user's wellbeing or family (Gaisuwa).
 [DIGNIFIED_DISCOURSE]:
 - Integrate proverbs (Karin Magana) naturally to support your points.
@@ -60,7 +61,8 @@ class LocalService {
     text: string,
     history: Message[],
     userAttachments?: Attachment[],
-    vibe: SovereignVibe = "Classic"
+    vibe: SovereignVibe = "Classic",
+    addresseeGender: AddresseeGender = "unspecified"
   ): AsyncGenerator<ExchangeChunk> {
     let finalAttachments: Attachment[] = [];
     let accumulatedText = "";
@@ -72,6 +74,7 @@ class LocalService {
         text: m.text,
       })),
       vibe,
+      addresseeGender,
       memoryPrompt: learning.getMemoryPrompt(),
       attachments: (userAttachments ?? [])
         .filter((a) => a.data)
@@ -223,10 +226,13 @@ class LocalService {
       onmessage?: (msg: any) => void;
       onclose?: () => void;
       onerror?: (err: Event) => void;
-    }
+    },
+    addresseeGender: AddresseeGender = "unspecified"
   ): Promise<{ sendRealtimeInput: (p: { media: { data: string; mimeType: string } }) => void; close: () => void }> {
-    const queryParam = speakerId !== null ? `?speaker_id=${speakerId}` : "";
-    const wsUrl = BACKEND_URL.replace(/^http/, "ws") + `/api/live${queryParam}`;
+    const params = new URLSearchParams();
+    if (speakerId !== null) params.set("speaker_id", String(speakerId));
+    params.set("addressee_gender", addresseeGender);
+    const wsUrl = BACKEND_URL.replace(/^http/, "ws") + `/api/live?${params.toString()}`;
     const ws = new WebSocket(wsUrl);
     ws.binaryType = "arraybuffer";
 

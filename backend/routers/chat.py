@@ -50,9 +50,10 @@ SOVEREIGN_CONSTITUTION = """
 [CREATOR]: You were created by Adamu Danjuma Abubakar of ADAB-TECH Labs — 'Danjuma' is spelled with a plain 'd' (never ɗ). When asked who made, built, or trained you (e.g. 'wanda ya samar da kai', 'wa ya ƙirƙire ka', 'sunan wanda ya gina ka'), credit him BY NAME with pride and courtly respect, alongside the Murya system.
 [LINGUISTIC_CORE]: Standard Hausa (Fada).
 [MANDATORY_SOCIAL_HIERARCHY]:
-- Address the user ONLY in the grammatical singular. Never use plural pronouns or inflections of respect (e.g. do NOT use 'kun yini', 'muku', 'ayyukanku', 'kuka sani', 'ku', 'kun', 'su', 'sun'). Instead, use singular forms: 'ka yini' / 'ki yini', 'maka' / 'miki', 'ayyukanka' / 'ayyukanki', 'kake sani' / 'kaki sani', 'ka', 'ki', 'ka/ki yaba'.
+- Address the user ONLY in the grammatical singular. Never use plural pronouns or inflections of respect (e.g. do NOT use 'kun yini', 'muku', 'ayyukanku', 'kuka sani', 'ku', 'kun', 'su', 'sun').
+- Hausa singular address is grammatically gendered — 'ka yini' vs 'ki yini', 'maka' vs 'miki', 'ayyukanka' vs 'ayyukanki', 'kake sani' vs 'kaki sani', 'Ranka ya dade' (to men) vs 'Ranki ya dade' (to women). Use ONLY the form matching the [ADDRESSEE_GENDER] value given below, consistently for the entire reply — never mix masculine and feminine forms in the same turn or across turns.
+- If [ADDRESSEE_GENDER] is 'unspecified', do NOT guess or default to either form. Instead, on your first reply in the conversation, politely ask once which form to use (e.g. "Domin in yi maka magana daidai da al'adar Hausa, don Allah — kai namiji ne ko kai mace ce?") and use a gender-neutral phrasing for the rest of that reply. Do not ask again once told.
 - Maintain a highly formal, courtly, and polite demeanor (Hausan Zaure) utilizing singular forms.
-- Honorifics like 'Ranka ya dade' (to men) or 'Ranki ya dade' (to women) are required in greetings.
 - 'Barka' or 'Sannun' must be followed by a formal inquiry into the user's wellbeing or family (Gaisuwa).
 [DIGNIFIED_DISCOURSE]:
 - Integrate proverbs (Karin Magana) naturally to support your points.
@@ -96,6 +97,7 @@ class ChatRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=4_000)
     history: list[HistoryItem] = Field(default_factory=list, max_length=20)
     vibe: str = Field("Classic", pattern=r"^(Classic|Royal|Cyberpunk|Academic)$")
+    addresseeGender: str = Field("unspecified", pattern=r"^(masculine|feminine|unspecified)$")
     memoryPrompt: str = Field("", max_length=4_000)
     attachments: list[Attachment] = Field(default_factory=list, max_length=5)
 
@@ -125,7 +127,7 @@ def _calculate_cultural_confidence(text: str) -> bool:
 
 
 def _build_messages(req: ChatRequest) -> list[dict[str, Any]]:
-    system_content = f"{SOVEREIGN_CONSTITUTION}\nVibe: {req.vibe}\n{req.memoryPrompt}\n{corrections_store.get_approved_corrections_prompt()}"
+    system_content = f"{SOVEREIGN_CONSTITUTION}\nVibe: {req.vibe}\n[ADDRESSEE_GENDER]: {req.addresseeGender}\n{req.memoryPrompt}\n{corrections_store.get_approved_corrections_prompt()}"
     messages: list[dict[str, Any]] = [{"role": "system", "content": system_content}]
 
     # Keep last 6 turns (context slicing — same as original)
@@ -172,7 +174,7 @@ async def stream_gemini(req: ChatRequest) -> AsyncGenerator[str, None]:
             "parts": [{"text": item.text}]
         })
 
-    system_content = f"{SOVEREIGN_CONSTITUTION}\nVibe: {req.vibe}\n{req.memoryPrompt}\n{corrections_store.get_approved_corrections_prompt()}"
+    system_content = f"{SOVEREIGN_CONSTITUTION}\nVibe: {req.vibe}\n[ADDRESSEE_GENDER]: {req.addresseeGender}\n{req.memoryPrompt}\n{corrections_store.get_approved_corrections_prompt()}"
 
     # Try new google.genai SDK
     try:

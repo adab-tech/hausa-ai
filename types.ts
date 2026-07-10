@@ -7,6 +7,11 @@ export enum Role {
 export type HausaDialect = 'Kano (Dabo)' | 'Sokoto (Sakkwatawa)' | 'Zaria (Zazzagawa)' | 'Borno (Kanuri-Hausa)' | 'International';
 export type SovereignVibe = 'Classic' | 'Royal' | 'Cyberpunk' | 'Academic';
 
+// Hausa 2nd-person address is grammatically gendered (ka/ki, maka/miki, kake/kike).
+// The model has no way to infer this — it must be told, or it will guess and mix
+// forms mid-conversation. 'unspecified' tells the model to ask once instead of guessing.
+export type AddresseeGender = 'masculine' | 'feminine' | 'unspecified';
+
 export interface Attachment {
   type: 'image' | 'audio' | 'video';
   data?: string; 
