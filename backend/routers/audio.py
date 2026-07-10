@@ -554,11 +554,27 @@ async def tts_endpoint(
 # ---------------------------------------------------------------------------
 # WebSocket handler
 # ---------------------------------------------------------------------------
+# slowapi's rate limiter doesn't cover WebSockets, and each connection runs
+# a CPU-heavy STT+LLM+TTS pipeline per ~2s audio chunk — without a cap,
+# nothing stops one client from flooding the (single, CPU-only) Fly machine
+# with concurrent live sessions. In-memory/per-process, matching the rest
+# of this app's single-machine deployment model (see rate_limit.py).
+_MAX_LIVE_CONNECTIONS_PER_IP = int(os.getenv("MAX_LIVE_CONNECTIONS_PER_IP", "2"))
+_live_connections_by_ip: dict[str, int] = {}
+
+
 @router.websocket("/live")
 async def live_endpoint(ws: WebSocket, speaker_id: int = 0, addressee_gender: str = "unspecified"):
     if addressee_gender not in ("masculine", "feminine", "unspecified"):
         addressee_gender = "unspecified"
+
+    client_ip = ws.client.host if ws.client else "unknown"
+    if _live_connections_by_ip.get(client_ip, 0) >= _MAX_LIVE_CONNECTIONS_PER_IP:
+        await ws.close(code=1008, reason="Too many concurrent live sessions from this address.")
+        return
+
     await ws.accept()
+    _live_connections_by_ip[client_ip] = _live_connections_by_ip.get(client_ip, 0) + 1
     pcm_buffer = bytearray()
     conversation_history: list[dict] = []
 
@@ -631,3 +647,9 @@ async def live_endpoint(ws: WebSocket, speaker_id: int = 0, addressee_gender: st
         logger.exception("Live session error: %s", exc)
         with suppress(Exception):
             await ws.send_text(json.dumps({"type": "error", "data": str(exc)}))
+    finally:
+        remaining = _live_connections_by_ip.get(client_ip, 1) - 1
+        if remaining <= 0:
+            _live_connections_by_ip.pop(client_ip, None)
+        else:
+            _live_connections_by_ip[client_ip] = remaining

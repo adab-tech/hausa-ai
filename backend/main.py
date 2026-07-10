@@ -31,7 +31,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi import _rate_limit_exceeded_handler
 
-from auth import verify_api_key
+from auth import verify_api_key, verify_admin_session
 from rate_limit import limiter
 from routers import admin_auth, audio, chat, feedback, image, waxal
 import admin_store
@@ -165,7 +165,10 @@ _auth = [Depends(verify_api_key)]
 app.include_router(chat.router, prefix="/api", dependencies=_auth)
 app.include_router(image.router, prefix="/api", dependencies=_auth)
 app.include_router(audio.router, prefix="/api")
-app.include_router(waxal.router, prefix="/api", dependencies=_auth)
+# waxal.router serves the training-corpus browser (NeuralReview admin panel)
+# — real admin session required, not just the optional API key, since this
+# is internal review tooling rather than a public product endpoint.
+app.include_router(waxal.router, prefix="/api", dependencies=[Depends(verify_admin_session)])
 app.include_router(feedback.router, prefix="/api", dependencies=_auth)
 app.include_router(admin_auth.router, prefix="/api")
 

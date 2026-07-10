@@ -15,7 +15,15 @@ def mock_waxal_metadata():
         yield
 
 @pytest.mark.anyio
-async def test_waxal_stats(client: AsyncClient):
+async def test_waxal_stats_requires_admin_session(client: AsyncClient):
+    """The dataset browser is internal review tooling, not a public
+    endpoint — must reject requests without a valid admin session."""
+    response = await client.get("/api/waxal/stats")
+    assert response.status_code == 401
+
+
+@pytest.mark.anyio
+async def test_waxal_stats(client: AsyncClient, admin_session):
     response = await client.get("/api/waxal/stats")
     assert response.status_code == 200
     data = response.json()
@@ -28,7 +36,7 @@ async def test_waxal_stats(client: AsyncClient):
     assert "orthography" in data
 
 @pytest.mark.anyio
-async def test_waxal_samples_pagination(client: AsyncClient):
+async def test_waxal_samples_pagination(client: AsyncClient, admin_session):
     response = await client.get("/api/waxal/samples?page=1&page_size=5")
     assert response.status_code == 200
     data = response.json()
@@ -41,7 +49,7 @@ async def test_waxal_samples_pagination(client: AsyncClient):
     assert data["page_size"] == 5
 
 @pytest.mark.anyio
-async def test_waxal_samples_filtering(client: AsyncClient):
+async def test_waxal_samples_filtering(client: AsyncClient, admin_session):
     # Filter by speaker
     response = await client.get("/api/waxal/samples?speaker_id=6")
     assert response.status_code == 200
@@ -59,13 +67,13 @@ async def test_waxal_samples_filtering(client: AsyncClient):
         assert "kwallo" in s["text"].lower()
 
 @pytest.mark.anyio
-async def test_waxal_audio_not_found(client: AsyncClient):
+async def test_waxal_audio_not_found(client: AsyncClient, admin_session):
     response = await client.get("/api/waxal/audio/nonexistent_file_12345.mp3")
     assert response.status_code == 404
 
 
 @pytest.mark.anyio
-async def test_waxal_tts_match(client: AsyncClient):
+async def test_waxal_tts_match(client: AsyncClient, admin_session):
     response = await client.get("/api/waxal/tts?text=kwallo")
     assert response.status_code == 200
     data = response.json()
@@ -76,7 +84,7 @@ async def test_waxal_tts_match(client: AsyncClient):
 
 
 @pytest.mark.anyio
-async def test_waxal_tts_fallback(client: AsyncClient):
+async def test_waxal_tts_fallback(client: AsyncClient, admin_session):
     response = await client.get("/api/waxal/tts?text=unrecognizedpattern")
     assert response.status_code == 200
     data = response.json()

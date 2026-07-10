@@ -287,7 +287,7 @@ class LocalService {
   // ── WAXAL Dataset endpoints ──────────────────────────────────────────────
   async getWaxalStats(): Promise<any> {
     try {
-      const res = await fetch(`${BACKEND_URL}/api/waxal/stats`);
+      const res = await fetch(`${BACKEND_URL}/api/waxal/stats`, { credentials: "include" });
       return await res.json();
     } catch (err) {
       console.error("Failed to fetch WAXAL stats:", err);
@@ -308,7 +308,7 @@ class LocalService {
       if (gender) url += `&gender=${encodeURIComponent(gender)}`;
       if (query) url += `&query=${encodeURIComponent(query)}`;
 
-      const res = await fetch(url);
+      const res = await fetch(url, { credentials: "include" });
       return await res.json();
     } catch (err) {
       console.error("Failed to fetch WAXAL samples:", err);
