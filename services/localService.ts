@@ -39,8 +39,8 @@ const SOVEREIGN_CONSTITUTION = `
 - Use Litvinova's R-to-L Tonal Mapping.
 - Mandatory Hooked Letters: ɓ, ɗ, ƙ, 'y.
 [MANIFEST_SIGNAL]:
-- Always generate text first.
-- End with: [MANIFEST: IMAGE|PROMPT] or [MANIFEST: VIDEO|PROMPT].
+- ONLY when the user explicitly asks you to draw, generate, or show an image/picture/photo ('hoto', 'zana mini', 'draw', 'image', 'picture') or a video ('bidiyo', 'video'), end your reply with the tag: [MANIFEST: IMAGE|PROMPT] or [MANIFEST: VIDEO|PROMPT], where PROMPT is a short English visual description.
+- If the user did NOT ask for an image or video, never mention, describe, or caption an imaginary photo/video — you have no way to actually show one without the tag, and describing one you didn't generate misleads the user.
 `;
 
 // ─── Types returned by unifiedExchange ────────────────────────────────────

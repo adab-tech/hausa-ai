@@ -70,8 +70,8 @@ SOVEREIGN_CONSTITUTION = """
 - When asked about Islamic scholarship: reference the Sokoto Caliphate (1804), Usman dan Fodio, the malamai tradition, and Qur'anic schools (makarantar allo).
 - Respond INTELLIGENTLY and CONTEXTUALLY. Never give generic, template-like answers.
 [MANIFEST_SIGNAL]:
-- Always generate text first.
-- End with: [MANIFEST: IMAGE|PROMPT] or [MANIFEST: VIDEO|PROMPT].
+- ONLY when the user explicitly asks you to draw, generate, or show an image/picture/photo ('hoto', 'zana mini', 'draw', 'image', 'picture') or a video ('bidiyo', 'video'), end your reply with the tag: [MANIFEST: IMAGE|PROMPT] or [MANIFEST: VIDEO|PROMPT], where PROMPT is a short English visual description.
+- If the user did NOT ask for an image or video, never mention, describe, or caption an imaginary photo/video — you have no way to actually show one without the tag, and describing one you didn't generate misleads the user.
 """
 
 # Defaults
@@ -108,9 +108,33 @@ class ChatRequest(BaseModel):
 _MANIFEST_RE = re.compile(r"\[MANIFEST:\s*(IMAGE|VIDEO)\s*\|\s*(.*?)\]", re.IGNORECASE)
 _SANITIZE_RE = re.compile(r"\[MANIFEST:.*?\]|[*#$]")
 
+_IMAGE_REQUEST_WORDS = ("hoto", "hoton", "zana", "zane mini", "draw", "image", "picture", "photo")
+_VIDEO_REQUEST_WORDS = ("bidiyo", "video", "motsi")
+_DEFAULT_IMAGE_PROMPT = "A beautiful and majestic Hausa cultural scene with gold-leaf borders and Arewa knots"
+_DEFAULT_VIDEO_PROMPT = "A sweeping cinematic view of ancient Kano walls and mud-brick architecture, golden hour"
+
 
 def _sanitize(text: str) -> str:
     return _SANITIZE_RE.sub("", text).strip()
+
+
+def _extract_manifest(user_text: str, response_text: str) -> dict[str, str] | None:
+    """Pull a [MANIFEST: TYPE|PROMPT] tag out of the model's own output. If the
+    user clearly asked for an image/video but the model (a general-purpose
+    Ollama/Gemini model, not fine-tuned to emit this exact syntax) described one
+    in prose instead of using the tag, synthesize a manifest from context so the
+    feature doesn't silently fail — mirrors the deterministic trigger already
+    used in routers/fallback.py."""
+    match = _MANIFEST_RE.search(response_text)
+    if match:
+        return {"type": match.group(1).upper(), "prompt": match.group(2).strip()}
+
+    user_lower = user_text.lower()
+    if any(w in user_lower for w in _IMAGE_REQUEST_WORDS):
+        return {"type": "IMAGE", "prompt": _DEFAULT_IMAGE_PROMPT}
+    if any(w in user_lower for w in _VIDEO_REQUEST_WORDS):
+        return {"type": "VIDEO", "prompt": _DEFAULT_VIDEO_PROMPT}
+    return None
 
 
 def _calculate_cultural_confidence(text: str) -> bool:
@@ -324,11 +348,8 @@ async def chat_endpoint(req: ChatRequest):
                     yield f"data: {payload}\n\n"
                     await asyncio.sleep(0.02)  # fast incremental playback
                 
-                manifest = _MANIFEST_RE.search(cached_text)
-                manifest_data = None
-                if manifest:
-                    manifest_data = {"type": manifest.group(1).upper(), "prompt": manifest.group(2).strip()}
-                
+                manifest_data = _extract_manifest(req.text, cached_text)
+
                 yield f"data: {json.dumps({'text': _sanitize(cached_text), 'isDone': True, 'verified': _calculate_cultural_confidence(cached_text), 'manifest': manifest_data, 'normalized': normalize_hausa_orthography(cached_text), 'tone_mapped': apply_tonal_heuristics(cached_text)})}\n\n"
             return StreamingResponse(generate_cached(), media_type="text/event-stream")
         else:
@@ -404,10 +425,7 @@ async def chat_endpoint(req: ChatRequest):
             print(f"Failed to calculate prosodic trace: {tone_err}")
 
         # Final done event
-        manifest = _MANIFEST_RE.search(full_text)
-        manifest_data = None
-        if manifest:
-            manifest_data = {"type": manifest.group(1).upper(), "prompt": manifest.group(2).strip()}
+        manifest_data = _extract_manifest(req.text, full_text)
 
         yield f"data: {json.dumps({'text': _sanitize(full_text), 'isDone': True, 'verified': _calculate_cultural_confidence(full_text), 'manifest': manifest_data, 'normalized': normalize_hausa_orthography(full_text), 'tone_mapped': apply_tonal_heuristics(full_text)})}\n\n"
 
