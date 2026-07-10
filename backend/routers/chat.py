@@ -35,10 +35,11 @@ from orthography import normalize_hausa_orthography, apply_tonal_heuristics
 import corrections_store
 
 # In-memory response cache
-# Key: md5 of request content (vibe + memoryPrompt + history + text)
+# Key: md5 of request content (vibe + addresseeGender + memoryPrompt + history + text)
 # Value: {"text": str, "timestamp": float}
 _CHAT_CACHE: dict[str, dict[str, Any]] = {}
 _CACHE_TTL = 3600  # 1 hour
+_CACHE_MAX_ENTRIES = 500  # bound memory use; evict oldest entries past this
 
 router = APIRouter()
 
@@ -174,10 +175,28 @@ def _build_messages(req: ChatRequest) -> list[dict[str, Any]]:
 
 
 def _get_cache_key(req: ChatRequest) -> str:
-    # Serialize key components
+    # Serialize key components. addresseeGender MUST be included — the system
+    # prompt is grammatically gendered per-request (masculine/feminine/
+    # unspecified all produce different correct Hausa), so omitting it let two
+    # requests differing only in gender collide and served one user's
+    # gendered reply to the other.
     history_str = "|".join(f"{h.role}:{h.text}" for h in req.history)
-    raw_str = f"{req.vibe}:{req.memoryPrompt}:{history_str}:{req.text}"
+    raw_str = f"{req.vibe}:{req.addresseeGender}:{req.memoryPrompt}:{history_str}:{req.text}"
     return hashlib.md5(raw_str.encode("utf-8")).hexdigest()
+
+
+def _evict_stale_cache_entries(now: float) -> None:
+    """Bound the in-memory cache: drop expired entries, then if still over the
+    cap drop the oldest by timestamp. Without this, _CHAT_CACHE grows forever
+    (one entry per distinct request) for as long as the process lives —
+    unbounded memory growth under real public traffic."""
+    expired = [k for k, v in _CHAT_CACHE.items() if now - v["timestamp"] >= _CACHE_TTL]
+    for k in expired:
+        del _CHAT_CACHE[k]
+    if len(_CHAT_CACHE) > _CACHE_MAX_ENTRIES:
+        oldest = sorted(_CHAT_CACHE.items(), key=lambda kv: kv[1]["timestamp"])
+        for k, _ in oldest[: len(_CHAT_CACHE) - _CACHE_MAX_ENTRIES]:
+            del _CHAT_CACHE[k]
 
 
 async def stream_gemini(req: ChatRequest) -> AsyncGenerator[str, None]:
@@ -331,9 +350,16 @@ async def chat_endpoint(req: ChatRequest):
         
     cache_key = _get_cache_key(req)
     now = time.time()
-    
+    _evict_stale_cache_entries(now)
+
+    # Requests with image attachments are never cached: the cache key is
+    # derived from text/history/vibe/gender only, so a cached reply describing
+    # one user's uploaded image could otherwise be replayed to a different
+    # user who sent the same caption text with a different (or no) image.
+    cacheable = not req.attachments
+
     # Check cache hit
-    if cache_key in _CHAT_CACHE:
+    if cacheable and cache_key in _CHAT_CACHE:
         entry = _CHAT_CACHE[cache_key]
         if now - entry["timestamp"] < _CACHE_TTL:
             print("[Murya] Cache hit! Playback cached streaming...")
@@ -411,7 +437,7 @@ async def chat_endpoint(req: ChatRequest):
         await fetch_task
         
         # Store successful result in cache
-        if full_text:
+        if full_text and cacheable:
             _CHAT_CACHE[cache_key] = {
                 "text": full_text,
                 "timestamp": time.time()

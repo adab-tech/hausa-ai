@@ -231,6 +231,72 @@ async def test_chat_caching(client):
 
 
 @pytest.mark.anyio
+async def test_chat_cache_key_includes_addressee_gender(client):
+    """Requests differing only in addresseeGender must NOT share a cache
+    entry — the system prompt (and therefore the correct Hausa reply) is
+    grammatically gendered per-request, so a collision would serve one
+    user's masculine- or feminine-addressed reply to the other."""
+    from routers.chat import _CHAT_CACHE
+    _CHAT_CACHE.clear()
+
+    mock_client = AsyncMock()
+    mock_client.chat = AsyncMock(side_effect=_fake_ollama_chat)
+
+    with patch("routers.chat.ollama.AsyncClient", return_value=mock_client):
+        response1 = await client.post(
+            "/api/chat",
+            json={"text": "Yaya kake?", "addresseeGender": "masculine"},
+        )
+        assert response1.status_code == 200
+        _iter_sse(response1.content)
+
+        response2 = await client.post(
+            "/api/chat",
+            json={"text": "Yaya kake?", "addresseeGender": "feminine"},
+        )
+        assert response2.status_code == 200
+        _iter_sse(response2.content)
+
+    # Ollama must be invoked for both distinct-gender requests, not just once.
+    assert mock_client.chat.call_count == 2
+
+
+@pytest.mark.anyio
+async def test_chat_with_attachments_not_cached(client):
+    """Requests carrying image attachments must never be served from (or
+    written to) the cache — the cache key doesn't cover attachment bytes, so
+    caching could leak one user's image-derived reply to a different user
+    who happens to send the same caption text."""
+    from routers.chat import _CHAT_CACHE
+    _CHAT_CACHE.clear()
+
+    tiny_png_b64 = (
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk"
+        "YPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+    )
+    mock_client = AsyncMock()
+    mock_client.chat = AsyncMock(side_effect=_fake_ollama_chat)
+
+    with patch("routers.chat.ollama.AsyncClient", return_value=mock_client):
+        for _ in range(2):
+            response = await client.post(
+                "/api/chat",
+                json={
+                    "text": "Me kake gani a wannan hoto?",
+                    "attachments": [
+                        {"mimeType": "image/png", "data": f"data:image/png;base64,{tiny_png_b64}"}
+                    ],
+                },
+            )
+            assert response.status_code == 200
+            _iter_sse(response.content)
+
+    # Both requests should hit Ollama — neither served from cache.
+    assert mock_client.chat.call_count == 2
+    assert _CHAT_CACHE == {}
+
+
+@pytest.mark.anyio
 async def test_chat_warmup(client):
     """If the LLM takes > 2 seconds to respond, a warmup heartbeat is emitted."""
     import asyncio

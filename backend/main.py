@@ -129,6 +129,18 @@ app.add_middleware(
     allow_headers=["Content-Type", "X-API-Key", "X-Reviewer-Key"],
 )
 
+
+@app.middleware("http")
+async def _security_headers(request, call_next):
+    """Baseline response headers. Cheap, standard hardening — doesn't change
+    behavior for any existing client, just tells browsers not to guess content
+    types or let the app be framed by another origin."""
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    return response
+
 # ---------------------------------------------------------------------------
 # Routers — all routes require the optional API key when configured
 # ---------------------------------------------------------------------------
