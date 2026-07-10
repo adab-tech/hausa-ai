@@ -25,6 +25,11 @@ primary_region = "jnb"
   # not known to hurt CPU inference.
   OLLAMA_FLASH_ATTENTION = "1"
   OLLAMA_KV_CACHE_TYPE = "q8_0"
+  # Lower than the model config's baked-in 0.8 -- reduces per-phoneme
+  # duration jitter from the VITS duration predictor, which is what was
+  # producing uneven/erratic speech rhythm. Confirmed by ear against 0.8
+  # and 0.5 (see services/vits_engine.py's VITS_NOISE_W override).
+  VITS_NOISE_W = "0.3"
 
 [http_service]
   internal_port = 8080
