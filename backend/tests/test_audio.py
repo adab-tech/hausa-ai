@@ -7,6 +7,8 @@ import numpy as np
 import pytest
 
 from routers.audio import (
+    SPEAKER_MAP,
+    _find_closest_waxal_sample,
     _float32_to_pcm16_bytes,
     _pcm_bytes_to_float32,
     _synthesize_speech,
@@ -95,4 +97,47 @@ def test_synthesize_speech_returns_none_when_piper_unavailable():
          patch("routers.audio._find_closest_waxal_sample", return_value=None):
         result = _synthesize_speech("Sannu ranka ya dade.")
         assert result is None
+
+
+# ---------------------------------------------------------------------------
+# SPEAKER_MAP — frontend speaker_id -> WAXAL numeric id must match the
+# actual gender-alternating scheme in waxal_hausa/metadata_processed.jsonl
+# (1=F1, 2=M1, 3=F2, 4=M2, 5=F3, 6=M3, 7=F4, 8=M4), not a grouped
+# 1-4=female/5-8=male scheme. Getting this wrong serves a wrong-gender
+# recording for the requested voice.
+# ---------------------------------------------------------------------------
+
+
+def test_speaker_map_namiji_ids_are_even_waxal_ids():
+    """Frontend 0..3 (Namiji/Male) must map to the even WAXAL ids (M1..M4)."""
+    assert [SPEAKER_MAP[i] for i in (0, 1, 2, 3)] == ["2", "4", "6", "8"]
+
+
+def test_speaker_map_mace_ids_are_odd_waxal_ids():
+    """Frontend 4..7 (Mace/Female) must map to the odd WAXAL ids (F1..F4)."""
+    assert [SPEAKER_MAP[i] for i in (4, 5, 6, 7)] == ["1", "3", "5", "7"]
+
+
+# ---------------------------------------------------------------------------
+# _find_closest_waxal_sample — must not return a low-relevance match.
+# Exercised against the real repo metadata: a match is a stand-in for a
+# verbatim human recording, so a low-overlap "closest" candidate must be
+# rejected rather than silently played back saying the wrong words.
+# ---------------------------------------------------------------------------
+
+
+def test_waxal_match_returns_none_for_unrelated_text():
+    """Text with no real counterpart in the corpus must return None, not
+    the least-bad (but still wrong) candidate."""
+    result = _find_closest_waxal_sample(
+        "Fasahar sadarwa ta zamani na taimaka wa al'ummar Hausawa wajen adana al'adunmu.",
+        "5",
+    )
+    assert result is None
+
+
+def test_waxal_match_returns_file_for_near_exact_text():
+    """Text pulled verbatim from a real corpus entry should still match."""
+    result = _find_closest_waxal_sample("Musulmi na zuwa Masallaci ran juma'a", "5")
+    assert result is not None
 

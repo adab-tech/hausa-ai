@@ -114,40 +114,54 @@ def _get_whisper():
     return _whisper_model
 
 
-# Map frontend speaker_id (0..7) to WAXAL speaker_id string (1..8)
-# Frontend: 0..3 are Namiji (Male), 4..7 are Mace (Female)
-# WAXAL: 1..4 are Female (F1-F4), 5..8 are Male (M1-M4)
+# Map frontend speaker_id (0..7) to WAXAL speaker_id string (1..8).
+# Frontend: 0..3 are Namiji (Male), 4..7 are Mace (Female).
+# WAXAL numeric ids ALTERNATE gender (verified against
+# waxal_hausa/metadata_processed.jsonl's audio_file prefixes):
+# 1=F1, 2=M1, 3=F2, 4=M2, 5=F3, 6=M3, 7=F4, 8=M4 — NOT grouped as
+# 1-4=female/5-8=male. Getting this wrong silently serves a
+# wrong-gender recording for half of all speaker selections.
 SPEAKER_MAP = {
-    0: "5",  # Namiji (Male) -> M1
-    1: "6",  # Namiji (Male) -> M2
-    2: "7",  # Namiji (Male) -> M3
+    0: "2",  # Namiji (Male) -> M1
+    1: "4",  # Namiji (Male) -> M2
+    2: "6",  # Namiji (Male) -> M3
     3: "8",  # Namiji (Male) -> M4
     4: "1",  # Mace (Female) -> F1
-    5: "2",  # Mace (Female) -> F2
-    6: "3",  # Mace (Female) -> F3
-    7: "4",  # Mace (Female) -> F4
+    5: "3",  # Mace (Female) -> F2
+    6: "5",  # Mace (Female) -> F3
+    7: "7",  # Mace (Female) -> F4
 }
 
 
+# Minimum Jaccard word-overlap for a WAXAL recording to stand in for live
+# TTS. This path plays back a real pre-recorded human sentence verbatim —
+# without a high bar, it always returns *some* file (even a near-zero-overlap
+# one) and silently says the wrong words instead of the requested text,
+# while also preempting the trained VITS model from ever running. Only
+# near-exact known prompts should take this shortcut.
+_MIN_WAXAL_MATCH_SCORE = 0.6
+
+
 def _find_closest_waxal_sample(text: str, speaker_id_str: str) -> str | None:
-    """Find the WAXAL sample text that matches input text closest for a speaker."""
+    """Find a WAXAL sample whose text closely matches the input for a given
+    speaker, or None if nothing meets _MIN_WAXAL_MATCH_SCORE."""
     metadata_path = Path(__file__).resolve().parent.parent.parent / "waxal_hausa" / "metadata_processed.jsonl"
     if not metadata_path.exists():
         metadata_path = Path(__file__).resolve().parent.parent.parent / "waxal_hausa" / "metadata.jsonl"
-    
+
     if not metadata_path.exists():
         return None
-        
+
     best_file = None
     best_score = -1.0
-    
+
     import json
     import re
-    
+
     words_input = set(re.findall(r'\w+', text.lower()))
     if not words_input:
         return None
-        
+
     with open(metadata_path, "r", encoding="utf-8") as f:
         for line in f:
             if not line.strip():
@@ -167,6 +181,9 @@ def _find_closest_waxal_sample(text: str, speaker_id_str: str) -> str | None:
                     best_file = s.get("audio_file")
             except Exception:
                 continue
+
+    if best_score < _MIN_WAXAL_MATCH_SCORE:
+        return None
                 
     return best_file
 
