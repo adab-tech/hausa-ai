@@ -497,7 +497,7 @@ async def live_endpoint(ws: WebSocket, speaker_id: int = 0, addressee_gender: st
                 reply_text = await _llm_respond(transcript, conversation_history, addressee_gender)
             except Exception as exc:
                 logger.exception("LLM failed, using fallback response")
-                reply_text = generate_fallback_response(transcript)
+                reply_text = generate_fallback_response(transcript, addressee_gender=addressee_gender)
 
             conversation_history.append({"role": "user", "content": transcript})
             conversation_history.append({"role": "assistant", "content": reply_text})

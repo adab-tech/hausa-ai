@@ -413,7 +413,7 @@ async def chat_endpoint(request: Request, req: ChatRequest):
                 except Exception as gemini_err:
                     # Step C: Fallback to static rule-based generator
                     print(f"[Murya] Gemini failed ({type(gemini_err).__name__}: {gemini_err}), using static fallback.")
-                    fallback_text = generate_fallback_response(req.text, req.vibe)
+                    fallback_text = generate_fallback_response(req.text, req.vibe, req.addresseeGender)
                     await queue.put(fallback_text)
             # Signal the end of stream
             await queue.put(None)
