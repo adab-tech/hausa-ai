@@ -1,7 +1,10 @@
 import React from 'react';
 import { SovereignVibe, AddresseeGender } from '../types.ts';
 import { ArewaLogo } from './ArewaLogo.tsx';
-import { Sliders, Volume2, ChevronRight, Activity, BookOpen, Cpu, X, Trash2, UserCircle2 } from 'lucide-react';
+import {
+  Sliders, Volume2, ChevronRight, Activity, BookOpen, Cpu, X, Trash2, UserCircle2,
+  Gem, Crown, Zap, GraduationCap, Mic2, Mars, Venus, CircleDashed, CircleCheck,
+} from 'lucide-react';
 
 interface SidebarProps {
   sidebarOpen: boolean;
@@ -31,6 +34,65 @@ const ADDRESSEE_LABELS: Record<AddresseeGender, string> = {
   masculine: 'Namiji (ka / maka)',
   feminine: 'Mace (ki / miki)',
 };
+
+const ADDRESSEE_ICONS: Record<AddresseeGender, React.ElementType> = {
+  unspecified: CircleDashed,
+  masculine: Mars,
+  feminine: Venus,
+};
+
+const VIBE_META: Record<SovereignVibe, { icon: React.ElementType; blurb: string }> = {
+  Classic: { icon: Gem, blurb: 'Timeless gold & obsidian' },
+  Royal: { icon: Crown, blurb: 'Velvet indigo & regalia' },
+  Cyberpunk: { icon: Zap, blurb: 'Neon circuits, high voltage' },
+  Academic: { icon: GraduationCap, blurb: 'Sepia manuscript, scholarly' },
+};
+
+/** Shared row control for dropdown option panels: icon badge, label, and a
+ *  clear selected-state checkmark + accent glow (not just a background tint). */
+const OptionButton: React.FC<{
+  icon: React.ElementType;
+  label: string;
+  sublabel?: string;
+  selected: boolean;
+  onClick: () => void;
+  role?: 'option';
+}> = ({ icon: Icon, label, sublabel, selected, onClick, role }) => (
+  <button
+    type="button"
+    role={role}
+    aria-selected={role === 'option' ? selected : undefined}
+    onClick={onClick}
+    className={`group w-full min-h-[44px] flex items-center gap-3 px-3 py-2 rounded-xl text-left transition-all duration-200 ease-out ${
+      selected
+        ? 'bg-dyn-accent/15 shadow-[0_0_16px_var(--glow-color)]'
+        : 'hover:bg-white/5 active:scale-[0.98]'
+    }`}
+  >
+    <span
+      className={`shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-colors duration-200 ${
+        selected
+          ? 'bg-dyn-accent/20 text-dyn-accent'
+          : 'bg-white/5 text-dyn-text-muted group-hover:text-dyn-text-secondary'
+      }`}
+    >
+      <Icon className="w-4 h-4" />
+    </span>
+    <span className="flex-1 min-w-0">
+      <span className={`block text-[11px] uppercase tracking-wider truncate transition-colors duration-200 ${selected ? 'text-dyn-accent font-bold' : 'text-dyn-text-secondary font-semibold group-hover:text-dyn-text-primary'}`}>
+        {label}
+      </span>
+      {sublabel && (
+        <span className="block text-[9px] normal-case tracking-normal text-dyn-text-muted truncate mt-0.5">
+          {sublabel}
+        </span>
+      )}
+    </span>
+    <CircleCheck
+      className={`w-4 h-4 shrink-0 text-dyn-accent transition-all duration-200 ${selected ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}
+    />
+  </button>
+);
 
 export const Sidebar: React.FC<SidebarProps> = ({
   sidebarOpen,
@@ -82,22 +144,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
               <div className="relative">
                 <button
-                  onClick={() => { setShowVibeDial(!showVibeDial); setShowSpeakerDial(false); }}
-                  className="w-full px-4 py-3 bg-dyn-bg-tertiary/60 border border-dyn-border rounded-2xl text-xs font-bold uppercase tracking-wider text-dyn-text-secondary hover:text-dyn-text-primary hover:bg-dyn-bg-tertiary transition-all flex items-center justify-between"
+                  onClick={() => { setShowVibeDial(!showVibeDial); setShowSpeakerDial(false); setShowAddresseeDial(false); }}
+                  aria-haspopup="listbox"
+                  aria-expanded={showVibeDial}
+                  className={`w-full min-h-[48px] px-4 py-3 bg-dyn-bg-tertiary/60 border rounded-2xl text-xs font-bold uppercase tracking-wider text-dyn-text-secondary hover:text-dyn-text-primary hover:bg-dyn-bg-tertiary transition-all duration-300 ease-out flex items-center justify-between gap-2 ${showVibeDial ? 'border-dyn-accent/50 shadow-[0_0_20px_var(--glow-color)]' : 'border-dyn-border'}`}
                 >
-                  <span>Protocol: {vibe}</span>
-                  <ChevronRight className={`w-4 h-4 transform transition-transform ${showVibeDial ? 'rotate-90' : 'rotate-0'}`} />
+                  <span className="flex items-center gap-2.5 min-w-0">
+                    {React.createElement(VIBE_META[vibe].icon, { className: 'w-4 h-4 text-dyn-accent shrink-0' })}
+                    <span className="truncate">Protocol: {vibe}</span>
+                  </span>
+                  <ChevronRight className={`w-4 h-4 shrink-0 transform transition-transform duration-300 ease-out ${showVibeDial ? 'rotate-90' : 'rotate-0'}`} />
                 </button>
                 {showVibeDial && (
-                  <div className="absolute top-14 left-0 right-0 bg-dyn-bg-tertiary/95 border border-dyn-border rounded-2xl p-2 shadow-2xl z-[100] animate-reveal backdrop-blur-xl">
+                  <div role="listbox" className="absolute top-[52px] left-0 right-0 bg-dyn-bg-tertiary/95 border border-dyn-border rounded-2xl p-2 shadow-2xl z-[100] animate-reveal backdrop-blur-xl origin-top space-y-1">
                     {(['Classic', 'Royal', 'Cyberpunk', 'Academic'] as SovereignVibe[]).map(v => (
-                      <button
+                      <OptionButton
                         key={v}
+                        role="option"
+                        icon={VIBE_META[v].icon}
+                        label={v}
+                        sublabel={VIBE_META[v].blurb}
+                        selected={vibe === v}
                         onClick={() => { setVibe(v); setShowVibeDial(false); }}
-                        className={`w-full text-left px-4 py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all ${vibe === v ? 'bg-dyn-accent/15 text-dyn-accent font-bold' : 'text-dyn-text-secondary hover:text-dyn-text-primary hover:bg-white/5'}`}
-                      >
-                        {v}
-                      </button>
+                      />
                     ))}
                   </div>
                 )}
@@ -111,29 +180,39 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
               <div className="relative">
                 <button
-                  onClick={() => { setShowSpeakerDial(!showSpeakerDial); setShowVibeDial(false); }}
-                  className="w-full px-4 py-3 bg-dyn-bg-tertiary/60 border border-dyn-border rounded-2xl text-xs font-bold uppercase tracking-wider text-dyn-text-secondary hover:text-dyn-text-primary hover:bg-dyn-bg-tertiary transition-all flex items-center justify-between"
+                  onClick={() => { setShowSpeakerDial(!showSpeakerDial); setShowVibeDial(false); setShowAddresseeDial(false); }}
+                  aria-haspopup="listbox"
+                  aria-expanded={showSpeakerDial}
+                  className={`w-full min-h-[48px] px-4 py-3 bg-dyn-bg-tertiary/60 border rounded-2xl text-xs font-bold uppercase tracking-wider text-dyn-text-secondary hover:text-dyn-text-primary hover:bg-dyn-bg-tertiary transition-all duration-300 ease-out flex items-center justify-between gap-2 ${showSpeakerDial ? 'border-dyn-accent/50 shadow-[0_0_20px_var(--glow-color)]' : 'border-dyn-border'}`}
                 >
-                  <span className="truncate">{speakerId === null ? 'Baseline (Piper)' : `Speaker ${speakerId + 1} (${speakerId < 4 ? 'Namiji' : 'Mace'})`}</span>
-                  <ChevronRight className={`w-4 h-4 transform transition-transform ${showSpeakerDial ? 'rotate-90' : 'rotate-0'}`} />
+                  <span className="flex items-center gap-2.5 min-w-0">
+                    {speakerId === null
+                      ? <Mic2 className="w-4 h-4 text-dyn-accent shrink-0" />
+                      : React.createElement(speakerId < 4 ? Mars : Venus, { className: 'w-4 h-4 text-dyn-accent shrink-0' })}
+                    <span className="truncate">{speakerId === null ? 'Baseline (Piper)' : `Speaker ${speakerId + 1} (${speakerId < 4 ? 'Namiji' : 'Mace'})`}</span>
+                  </span>
+                  <ChevronRight className={`w-4 h-4 shrink-0 transform transition-transform duration-300 ease-out ${showSpeakerDial ? 'rotate-90' : 'rotate-0'}`} />
                 </button>
                 {showSpeakerDial && (
-                  <div className="absolute top-14 left-0 right-0 bg-dyn-bg-tertiary/98 border border-dyn-border rounded-2xl p-2 shadow-2xl z-[100] animate-reveal backdrop-blur-xl max-h-[30vh] overflow-y-auto no-scrollbar">
-                    <button
+                  <div role="listbox" className="absolute top-[52px] left-0 right-0 bg-dyn-bg-tertiary/98 border border-dyn-border rounded-2xl p-2 shadow-2xl z-[100] animate-reveal backdrop-blur-xl origin-top max-h-[34vh] overflow-y-auto no-scrollbar space-y-1">
+                    <OptionButton
+                      role="option"
+                      icon={Mic2}
+                      label="Baseline (Piper)"
+                      selected={speakerId === null}
                       onClick={() => { setSpeakerId(null); setShowSpeakerDial(false); }}
-                      className={`w-full text-left px-4 py-2 rounded-xl text-[10px] uppercase tracking-wider transition-all ${speakerId === null ? 'bg-dyn-accent/15 text-dyn-accent font-bold' : 'text-dyn-text-secondary hover:text-dyn-text-primary hover:bg-white/5'}`}
-                    >
-                      Baseline (Piper)
-                    </button>
+                    />
                     <div className="h-[1px] bg-dyn-border my-1.5"></div>
                     {Array.from({length: 8}, (_, i) => (
-                      <button
+                      <OptionButton
                         key={i}
+                        role="option"
+                        icon={i < 4 ? Mars : Venus}
+                        label={`Murya ${i < 4 ? `M${i + 1} (Namiji)` : `F${i - 3} (Mace)`}`}
+                        sublabel="WAXAL"
+                        selected={speakerId === i}
                         onClick={() => { setSpeakerId(i); setShowSpeakerDial(false); }}
-                        className={`w-full text-left px-4 py-2 rounded-xl text-[10px] uppercase tracking-wider transition-all ${speakerId === i ? 'bg-dyn-accent/15 text-dyn-accent font-bold' : 'text-dyn-text-secondary hover:text-dyn-text-primary hover:bg-white/5'}`}
-                      >
-                        Murya {i < 4 ? `M${i + 1} (Namiji)` : `F${i - 3} (Mace)`} · WAXAL
-                      </button>
+                      />
                     ))}
                   </div>
                 )}
@@ -150,23 +229,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   onClick={() => { setShowAddresseeDial(!showAddresseeDial); setShowVibeDial(false); setShowSpeakerDial(false); }}
                   aria-haspopup="listbox"
                   aria-expanded={showAddresseeDial}
-                  className="w-full px-4 py-3 bg-dyn-bg-tertiary/60 border border-dyn-border rounded-2xl text-xs font-bold uppercase tracking-wider text-dyn-text-secondary hover:text-dyn-text-primary hover:bg-dyn-bg-tertiary transition-all flex items-center justify-between"
+                  className={`w-full min-h-[48px] px-4 py-3 bg-dyn-bg-tertiary/60 border rounded-2xl text-xs font-bold uppercase tracking-wider text-dyn-text-secondary hover:text-dyn-text-primary hover:bg-dyn-bg-tertiary transition-all duration-300 ease-out flex items-center justify-between gap-2 ${showAddresseeDial ? 'border-dyn-accent/50 shadow-[0_0_20px_var(--glow-color)]' : 'border-dyn-border'}`}
                 >
-                  <span className="truncate">{ADDRESSEE_LABELS[addresseeGender]}</span>
-                  <ChevronRight className={`w-4 h-4 transform transition-transform ${showAddresseeDial ? 'rotate-90' : 'rotate-0'}`} />
+                  <span className="flex items-center gap-2.5 min-w-0">
+                    {React.createElement(ADDRESSEE_ICONS[addresseeGender], { className: 'w-4 h-4 text-dyn-accent shrink-0' })}
+                    <span className="truncate">{ADDRESSEE_LABELS[addresseeGender]}</span>
+                  </span>
+                  <ChevronRight className={`w-4 h-4 shrink-0 transform transition-transform duration-300 ease-out ${showAddresseeDial ? 'rotate-90' : 'rotate-0'}`} />
                 </button>
                 {showAddresseeDial && (
-                  <div role="listbox" className="absolute top-14 left-0 right-0 bg-dyn-bg-tertiary/98 border border-dyn-border rounded-2xl p-2 shadow-2xl z-[100] animate-reveal backdrop-blur-xl">
+                  <div role="listbox" className="absolute top-[52px] left-0 right-0 bg-dyn-bg-tertiary/98 border border-dyn-border rounded-2xl p-2 shadow-2xl z-[100] animate-reveal backdrop-blur-xl origin-top space-y-1">
                     {(Object.keys(ADDRESSEE_LABELS) as AddresseeGender[]).map(g => (
-                      <button
+                      <OptionButton
                         key={g}
                         role="option"
-                        aria-selected={addresseeGender === g}
+                        icon={ADDRESSEE_ICONS[g]}
+                        label={ADDRESSEE_LABELS[g]}
+                        selected={addresseeGender === g}
                         onClick={() => { setAddresseeGender(g); setShowAddresseeDial(false); }}
-                        className={`w-full text-left px-4 py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all ${addresseeGender === g ? 'bg-dyn-accent/15 text-dyn-accent font-bold' : 'text-dyn-text-secondary hover:text-dyn-text-primary hover:bg-white/5'}`}
-                      >
-                        {ADDRESSEE_LABELS[g]}
-                      </button>
+                      />
                     ))}
                   </div>
                 )}
