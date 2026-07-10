@@ -59,8 +59,101 @@ def normalize_hausa_orthography(text: str) -> str:
     normalized = re.sub(r"K'", "Ƙ", normalized)
     normalized = re.sub(r"Y'", "Ƴ", normalized)
     normalized = re.sub(r"'Y", "Ƴ", normalized)
-    
+
     return normalized
+
+
+# ---------------------------------------------------------------------------
+# Hausa cardinal-number spelling (for TTS)
+# ---------------------------------------------------------------------------
+# The trained VITS voice's phoneme inventory is 42 symbols — a-z, punctuation,
+# and the hooked consonants ɓɗƙƴ. It has NO digit glyphs, so any Arabic
+# numeral in the model's reply is silently dropped by the tokenizer and
+# produces no audio at all. Spell numbers out as Hausa words before synthesis
+# so "2026" is actually spoken ("dubu biyu da ashirin da shida") instead of
+# vanishing. Standard Hausa (Kananci/Fada) cardinals.
+_HA_UNITS = ["", "ɗaya", "biyu", "uku", "huɗu", "biyar", "shida", "bakwai", "takwas", "tara"]
+_HA_TENS = {
+    1: "goma", 2: "ashirin", 3: "talatin", 4: "arba'in", 5: "hamsin",
+    6: "sittin", 7: "saba'in", 8: "tamanin", 9: "casa'in",
+}
+
+
+def _ha_below_100(n: int) -> str:
+    """0 <= n < 100 -> Hausa words."""
+    if n < 10:
+        return _HA_UNITS[n]
+    if n < 20:
+        r = n - 10
+        return "goma" if r == 0 else f"goma sha {_HA_UNITS[r]}"
+    t, r = divmod(n, 10)
+    return _HA_TENS[t] if r == 0 else f"{_HA_TENS[t]} da {_HA_UNITS[r]}"
+
+
+def _ha_below_1000(n: int) -> str:
+    """0 <= n < 1000 -> Hausa words."""
+    if n < 100:
+        return _ha_below_100(n)
+    h, r = divmod(n, 100)
+    hundreds = "ɗari" if h == 1 else f"ɗari {_HA_UNITS[h]}"
+    return hundreds if r == 0 else f"{hundreds} da {_ha_below_100(r)}"
+
+
+def hausa_cardinal(n: int) -> str:
+    """Non-negative integer -> Standard Hausa cardinal words.
+
+    Handles units, tens, hundreds (ɗari), thousands (dubu) and millions
+    (miliyan), joining groups with the connective 'da'. Numbers at/above a
+    billion are read digit-by-digit (a giant single cardinal would be both
+    unnatural and error-prone, and such runs are usually IDs/phone numbers).
+    """
+    if n == 0:
+        return "sifili"
+    if n >= 1_000_000_000:
+        return " ".join(_HA_UNITS[int(d)] if d != "0" else "sifili" for d in str(n))
+
+    parts: list[str] = []
+    if n >= 1_000_000:
+        m, n = divmod(n, 1_000_000)
+        parts.append("miliyan" if m == 1 else f"miliyan {_ha_below_1000(m)}")
+    if n >= 1000:
+        th, n = divmod(n, 1000)
+        parts.append("dubu" if th == 1 else f"dubu {_ha_below_1000(th)}")
+    if n > 0:
+        parts.append(_ha_below_1000(n))
+    return " da ".join(parts)
+
+
+def _spell_number_token(token: str) -> str:
+    """Convert one matched numeric token (already comma-stripped) to Hausa
+    words. Supports an optional decimal part read digit-by-digit after
+    'digo' (point), e.g. '3.5' -> 'uku digo biyar'."""
+    if "." in token:
+        int_part, _, frac_part = token.partition(".")
+        int_words = hausa_cardinal(int(int_part)) if int_part else "sifili"
+        frac_words = " ".join(
+            _HA_UNITS[int(d)] if d != "0" else "sifili" for d in frac_part
+        )
+        return f"{int_words} digo {frac_words}".strip()
+    return hausa_cardinal(int(token))
+
+
+def spell_out_hausa_numbers(text: str) -> str:
+    """Replace Arabic-numeral runs in `text` with spoken Hausa words.
+
+    Intended for the TTS path only (display text keeps its digits). Commas
+    used as thousands separators between digits are stripped first so
+    '1,000' reads as one number; a comma not between digits is left alone.
+    """
+    # Drop thousands-separator commas (digit,digit) but keep list commas.
+    text = re.sub(r"(?<=\d),(?=\d{3}\b)", "", text)
+    # Match integers or decimals (not identifiers like 'a1b').
+    return re.sub(
+        r"(?<![A-Za-z\d])\d+(?:\.\d+)?(?![A-Za-z\d])",
+        lambda m: _spell_number_token(m.group(0)),
+        text,
+    )
+
 
 def segment_word_syllables(word: str) -> list[tuple[str, str]]:
     """

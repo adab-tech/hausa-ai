@@ -296,10 +296,12 @@ def _synthesize_speech(
     # fallbacks instead of proper Unicode; the phoneme map has no entry
     # linking "b'" to ɓ, so unnormalized text was being mispronounced as
     # plain b/d/k/y instead of the correct implosive/ejective consonant.
-    # Done here (not just by callers) so every synthesis path — /api/tts,
-    # the live WebSocket, and any future caller — gets it for free.
-    from orthography import normalize_hausa_orthography
-    text = normalize_hausa_orthography(text)
+    # Then spell Arabic numerals as Hausa words — the phoneme map has NO
+    # digit glyphs, so "2026" would otherwise be silently dropped and
+    # produce no audio. Done here (not just by callers) so every synthesis
+    # path — /api/tts, the live WebSocket, and any future caller — gets it.
+    from orthography import normalize_hausa_orthography, spell_out_hausa_numbers
+    text = spell_out_hausa_numbers(normalize_hausa_orthography(text))
 
     # 1. Try WAXAL voice bank if speaker_id is explicitly selected
     if speaker_id is not None:
