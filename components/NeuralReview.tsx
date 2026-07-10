@@ -267,7 +267,7 @@ export const NeuralReview: React.FC<{ onClose: () => void; onOpenWhitePaper?: ()
                   <thead>
                     <tr className="bg-dyn-bg-primary/50 text-[10px] uppercase tracking-[0.25em] text-dyn-text-secondary border-b border-dyn-border">
                       <th className="p-6 pl-10 font-bold">Neural Parameter Matrix</th>
-                      <th className="p-6 text-dyn-accent font-black">Hausa AI (Murya-7)</th>
+                      <th className="p-6 text-dyn-accent font-black">Hausa AI (Murya)</th>
                       <th className="p-6 font-bold">Generic Web LLMs</th>
                       <th className="p-6 pr-10 font-bold">Engineering Edge</th>
                     </tr>

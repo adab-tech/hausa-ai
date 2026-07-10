@@ -37,7 +37,7 @@ def generate_fallback_response(user_text: str, vibe: str = "Classic") -> str:
             prompt = "A majestic mud-walled Hausa Emir's palace, golden sunbeams shining"
         
         return (
-            f"{greeting} Fasahar hotonmu na 'Murya-7' tana aiki a kan wannan umarni na zane na musamman. "
+            f"{greeting} Fasahar hotonmu na 'Murya' tana aiki a kan wannan umarni na zane na musamman. "
             f"Zamu ƙirƙiri hoton da kuke buƙata domin nuna kyawun al'adarmu da fasahar zane. "
             f"Kamar yadda aka sani, '{proverb}' [MANIFEST: IMAGE|{prompt}]"
         )
@@ -49,7 +49,7 @@ def generate_fallback_response(user_text: str, vibe: str = "Classic") -> str:
             prompt = "A galloping horse at the Durbar festival, dust kicking up, slow motion"
             
         return (
-            f"{greeting} Sashen motsi na Murya-7 yana shirin samar muku da bidiyo na musamman domin bayyana kyawun umarninku. "
+            f"{greeting} Sashen motsi na Murya yana shirin samar muku da bidiyo na musamman domin bayyana kyawun umarninku. "
             f"Kamar yadda kuka sani, '{proverb}' [MANIFEST: VIDEO|{prompt}]"
         )
 
@@ -63,7 +63,7 @@ def generate_fallback_response(user_text: str, vibe: str = "Classic") -> str:
     # 4. Cultural/Constitution discussion
     if any(w in text_lower for w in ["girmamawa", "kunya", "cultural", "al'ada", "constitution"]):
         return (
-            f"{greeting} Dangane da tsarin mutunci da al'adunmu na Arewa, Murya-7 yana aiki da matuƙar 'Kunya' da 'Girmamawa'. "
+            f"{greeting} Dangane da tsarin mutunci da al'adunmu na Arewa, Murya yana aiki da matuƙar 'Kunya' da 'Girmamawa'. "
             f"Muna kiyaye hooked letters kamar (ɓ, ɗ, ƙ, 'y) da R-to-L tone mapping domin tabbatar da ingancin harshe. "
             f"Kamar yadda kuka sani, '{proverb}'"
         )
