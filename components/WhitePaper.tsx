@@ -1,10 +1,20 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { ArewaLogo } from './ArewaLogo.tsx';
 
 export const WhitePaper: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+  // Accessibility: Escape closes this full-screen document, same as the
+  // "Exit Archive" button, for keyboard-only users.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
+
   return (
-    <div className="fixed inset-0 z-[300] bg-obsidian text-ivory overflow-y-auto no-scrollbar font-sans selection:bg-silk-gold/40 animate-reveal">
+    <div role="dialog" aria-modal="true" aria-label="Murya White Paper" className="fixed inset-0 z-[300] bg-obsidian text-ivory overflow-y-auto no-scrollbar font-sans selection:bg-silk-gold/40 animate-reveal">
       {/* Background Decorative Layer */}
       <div className="fixed inset-0 pointer-events-none opacity-[0.03] zana-grid" />
       

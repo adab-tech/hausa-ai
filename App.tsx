@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { gemini } from './services/localService.ts';
+import { gemini, BACKEND_URL } from './services/localService.ts';
 import { learning } from './services/learningService.ts';
 import { Message, Role, Attachment, SovereignVibe, AddresseeGender } from './types.ts';
 import { ArewaLogo } from './components/ArewaLogo.tsx';
@@ -284,6 +284,17 @@ const App: React.FC = () => {
     return `vibe-${vibe.toLowerCase()}`;
   }, [vibe]);
 
+  // Real backend host, not a hardcoded placeholder — this reads the same
+  // BACKEND_URL every API/WS call actually uses (localhost in dev, the
+  // deployed Fly.io host in production).
+  const backendHost = useMemo(() => {
+    try {
+      return new URL(BACKEND_URL).host;
+    } catch {
+      return BACKEND_URL;
+    }
+  }, []);
+
   return (
     <div className={`h-full w-full flex ${dynamicVibeClass} bg-dyn-bg-primary text-dyn-text-primary selection:bg-dyn-accent/30 font-sans overflow-hidden transition-all duration-700`}>
 
@@ -350,9 +361,9 @@ const App: React.FC = () => {
 
           {/* Secondary stats preview */}
           <div className="flex items-center gap-4 text-dyn-text-muted text-[10px] font-mono select-none">
-            <div className="hidden sm:flex items-center gap-1">
+            <div className="hidden sm:flex items-center gap-1" title={BACKEND_URL}>
               <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-              <span>Server: 127.0.0.1</span>
+              <span>Server: {backendHost}</span>
             </div>
             <span className="hidden sm:inline">|</span>
             <div className="flex items-center gap-1 font-sans font-bold uppercase tracking-wider text-dyn-accent">

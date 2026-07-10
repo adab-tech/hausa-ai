@@ -30,6 +30,16 @@ export const NeuralReview: React.FC<{ onClose: () => void; onOpenWhitePaper?: ()
     });
   }, []);
 
+  // Accessibility: let keyboard users close the modal with Escape, matching
+  // standard dialog behavior (this modal has no other keyboard dismiss path).
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
+
   // WAXAL explorer states
   const [waxalStats, setWaxalStats] = useState<any>(null);
   const [waxalSamples, setWaxalSamples] = useState<any[]>([]);
@@ -118,9 +128,9 @@ export const NeuralReview: React.FC<{ onClose: () => void; onOpenWhitePaper?: ()
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-8 animate-reveal">
-      <div className="absolute inset-0 bg-black/85 backdrop-blur-[20px]" onClick={onClose}></div>
-      
-      <div className="relative w-full max-w-6xl bg-dyn-bg-secondary border border-dyn-border rounded-[40px] shadow-[0_0_80px_var(--glow-color)] overflow-hidden flex flex-col max-h-[92vh] z-10 transition-all duration-700">
+      <div className="absolute inset-0 bg-black/85 backdrop-blur-[20px]" onClick={onClose} aria-hidden="true"></div>
+
+      <div role="dialog" aria-modal="true" aria-label="Matattarar Bayanai (Sovereign Linguistic Analytics)" className="relative w-full max-w-6xl bg-dyn-bg-secondary border border-dyn-border rounded-[40px] shadow-[0_0_80px_var(--glow-color)] overflow-hidden flex flex-col max-h-[92vh] z-10 transition-all duration-700">
         
         {/* Animated grid ambient background */}
         <div className="absolute inset-0 opacity-[0.03] zana-grid pointer-events-none" />

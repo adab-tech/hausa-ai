@@ -12,7 +12,8 @@ import { Message, Attachment, Role, SovereignVibe, AddresseeGender } from "../ty
 import { learning } from "./learningService.ts";
 
 // In production / Codespaces the env var VITE_BACKEND_URL can override this.
-const BACKEND_URL = (
+// Exported so the UI can display the real backend host instead of a hardcoded one.
+export const BACKEND_URL = (
   (import.meta as any).env?.VITE_BACKEND_URL ??
   (typeof window !== "undefined" && window.location.port === "3000"
     ? "http://127.0.0.1:8000"

@@ -55,7 +55,7 @@ export const InputConsole: React.FC<InputConsoleProps> = ({
              {attachments.map((at, i) => (
                <div key={i} className="flex-none w-20 h-20 rounded-2xl bg-white/5 border border-dyn-border p-1.5 relative shadow-xl transition-transform hover:scale-105">
                   {at.type === 'image' ? (
-                    <img src={at.data} className="w-full h-full object-cover rounded-xl" />
+                    <img src={at.data} alt={at.name || 'Hoton da aka haɗa (attached image)'} className="w-full h-full object-cover rounded-xl" />
                   ) : (
                     <div className="w-full h-full flex flex-col items-center justify-center text-[8px] text-dyn-text-secondary font-mono uppercase bg-black/40 rounded-xl p-1 text-center truncate">
                       <span>{at.name.split('.').pop()}</span>
