@@ -69,3 +69,36 @@ def test_image_branch_has_no_plural_markers():
 def test_cultural_branch_has_no_plural_markers():
     text = generate_fallback_response("faɗa mini game da al'ada", addressee_gender="masculine")
     _assert_no_plural_markers(text)
+
+
+# Absence-of-plural-markers alone doesn't catch malformed word construction
+# (e.g. "saƙon" + "anka" -> "saƙonanka", a doubled/garbled suffix that
+# contains no plural marker at all but is still wrong). These assert the
+# exact, correctly-formed singular possessive words appear, and that their
+# previously-shipped malformed counterparts do not.
+def test_default_fallback_uses_correctly_formed_possessives_masculine():
+    text = generate_fallback_response("Me kake yi?", addressee_gender="masculine")
+    assert "saƙonka" in text
+    assert "umarninka" in text
+    assert "saƙonanka" not in text
+    assert "umarinanka" not in text
+
+
+def test_default_fallback_uses_correctly_formed_possessives_feminine():
+    text = generate_fallback_response("Me kike yi?", addressee_gender="feminine")
+    assert "saƙonki" in text
+    assert "umarninki" in text
+    assert "saƙonanki" not in text
+    assert "umarinanki" not in text
+
+
+def test_greeting_branch_uses_correctly_formed_possessive():
+    text = generate_fallback_response("Sannu", addressee_gender="masculine")
+    assert "ayyukanka" in text
+    assert "ayyukaanka" not in text
+
+
+def test_video_branch_uses_correctly_formed_possessive():
+    text = generate_fallback_response("ka yi mini bidiyo", addressee_gender="feminine")
+    assert "umarninki" in text
+    assert "umarinanki" not in text
