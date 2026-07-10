@@ -57,7 +57,12 @@ def generate_fallback_response(
     # Singular possessive/object suffixes and pronouns, gendered.
     ka_ki = "ki" if is_feminine else "ka"          # "kamar yadda ka/ki sani"
     maka_miki = "miki" if is_feminine else "maka"   # "muku" -> "maka"/"miki"
-    anka_anki = "anki" if is_feminine else "anka"   # "-nku" -> "-nka"/"-nki"
+    # "-nku" -> "-nka"/"-nki", appended to a vowel-final stem: "saƙo" + "nka"
+    # = "saƙonka", "umarni" + "nka" = "umarninka", "ayyuka" + "nka" =
+    # "ayyukanka" (matches SOVEREIGN_CONSTITUTION's own "ayyukanka"/
+    # "ayyukanki" example in chat.py). Do NOT use this after a stem that
+    # already ends in "n" (e.g. "saƙon") — that would double the "n".
+    nka_nki = "nki" if is_feminine else "nka"
     kake_kike = "kike" if is_feminine else "kake"   # "kuka" -> "kake"/"kike"
 
     # 1. Image Generation request
@@ -81,7 +86,7 @@ def generate_fallback_response(
             prompt = "A galloping horse at the Durbar festival, dust kicking up, slow motion"
 
         return (
-            f"{greeting} Sashen motsi na Murya yana shirin samar {maka_miki} da bidiyo na musamman domin bayyana kyawun umarin{anka_anki}. "
+            f"{greeting} Sashen motsi na Murya yana shirin samar {maka_miki} da bidiyo na musamman domin bayyana kyawun umarni{nka_nki}. "
             f"Kamar yadda {ka_ki} sani, '{proverb}' [MANIFEST: VIDEO|{prompt}]"
         )
 
@@ -89,7 +94,7 @@ def generate_fallback_response(
     if any(w in text_lower for w in ["sannu", "barka", "hello", "hi"]):
         return (
             f"{greeting} Barka da haɗuwa a wannan cibiya ta fasaha. Muna {maka_miki} gaisuwa ta musamman da fatan alheri "
-            f"da samun nasara a ayyuka{anka_anki} baki ɗaya. Kamar yadda {ka_ki} sani, '{proverb}'"
+            f"da samun nasara a ayyuka{nka_nki} baki ɗaya. Kamar yadda {ka_ki} sani, '{proverb}'"
         )
 
     # 4. Cultural/Constitution discussion
@@ -102,7 +107,7 @@ def generate_fallback_response(
 
     # 5. Default Fallback
     return (
-        f"{greeting} Na karɓi saƙon{anka_anki} mai fa'ida da zurfin tunani. Muna nan muna nazarin kowane sashe na umarin{anka_anki} "
+        f"{greeting} Na karɓi saƙo{nka_nki} mai fa'ida da zurfin tunani. Muna nan muna nazarin kowane sashe na umarni{nka_nki} "
         f"domin samar {maka_miki} da sakamako mai gamsarwa da ya dace da daraja. "
         f"Kamar yadda aka sani, '{proverb}'"
     )
