@@ -102,7 +102,7 @@ export const NeuralReview: React.FC<{ onClose: () => void; onOpenWhitePaper?: ()
   };
   
   const competitiveEdge = [
-    { metric: 'Scholarly Sources', sovereign: '7 (Murya-7 Core)', others: 'Generic Web Data', advantage: 'Primary Grounding' },
+    { metric: 'Scholarly Sources', sovereign: '7 (Murya)', others: 'Generic Web Data', advantage: 'Primary Grounding' },
     { metric: 'Prosodic Logic', sovereign: 'Litvinova R-to-L', others: 'Statistical Stress', advantage: 'Native Rhythm' },
     { metric: 'Unit of Tone', sovereign: 'Mora-Aware', others: 'Syllable-Approx', advantage: 'Phonetic Truth' },
     { metric: 'Purity', sovereign: 'Hausar Fada', others: 'Mixed (Enghausa)', advantage: 'Zero-Switch' },

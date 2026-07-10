@@ -9,7 +9,7 @@ export const AXIOM_PHRASES = [
   "Ana auna Litvinova's Tonal Laws...",
   "Ana shirya Hikimar Karin Magana (Proverb Engine)...",
   "Ana daidaita Ingancin Harshe (Orthographic Calibration)...",
-  "Murya-7 Core na Aiki... (Processing, yawanci sakan 20-25)",
+  "Murya na Aiki... (Processing, yawanci sakan 20-25)",
   "Ana Tattara Bayanan Tarihi (Historical Archive Scan)...",
   "Jimawa kaɗan, amsawa ta zo (Please Wait, Response Coming)..."
 ];

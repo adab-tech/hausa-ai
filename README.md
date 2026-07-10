@@ -18,7 +18,7 @@ The system integrates a high-performance **FastAPI backend** running local neura
 | **Speech-to-Text (STT)** | **Faster-Whisper (base)** (Optimized mono 16kHz) | Local offline rule-based processor |
 | **Text-to-Speech (TTS)** | **WAXAL-Piper 8-voice Hausa model** (grapheme-mode fine-tune, 73.5 MB ONNX, CPU real-time) | Legacy VITS / Piper baseline |
 | **Image Generation** | **FLUX.1-schnell** (Diffusers) | Local offline fallback |
-| **Linguistic Trace** | Right-to-Left Tonal Melody & Hook Normalizer | In-client **Aya-7 Core Axiom Trace** |
+| **Linguistic Trace** | Right-to-Left Tonal Melody & Hook Normalizer | In-client **Axiom Trace** |
 
 ---
 

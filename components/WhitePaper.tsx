@@ -60,7 +60,7 @@ export const WhitePaper: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           <div className="absolute top-0 right-0 p-8 opacity-[0.03] text-[10rem] font-serif italic select-none">A</div>
           <h2 className="text-[11px] uppercase tracking-[0.8em] text-silk-gold font-black">Executive Summary</h2>
           <p className="text-2xl sm:text-4xl leading-relaxed font-serif italic text-ivory/80">
-            Hausa AI represents a paradigm shift in indigenous language modeling. By moving beyond statistical word-mapping and into "Digital Prosody," our research corrects the colonial phonetic bias inherent in standard LLMs. We leverage the Murya-7 core to enforce the Fada Protocol—a high-dignity sociolinguistic layer grounded in the laws of Litvinova and Newman.
+            Hausa AI represents a paradigm shift in indigenous language modeling. By moving beyond statistical word-mapping and into "Digital Prosody," our research corrects the colonial phonetic bias inherent in standard LLMs. We leverage Murya to enforce the Fada Protocol—a high-dignity sociolinguistic layer grounded in the laws of Litvinova and Newman.
           </p>
         </section>
 
@@ -147,7 +147,7 @@ export const WhitePaper: React.FC<{ onClose: () => void }> = ({ onClose }) => {
              {[
                { date: "Oct 2025", event: "Initial core extraction from standard Hausa dataset.", status: "Baseline" },
                { date: "Dec 2025", event: "Verification of Litvinova's Tonal Mapping through high-fidelity tests.", status: "Breakthrough" },
-               { date: "Feb 2026", event: "Deployment of Murya-7 Core with real-time Grounding Node.", status: "Production" },
+               { date: "Feb 2026", event: "Deployment of Murya with real-time Grounding Node.", status: "Production" },
                { date: "Mar 2026", event: "Manifestation Engine V2: 4K Cultural Image Synthesis.", status: "Creative" },
                { date: "Apr 2026", event: "Formalizing Axiom-8: Socio-Linguistic Autonomy.", status: "Pending" }
              ].map((m, i) => (
