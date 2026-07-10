@@ -352,8 +352,35 @@ async def _llm_respond(transcript: str, history: list[dict], addressee_gender: s
         response = await client.chat(model=OLLAMA_MODEL, messages=cast(Any, messages), options=_OLLAMA_OPTIONS)
         return response["message"]["content"].strip()
     except Exception as ollama_err:
-        logger.warning("Ollama unavailable for voice (%s), switching to Gemini...", ollama_err)
-        return await _llm_respond_gemini(transcript, history, addressee_gender)
+        logger.warning("Ollama unavailable for voice (%s), switching to Cerebras...", ollama_err)
+        try:
+            return await _llm_respond_cerebras(transcript, history, addressee_gender)
+        except Exception as cerebras_err:
+            logger.warning("Cerebras unavailable for voice (%s), switching to Gemini...", cerebras_err)
+            return await _llm_respond_gemini(transcript, history, addressee_gender)
+
+
+async def _llm_respond_cerebras(transcript: str, history: list[dict], addressee_gender: str = "unspecified") -> str:
+    """Fallback: use the Cerebras Cloud SDK (OpenAI-compatible) for voice LLM responses."""
+    import os
+    api_key = os.getenv("CEREBRAS_API_KEY")
+    if not api_key:
+        raise RuntimeError("CEREBRAS_API_KEY not set — cannot use Cerebras fallback for voice.")
+
+    from cerebras.cloud.sdk import AsyncCerebras
+
+    client = AsyncCerebras(api_key=api_key)
+    model = os.getenv("CEREBRAS_MODEL", "gemma-4-31b")
+
+    messages = [{"role": "system", "content": _voice_system_prompt(addressee_gender)}]
+    messages.extend(history[-6:])
+    messages.append({"role": "user", "content": transcript})
+
+    response = await client.chat.completions.create(
+        model=model,
+        messages=cast(Any, messages),
+    )
+    return response.choices[0].message.content.strip()
 
 
 async def _llm_respond_gemini(transcript: str, history: list[dict], addressee_gender: str = "unspecified") -> str:

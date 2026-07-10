@@ -215,6 +215,40 @@ def _evict_stale_cache_entries(now: float) -> None:
             del _CHAT_CACHE[k]
 
 
+async def stream_cerebras(messages: list[dict[str, Any]]) -> AsyncGenerator[str, None]:
+    """
+    Stream responses via the Cerebras Cloud SDK (OpenAI-compatible chat
+    completions). Sits between Ollama and Gemini in the fallback chain:
+    Cerebras is a hosted, low-latency inference tier, so it's a better
+    quality/latency fallback than waiting on Gemini when local Ollama is
+    unavailable or overloaded.
+    """
+    api_key = os.getenv("CEREBRAS_API_KEY")
+    if not api_key:
+        raise RuntimeError("CEREBRAS_API_KEY not set in environment.")
+
+    from cerebras.cloud.sdk import AsyncCerebras
+
+    client = AsyncCerebras(api_key=api_key)
+    model = os.getenv("CEREBRAS_MODEL", "gemma-4-31b")
+
+    # Cerebras' chat.completions endpoint is OpenAI-shaped and doesn't know
+    # the Ollama-specific "images" key _build_messages adds for attachments.
+    clean_messages = [
+        {"role": m["role"], "content": m["content"]} for m in messages
+    ]
+
+    stream = await client.chat.completions.create(
+        model=model,
+        messages=clean_messages,
+        stream=True,
+    )
+    async for chunk in stream:
+        delta = chunk.choices[0].delta.content
+        if delta:
+            yield delta
+
+
 async def stream_gemini(req: ChatRequest) -> AsyncGenerator[str, None]:
     """
     Stream responses via google-genai SDK (with google.generativeai async fallback).
@@ -420,16 +454,22 @@ async def chat_endpoint(request: Request, req: ChatRequest):
                 ):
                     await queue.put(part["message"]["content"])
             except Exception as ollama_err:
-                # Step B: Fallback to Gemini via google-genai SDK
-                print(f"[Murya] Ollama unavailable ({type(ollama_err).__name__}), switching to Gemini...")
+                # Step B: Fallback to Cerebras (hosted, low-latency)
+                print(f"[Murya] Ollama unavailable ({type(ollama_err).__name__}), switching to Cerebras...")
                 try:
-                    async for delta in stream_gemini(req):
+                    async for delta in stream_cerebras(messages):
                         await queue.put(delta)
-                except Exception as gemini_err:
-                    # Step C: Fallback to static rule-based generator
-                    print(f"[Murya] Gemini failed ({type(gemini_err).__name__}: {gemini_err}), using static fallback.")
-                    fallback_text = generate_fallback_response(req.text, req.vibe, req.addresseeGender)
-                    await queue.put(fallback_text)
+                except Exception as cerebras_err:
+                    # Step C: Fallback to Gemini via google-genai SDK
+                    print(f"[Murya] Cerebras failed ({type(cerebras_err).__name__}: {cerebras_err}), switching to Gemini...")
+                    try:
+                        async for delta in stream_gemini(req):
+                            await queue.put(delta)
+                    except Exception as gemini_err:
+                        # Step D: Fallback to static rule-based generator
+                        print(f"[Murya] Gemini failed ({type(gemini_err).__name__}: {gemini_err}), using static fallback.")
+                        fallback_text = generate_fallback_response(req.text, req.vibe, req.addresseeGender)
+                        await queue.put(fallback_text)
             # Signal the end of stream
             await queue.put(None)
             

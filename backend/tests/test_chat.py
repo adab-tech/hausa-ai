@@ -161,6 +161,30 @@ async def test_chat_error_yields_done_event(client):
     assert any(e.get("isDone") for e in events)
 
 
+@pytest.mark.anyio
+async def test_chat_falls_back_to_cerebras_when_ollama_down(client, monkeypatch):
+    """When Ollama fails, the endpoint should try Cerebras next (before Gemini
+    or the static fallback) and stream its output."""
+    monkeypatch.setenv("CEREBRAS_API_KEY", "fake-key")
+
+    mock_client = AsyncMock()
+    mock_client.chat = AsyncMock(side_effect=Exception("ollama down"))
+
+    async def _fake_stream_cerebras(*_args, **_kwargs):
+        for piece in ("Sannu", ", ", "yaya kake?"):
+            yield piece
+
+    with patch("routers.chat.ollama.AsyncClient", return_value=mock_client), \
+         patch("routers.chat.stream_cerebras", _fake_stream_cerebras):
+        response = await client.post("/api/chat", json={"text": "Cerebras fallback test"})
+
+    assert response.status_code == 200
+    events = _iter_sse(response.content)
+    final = events[-1]
+    assert final["isDone"] is True
+    assert "Sannu" in final["text"]
+
+
 # ---------------------------------------------------------------------------
 # Auth tests
 # ---------------------------------------------------------------------------
