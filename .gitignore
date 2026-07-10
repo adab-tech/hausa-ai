@@ -74,3 +74,4 @@ backend/data/
 .claude/settings.local.json
 
 .vercel
+.fly_token
