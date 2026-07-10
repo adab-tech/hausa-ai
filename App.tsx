@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { gemini } from './services/localService.ts';
 import { learning } from './services/learningService.ts';
-import { Message, Role, Attachment, SovereignVibe } from './types.ts';
+import { Message, Role, Attachment, SovereignVibe, AddresseeGender } from './types.ts';
 import { ArewaLogo } from './components/ArewaLogo.tsx';
 import { Waveform } from './components/Waveform.tsx';
 import { NeuralReview } from './components/NeuralReview.tsx';
@@ -21,6 +21,15 @@ const App: React.FC = () => {
   const [showReview, setShowReview] = useState(false);
   const [vibe, setVibe] = useState<SovereignVibe>('Classic');
   const [showVibeDial, setShowVibeDial] = useState(false);
+  const [addresseeGender, setAddresseeGenderState] = useState<AddresseeGender>(() => {
+    const stored = localStorage.getItem('hausa_ai_addressee_gender');
+    return stored === 'masculine' || stored === 'feminine' ? stored : 'unspecified';
+  });
+  const setAddresseeGender = (g: AddresseeGender) => {
+    setAddresseeGenderState(g);
+    localStorage.setItem('hausa_ai_addressee_gender', g);
+  };
+  const [showAddresseeDial, setShowAddresseeDial] = useState(false);
   const [showWhitePaper, setShowWhitePaper] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [volume, setVolume] = useState(0);
@@ -133,7 +142,7 @@ const App: React.FC = () => {
     setMessages(prev => [...prev, aiMsgPlaceholder]);
 
     try {
-      const stream = gemini.unifiedExchange(currentInput, messages, currentAttachments, vibe);
+      const stream = gemini.unifiedExchange(currentInput, messages, currentAttachments, vibe, addresseeGender);
       for await (const chunk of stream) {
         setMessages(prev => prev.map(m => m.id === aiMsgId ? {
           ...m,
@@ -247,7 +256,7 @@ const App: React.FC = () => {
             setIsLiveActive(false);
             setVoiceStatus('error');
           }
-        });
+        }, addresseeGender);
     } catch (e: any) {
         const name = e?.name || '';
         console.error("Live voice mic error:", name, e);
@@ -301,6 +310,10 @@ const App: React.FC = () => {
         setSpeakerId={setSpeakerId}
         showSpeakerDial={showSpeakerDial}
         setShowSpeakerDial={setShowSpeakerDial}
+        addresseeGender={addresseeGender}
+        setAddresseeGender={setAddresseeGender}
+        showAddresseeDial={showAddresseeDial}
+        setShowAddresseeDial={setShowAddresseeDial}
         onOpenReview={() => setShowReview(true)}
         onOpenWhitePaper={() => setShowWhitePaper(true)}
         onClearChat={clearChat}

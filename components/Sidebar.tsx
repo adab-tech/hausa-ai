@@ -1,7 +1,7 @@
 import React from 'react';
-import { SovereignVibe } from '../types.ts';
+import { SovereignVibe, AddresseeGender } from '../types.ts';
 import { ArewaLogo } from './ArewaLogo.tsx';
-import { Sliders, Volume2, ChevronRight, Activity, BookOpen, Cpu, X, Trash2 } from 'lucide-react';
+import { Sliders, Volume2, ChevronRight, Activity, BookOpen, Cpu, X, Trash2, UserCircle2 } from 'lucide-react';
 
 interface SidebarProps {
   sidebarOpen: boolean;
@@ -16,11 +16,21 @@ interface SidebarProps {
   setSpeakerId: (id: number | null) => void;
   showSpeakerDial: boolean;
   setShowSpeakerDial: (v: boolean) => void;
+  addresseeGender: AddresseeGender;
+  setAddresseeGender: (g: AddresseeGender) => void;
+  showAddresseeDial: boolean;
+  setShowAddresseeDial: (v: boolean) => void;
   onOpenReview: () => void;
   onOpenWhitePaper: () => void;
   onClearChat: () => void;
   hasMessages: boolean;
 }
+
+const ADDRESSEE_LABELS: Record<AddresseeGender, string> = {
+  unspecified: 'Ba a bayyana ba (Ask me)',
+  masculine: 'Namiji (ka / maka)',
+  feminine: 'Mace (ki / miki)',
+};
 
 export const Sidebar: React.FC<SidebarProps> = ({
   sidebarOpen,
@@ -35,6 +45,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setSpeakerId,
   showSpeakerDial,
   setShowSpeakerDial,
+  addresseeGender,
+  setAddresseeGender,
+  showAddresseeDial,
+  setShowAddresseeDial,
   onOpenReview,
   onOpenWhitePaper,
   onClearChat,
@@ -119,6 +133,39 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         className={`w-full text-left px-4 py-2 rounded-xl text-[10px] uppercase tracking-wider transition-all ${speakerId === i ? 'bg-dyn-accent/15 text-dyn-accent font-bold' : 'text-dyn-text-secondary hover:text-dyn-text-primary hover:bg-white/5'}`}
                       >
                         Murya {i < 4 ? `M${i + 1} (Namiji)` : `F${i - 3} (Mace)`} · WAXAL
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[9px] uppercase tracking-wider text-dyn-text-muted font-bold flex items-center gap-1.5">
+                <UserCircle2 className="w-3 h-3 text-dyn-accent" /> Yadda za a yi maka/miki magana
+              </label>
+
+              <div className="relative">
+                <button
+                  onClick={() => { setShowAddresseeDial(!showAddresseeDial); setShowVibeDial(false); setShowSpeakerDial(false); }}
+                  aria-haspopup="listbox"
+                  aria-expanded={showAddresseeDial}
+                  className="w-full px-4 py-3 bg-dyn-bg-tertiary/60 border border-dyn-border rounded-2xl text-xs font-bold uppercase tracking-wider text-dyn-text-secondary hover:text-dyn-text-primary hover:bg-dyn-bg-tertiary transition-all flex items-center justify-between"
+                >
+                  <span className="truncate">{ADDRESSEE_LABELS[addresseeGender]}</span>
+                  <ChevronRight className={`w-4 h-4 transform transition-transform ${showAddresseeDial ? 'rotate-90' : 'rotate-0'}`} />
+                </button>
+                {showAddresseeDial && (
+                  <div role="listbox" className="absolute top-14 left-0 right-0 bg-dyn-bg-tertiary/98 border border-dyn-border rounded-2xl p-2 shadow-2xl z-[100] animate-reveal backdrop-blur-xl">
+                    {(Object.keys(ADDRESSEE_LABELS) as AddresseeGender[]).map(g => (
+                      <button
+                        key={g}
+                        role="option"
+                        aria-selected={addresseeGender === g}
+                        onClick={() => { setAddresseeGender(g); setShowAddresseeDial(false); }}
+                        className={`w-full text-left px-4 py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all ${addresseeGender === g ? 'bg-dyn-accent/15 text-dyn-accent font-bold' : 'text-dyn-text-secondary hover:text-dyn-text-primary hover:bg-white/5'}`}
+                      >
+                        {ADDRESSEE_LABELS[g]}
                       </button>
                     ))}
                   </div>
