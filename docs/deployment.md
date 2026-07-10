@@ -65,13 +65,17 @@ vector. So `backend/main.py::_validate_runtime_config` enforces, in production:
   rely on it as a secret for the public app — a single-page frontend bundle would
   expose it. Public endpoints (chat/tts/feedback) stay open by design.
 - **HTTPS** is forced by `fly.toml` (`force_https = true`).
-- **Still open (not yet implemented):** request rate limiting on the public
-  endpoints (recommended before heavy public traffic — e.g. slowapi, or Cloudflare
-  in front); per-private-mode frontend `X-API-Key` wiring (only needed if you
-  choose `API_KEY` mode); an admin UI for creating/removing delegate reviewer
-  accounts (currently a one-off Python call); and the WebSocket voice endpoint
-  (`/api/live`) is not gated by `API_KEY` at all even when it's configured —
-  flagged, not yet fixed.
+- **Rate limiting** on public endpoints via slowapi (`backend/rate_limit.py`),
+  in-memory/per-process — correct for the current single-machine deployment,
+  not multi-instance safe. Chat 20/min, image/video generation 5/min
+  (expensive compute — the main abuse vector), feedback 30/min, TTS 20/min,
+  admin login 10/min (brute-force protection). Per-IP via `get_remote_address`.
+- **Still open (not yet implemented):** per-private-mode frontend `X-API-Key`
+  wiring (only needed if you choose `API_KEY` mode); an admin UI for
+  creating/removing delegate reviewer accounts (currently a one-off Python
+  call); and the WebSocket voice endpoint (`/api/live`) is not gated by
+  `API_KEY` at all even when it's configured, nor by the rate limiter (slowapi
+  targets HTTP request/response, not WebSocket) — flagged, not yet fixed.
 
 ### Cloud Run (fallback, not currently used)
 1. **CI** ([`.github/workflows/backend-ci.yml`](../.github/workflows/backend-ci.yml)) — lint, type-check, `pytest` with coverage. Runs on every push/PR to `main`.

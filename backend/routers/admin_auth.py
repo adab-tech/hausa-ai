@@ -14,6 +14,7 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
 import admin_store
+from rate_limit import limiter
 
 router = APIRouter()
 
@@ -44,7 +45,8 @@ def _set_session_cookie(response: Response, token: str) -> None:
 
 
 @router.post("/admin/login")
-async def admin_login(req: LoginRequest, response: Response):
+@limiter.limit("10/minute")
+async def admin_login(request: Request, req: LoginRequest, response: Response):
     admin_id = admin_store.verify_login(req.username, req.password)
     if admin_id is None:
         raise HTTPException(status_code=401, detail="Invalid username or password.")
