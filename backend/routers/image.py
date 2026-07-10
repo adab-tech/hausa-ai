@@ -117,29 +117,12 @@ async def generate_image(req: ImageRequest):
         return {"data": f"data:image/png;base64,{b64}"}
 
     except Exception as e:
-        logger.warning("google.genai image generation failed: %s. Using local fallback.", e)
-        # Dynamic local fallback using PIL
-        try:
-            from PIL import Image, ImageDraw
-            img = Image.new('RGB', (512, 512), color=(20, 20, 20))
-            d = ImageDraw.Draw(img)
-            # Draw cultural border
-            d.rectangle([(16, 16), (496, 496)], outline=(212, 175, 55), width=4)
-            # Draw text
-            text_line1 = "Murya Artifact"
-            text_line2 = f"Vibe: {req.vibe}"
-            text_line3 = f"{req.prompt[:30]}..."
-            d.text((256, 200), text_line1, fill=(212, 175, 55), align="center", anchor="mm")
-            d.text((256, 260), text_line2, fill=(255, 255, 255), align="center", anchor="mm")
-            d.text((256, 320), text_line3, fill=(180, 180, 180), align="center", anchor="mm")
-            
-            buf = io.BytesIO()
-            img.save(buf, format="PNG")
-            b64 = base64.b64encode(buf.getvalue()).decode()
-            return {"data": f"data:image/png;base64,{b64}", "error": "Using local fallback placeholder."}
-        except Exception as err:
-            logger.exception("Image fallback failed")
-            return {"data": None, "error": f"Image generation failed: {str(err)}"}
+        logger.warning("google.genai image generation failed: %s", e)
+        # Honest failure: no drawn stand-in graphic. A placeholder card that
+        # merely echoes the prompt back as text isn't a picture and misleads
+        # the user into thinking generation succeeded — better to say plainly
+        # that image generation isn't available right now.
+        return {"data": None, "error": "Image generation is not available right now."}
 
 
 @router.post("/generate-video")
@@ -150,21 +133,18 @@ async def generate_video(req: VideoRequest):
     """
     try:
         import numpy as np
-        from PIL import Image, ImageDraw
+        from PIL import Image
         import imageio
 
-        # 1. Try to generate a single image first
+        # 1. A real base image is required — without one, panning/zooming a
+        # drawn placeholder produces a fake "video" that isn't actually video
+        # generation. Fail honestly instead.
         img_res = await generate_image(ImageRequest(prompt=req.prompt, vibe="Classic"))
-        if img_res and img_res.get("data") and "base64," in img_res["data"]:
-            b64_data = img_res["data"].split("base64,")[1]
-            base_img = Image.open(io.BytesIO(base64.b64decode(b64_data)))
-        else:
-            # Create a placeholder base image
-            base_img = Image.new('RGB', (256, 256), color=(20, 20, 20))
-            d = ImageDraw.Draw(base_img)
-            d.rectangle([(32, 32), (224, 224)], outline=(212, 175, 55), width=3)
-            d.text((128, 128), "Arewa Motion", fill=(212, 175, 55), anchor="mm")
-            
+        if not (img_res and img_res.get("data") and "base64," in img_res["data"]):
+            return {"uri": None, "error": "Video generation is not available right now."}
+
+        b64_data = img_res["data"].split("base64,")[1]
+        base_img = Image.open(io.BytesIO(base64.b64decode(b64_data)))
         base_img = base_img.resize((256, 256))
         
         # 2. Create 16 frames with a smooth panning/zooming effect (Ken Burns effect)
