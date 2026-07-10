@@ -32,6 +32,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
+# Install Ollama — serves the local LLM behind /api/chat and /api/live.
+# The model itself is NOT baked into the image (that would make every
+# rebuild re-ship several GB); it's pulled at container boot into the
+# persistent volume instead — see start.sh.
+RUN curl -fsSL https://ollama.com/install.sh | sh
+
 # Copy backend requirements and install dependencies
 COPY backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
@@ -52,8 +58,10 @@ ENV VITS_MODEL_DIR=/app/models/piper_hausa_waxal
 # Copy compiled frontend from Stage 1 into the backend container
 COPY --from=frontend-builder /build/dist ./dist
 
+RUN chmod +x /app/start.sh
+
 # Expose port
 EXPOSE 8000 8080
 
-# Run FastAPI app (uses Cloud Run's PORT environment variable, defaulting to 8000 locally)
-CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# Boots Ollama + FastAPI together — see start.sh
+CMD ["/app/start.sh"]
