@@ -38,6 +38,30 @@ async def client():
         yield ac
 
 
+@pytest.fixture
+async def admin_session(client, tmp_path, monkeypatch):
+    """Isolate admin_store to a scratch SQLite file, seed a known test admin,
+    and log the shared test `client` into a real session cookie. Request this
+    fixture from any test that needs an authenticated admin; the client
+    stays session-scoped, so this logs out again on teardown to avoid
+    leaking an authenticated cookie into unrelated tests."""
+    import admin_store
+
+    monkeypatch.setattr(admin_store, "_DATA_DIR", tmp_path)
+    monkeypatch.setattr(admin_store, "_DB_PATH", tmp_path / "admin.db")
+    admin_store.init_db()
+    admin_store.create_admin("testadmin", "testpass123")
+
+    resp = await client.post(
+        "/api/admin/login", json={"username": "testadmin", "password": "testpass123"}
+    )
+    assert resp.status_code == 200, resp.text
+
+    yield "testadmin"
+
+    await client.post("/api/admin/logout")
+
+
 @pytest.fixture(scope="session")
 def mock_ollama_stream():
     """Return a callable that yields a single fake Ollama streaming chunk."""

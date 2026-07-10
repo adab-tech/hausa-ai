@@ -72,6 +72,7 @@ def add_correction(message_id: str, original_text: str, correction: str) -> dict
         "status": "pending",
         "timestamp": time.time(),
         "reviewedAt": None,
+        "reviewedBy": None,
     }
     with _LOCK:
         entries = _read_all()
@@ -87,7 +88,9 @@ def list_corrections(status: Status | None = None) -> list[dict]:
     return [e for e in entries if e.get("status") == status]
 
 
-def review_correction(correction_id: str, action: Literal["approve", "reject"]) -> dict | None:
+def review_correction(
+    correction_id: str, action: Literal["approve", "reject"], reviewed_by: str
+) -> dict | None:
     with _LOCK:
         entries = _read_all()
         updated = None
@@ -95,6 +98,7 @@ def review_correction(correction_id: str, action: Literal["approve", "reject"]) 
             if e["id"] == correction_id:
                 e["status"] = "approved" if action == "approve" else "rejected"
                 e["reviewedAt"] = time.time()
+                e["reviewedBy"] = reviewed_by
                 updated = e
                 break
         if updated is not None:

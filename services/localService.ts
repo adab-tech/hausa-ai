@@ -341,11 +341,48 @@ class LocalService {
     }
   }
 
-  // ── Corrections review queue (reviewer-key gated) ─────────────────────────
-  async getCorrections(status: "pending" | "approved" | "rejected", reviewerKey: string): Promise<any[] | null> {
+  // ── Admin session (cookie-based; see backend/admin_store.py) ──────────────
+  async adminLogin(username: string, password: string): Promise<{ ok: true; username: string } | { ok: false; error: string }> {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/admin/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ username, password }),
+      });
+      if (!res.ok) return { ok: false, error: "Sunan mai amfani ko kalmar sirri ba daidai ba." };
+      const data = await res.json();
+      return { ok: true, username: data.username };
+    } catch (err) {
+      console.error("Admin login failed:", err);
+      return { ok: false, error: "An samu kuskure wajen haɗawa da uwar garke." };
+    }
+  }
+
+  async adminLogout(): Promise<void> {
+    try {
+      await fetch(`${BACKEND_URL}/api/admin/logout`, { method: "POST", credentials: "include" });
+    } catch (err) {
+      console.error("Admin logout failed:", err);
+    }
+  }
+
+  async adminMe(): Promise<string | null> {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/admin/me`, { credentials: "include" });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.username;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  // ── Corrections review queue (real admin session, not a shared key) ───────
+  async getCorrections(status: "pending" | "approved" | "rejected"): Promise<any[] | null> {
     try {
       const res = await fetch(`${BACKEND_URL}/api/corrections?status=${status}`, {
-        headers: { "X-Reviewer-Key": reviewerKey },
+        credentials: "include",
       });
       if (!res.ok) return null;
       return await res.json();
@@ -355,11 +392,12 @@ class LocalService {
     }
   }
 
-  async reviewCorrection(id: string, action: "approve" | "reject", reviewerKey: string): Promise<boolean> {
+  async reviewCorrection(id: string, action: "approve" | "reject"): Promise<boolean> {
     try {
       const res = await fetch(`${BACKEND_URL}/api/corrections/${id}/review`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-Reviewer-Key": reviewerKey },
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ action }),
       });
       return res.ok;

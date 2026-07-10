@@ -49,7 +49,15 @@ async def test_feedback_records_and_stats_reflect_it(client):
 
 
 @pytest.mark.anyio
-async def test_feedback_with_correction_creates_pending_entry(client):
+async def test_corrections_endpoint_requires_admin_session(client):
+    """No session cookie -> 401, not an open gate. Regression guard for the
+    verify_reviewer_key -> verify_admin_session migration."""
+    resp = await client.get("/api/corrections", params={"status": "pending"})
+    assert resp.status_code == 401
+
+
+@pytest.mark.anyio
+async def test_feedback_with_correction_creates_pending_entry(client, admin_session):
     resp = await client.post(
         "/api/feedback",
         json={
@@ -69,7 +77,7 @@ async def test_feedback_with_correction_creates_pending_entry(client):
 
 
 @pytest.mark.anyio
-async def test_feedback_without_correction_creates_no_pending_entry(client):
+async def test_feedback_without_correction_creates_no_pending_entry(client, admin_session):
     await client.post(
         "/api/feedback", json={"messageId": "1", "type": "up", "text": "Barka da yini"}
     )
@@ -78,7 +86,7 @@ async def test_feedback_without_correction_creates_no_pending_entry(client):
 
 
 @pytest.mark.anyio
-async def test_correction_approval_flow(client):
+async def test_correction_approval_flow(client, admin_session):
     await client.post(
         "/api/feedback",
         json={
@@ -94,6 +102,7 @@ async def test_correction_approval_flow(client):
     resp = await client.post(f"/api/corrections/{correction_id}/review", json={"action": "approve"})
     assert resp.status_code == 200
     assert resp.json()["status"] == "approved"
+    assert resp.json()["reviewedBy"] == admin_session
 
     approved = (await client.get("/api/corrections", params={"status": "approved"})).json()
     assert len(approved) == 1
@@ -104,7 +113,7 @@ async def test_correction_approval_flow(client):
 
 
 @pytest.mark.anyio
-async def test_review_nonexistent_correction_404s(client):
+async def test_review_nonexistent_correction_404s(client, admin_session):
     resp = await client.post("/api/corrections/does-not-exist/review", json={"action": "approve"})
     assert resp.status_code == 404
 

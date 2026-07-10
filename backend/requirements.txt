@@ -4,6 +4,9 @@ httpx>=0.27,<1
 python-multipart>=0.0.9,<1
 websockets>=12,<17
 
+# Admin login (bcrypt password hashing for admin_store.py)
+bcrypt>=4.0,<5
+
 # Ollama client (talks to local Ollama server)
 ollama~=0.3.0
 

@@ -18,8 +18,11 @@ flyctl secrets set \
   REVIEWER_API_KEY="$(openssl rand -hex 24)" \
   ALLOWED_ORIGINS="https://murya.ng,https://www.murya.ng" \
   GEMINI_API_KEY=<your-gemini-key>
-# ^ save the REVIEWER_API_KEY value somewhere safe — you (and anyone you delegate)
-#   type it into the Corrections tab to approve model-affecting corrections.
+# ^ REVIEWER_API_KEY is a one-time BOOTSTRAP credential: on first boot it seeds
+#   a single admin account (username "adamu", password = this value) in
+#   admin.db. Log in at /admin/login with it once, then treat the value as
+#   burned — it plays no further role after the account exists. See
+#   backend/admin_store.py.
 
 flyctl deploy --remote-only   # build on Fly's builders, not your laptop
 ```
@@ -37,21 +40,38 @@ but the one action that changes the model — **approving a correction into the
 system prompt** — must be locked down, or the learning loop becomes a poisoning
 vector. So `backend/main.py::_validate_runtime_config` enforces, in production:
 
-- **`REVIEWER_API_KEY` (required).** Gates `GET /api/corrections` and
-  `POST /api/corrections/{id}/review` (via `X-Reviewer-Key`). Only you and your
-  delegates know it; it is **never** shipped in the frontend bundle — it's typed
-  into the Corrections tab at review time. Production refuses to boot without it.
+- **Real admin accounts + sessions (required).** `GET /api/corrections` and
+  `POST /api/corrections/{id}/review` are gated by `verify_admin_session`
+  (`backend/auth.py`), backed by `admin_store.py` — a SQLite table of admin
+  accounts (bcrypt-hashed passwords) and sessions, on the same persistent
+  volume as `feedback.jsonl`/`corrections.jsonl`. Login happens at
+  `/admin/login`, which sets an HttpOnly, Secure session cookie; the
+  credential never touches frontend JS, unlike the old shared
+  `REVIEWER_API_KEY`-in-sessionStorage pattern this replaced. Approvals now
+  carry a real `reviewedBy` identity in `corrections.jsonl`. To add a
+  delegate reviewer today, call `admin_store.create_admin(username,
+  password)` once (no UI for this yet — a fair next step if you delegate to
+  more than one or two people).
+- **`REVIEWER_API_KEY` (required at boot).** Bootstrap-only now — seeds the
+  first admin account on first boot if none exist. Production still refuses
+  to boot without it (otherwise there's no way to log in at all on a fresh
+  deploy), but it's not checked on every request anymore.
 - **`ALLOWED_ORIGINS` explicit (required).** Must not be `*`. Restricts CORS to
   your own frontend origins so other sites can't drive your backend from a
-  browser. CORS `allow_headers` already includes `X-Reviewer-Key`.
+  browser — this also matters for the session cookie, which is `SameSite=None`
+  in production (the frontend and backend are on different domains) and
+  therefore relies on `allow_credentials=True` + an explicit origin list.
 - **`API_KEY` (optional).** Only for a *private/firewalled* deployment. Do **not**
   rely on it as a secret for the public app — a single-page frontend bundle would
   expose it. Public endpoints (chat/tts/feedback) stay open by design.
 - **HTTPS** is forced by `fly.toml` (`force_https = true`).
 - **Still open (not yet implemented):** request rate limiting on the public
   endpoints (recommended before heavy public traffic — e.g. slowapi, or Cloudflare
-  in front); and per-private-mode frontend `X-API-Key` wiring (only needed if you
-  choose `API_KEY` mode).
+  in front); per-private-mode frontend `X-API-Key` wiring (only needed if you
+  choose `API_KEY` mode); an admin UI for creating/removing delegate reviewer
+  accounts (currently a one-off Python call); and the WebSocket voice endpoint
+  (`/api/live`) is not gated by `API_KEY` at all even when it's configured —
+  flagged, not yet fixed.
 
 ### Cloud Run (fallback, not currently used)
 1. **CI** ([`.github/workflows/backend-ci.yml`](../.github/workflows/backend-ci.yml)) — lint, type-check, `pytest` with coverage. Runs on every push/PR to `main`.
