@@ -150,7 +150,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="space-y-4 border-t border-dyn-border/40 pt-5 text-[10px] font-mono text-dyn-text-muted">
           <div className="flex justify-between">
             <span>Model Tier:</span>
-            <span className="text-dyn-accent font-bold">Murya-7 Pro</span>
+            <span className="text-dyn-accent font-bold">Murya</span>
           </div>
           <div className="flex justify-between">
             <span>Autonomy Level:</span>

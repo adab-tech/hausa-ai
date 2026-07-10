@@ -157,7 +157,7 @@ class LocalService {
     } catch (err) {
       console.error("Sovereign Protocol Failure:", err);
       const errorText =
-        "Gafara, ranka ya dade. An samu tangarda a sashen bincikenmu na 'Murya-7'. " +
+        "Gafara, ranka ya dade. An samu tangarda a sashen bincikenmu na 'Murya'. " +
         "Amma kamar yadda karin magana ya nuna, 'Hargitsin duniya ba ya hana safiya wayewa'. " +
         "Don Allah a sake gwadawa.";
       yield {

@@ -36,7 +36,7 @@ export const WhitePaper: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           </h1>
           <div className="h-[1px] w-64 bg-silk-gold/30 mx-auto"></div>
           <div className="space-y-4">
-            <p className="text-3xl sm:text-5xl font-serif italic text-ivory/60 tracking-tight">The Murya-7 Protocol: High-Fidelity Hausa OS</p>
+            <p className="text-3xl sm:text-5xl font-serif italic text-ivory/60 tracking-tight">The Murya Protocol: High-Fidelity Hausa OS</p>
             <p className="text-[12px] uppercase tracking-[0.5em] font-black opacity-30 mt-8">Linguistic Foundation & Tonal Logic Paper</p>
           </div>
           <div className="pt-24 grid grid-cols-1 sm:grid-cols-3 gap-16 text-left border-t border-white/5">
@@ -46,7 +46,7 @@ export const WhitePaper: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             </div>
             <div>
                <span className="text-[9px] uppercase tracking-widest text-silk-gold block mb-2">Core Revision</span>
-               <span className="text-xl font-serif italic">Murya-7.4 (Axiom-Ready)</span>
+               <span className="text-xl font-serif italic">Murya (Axiom-Ready)</span>
             </div>
             <div>
                <span className="text-[9px] uppercase tracking-widest text-silk-gold block mb-2">Foundation</span>
@@ -174,7 +174,7 @@ export const WhitePaper: React.FC<{ onClose: () => void }> = ({ onClose }) => {
            
            <div className="flex flex-col items-center pt-24 font-mono text-[8px] uppercase tracking-[1em] text-white/20">
               <span>Hausa AI Artifact</span>
-              <span>Murya-7.4 Series Document</span>
+              <span>Murya Series Document</span>
               <span>(C) 2026 ADAB-TECH Research</span>
            </div>
         </section>

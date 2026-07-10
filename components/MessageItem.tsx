@@ -38,7 +38,7 @@ export const MessageItem = memo(({
 
         {/* Meta Header */}
         <div className="mb-2 flex items-center gap-3 px-4 opacity-50 text-[10px] uppercase font-bold tracking-wider text-dyn-text-secondary">
-          <span>{m.role === Role.user ? 'Umarni / User' : 'Murya-7 Artifact'}</span>
+          <span>{m.role === Role.user ? 'Umarni / User' : 'Murya Artifact'}</span>
           <span className="h-[1px] w-4 bg-dyn-border"></span>
           {m.verified && (
              <span className="flex items-center gap-1 text-dyn-accent border border-dyn-accent/40 px-2 py-0.5 rounded-md bg-dyn-accent/5 animate-pulse text-[9px] font-black">
