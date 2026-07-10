@@ -283,8 +283,24 @@ def _float32_to_pcm16_bytes(arr: np.ndarray) -> bytes:
     return (clipped * 32767).astype(np.int16).tobytes()
 
 
-def _synthesize_speech(text: str, speaker_id: int = 0) -> bytes | None:
+def _synthesize_speech(
+    text: str,
+    speaker_id: int = 0,
+    length_scale: float | None = None,
+    noise_scale: float | None = None,
+    noise_w: float | None = None,
+) -> bytes | None:
     """Run VITS/Piper TTS and return raw PCM-16 LE bytes at 24 kHz."""
+    # Normalize ASCII hooked-consonant notation (b' -> ɓ, k' -> ƙ, etc.)
+    # before synthesis. LLM output sometimes types these as apostrophe
+    # fallbacks instead of proper Unicode; the phoneme map has no entry
+    # linking "b'" to ɓ, so unnormalized text was being mispronounced as
+    # plain b/d/k/y instead of the correct implosive/ejective consonant.
+    # Done here (not just by callers) so every synthesis path — /api/tts,
+    # the live WebSocket, and any future caller — gets it for free.
+    from orthography import normalize_hausa_orthography
+    text = normalize_hausa_orthography(text)
+
     # 1. Try WAXAL voice bank if speaker_id is explicitly selected
     if speaker_id is not None:
         try:
@@ -304,7 +320,10 @@ def _synthesize_speech(text: str, speaker_id: int = 0) -> bytes | None:
     # 2. Try custom VITS model first
     vits = _get_vits()
     if vits and vits.model_path.exists():
-        pcm = vits.synthesize(text, speaker_id=speaker_id)
+        pcm = vits.synthesize(
+            text, speaker_id=speaker_id,
+            length_scale=length_scale, noise_scale=noise_scale, noise_w=noise_w,
+        )
         if pcm:
             logger.info("Generated speech using custom VITS model (speaker %d)", speaker_id)
             return pcm
@@ -498,13 +517,28 @@ def _add_wav_header(pcm_bytes: bytes, sample_rate: int = 24000) -> bytes:
 
 @router.get("/tts")
 @limiter.limit("20/minute")
-async def tts_endpoint(request: Request, text: str, speaker_id: int = 0):
+async def tts_endpoint(
+    request: Request,
+    text: str,
+    speaker_id: int = 0,
+    length_scale: float | None = None,
+    noise_scale: float | None = None,
+    noise_w: float | None = None,
+):
     """
     Synthesize text into speech using the custom VITS model and return a WAV file.
+
+    length_scale/noise_scale/noise_w are optional per-request overrides for
+    A/B testing pacing and clarity (e.g. ?length_scale=1.15 for slower,
+    more deliberate speech) without redeploying — see services/vits_engine.py.
     """
     try:
         pcm = await asyncio.get_event_loop().run_in_executor(
-            None, _synthesize_speech, text, speaker_id
+            None,
+            lambda: _synthesize_speech(
+                text, speaker_id,
+                length_scale=length_scale, noise_scale=noise_scale, noise_w=noise_w,
+            ),
         )
         if not pcm:
             raise HTTPException(status_code=500, detail="TTS synthesis failed")

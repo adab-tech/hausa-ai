@@ -47,7 +47,13 @@ const App: React.FC = () => {
   const [playingSpeechId, setPlayingSpeechId] = useState<string | null>(null);
   const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
 
-  const handlePlaySpeech = (text: string, messageId: string) => {
+  const handlePlaySpeech = (text: string, messageId: string, normalized?: string) => {
+    // Prefer the orthography-normalized text (ɓɗƙƴ instead of b'/d'/k'/y'
+    // apostrophe fallbacks) so playback doesn't mispronounce hooked
+    // consonants as their plain counterparts. The backend also normalizes
+    // internally now, but doing it here too means this still helps even if
+    // some future caller bypasses that.
+    text = normalized || text;
     if (playingSpeechId === messageId) {
       if (ttsAudioRef.current) {
         ttsAudioRef.current.pause();

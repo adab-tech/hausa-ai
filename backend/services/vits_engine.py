@@ -181,9 +181,21 @@ class VitsEngine:
     # ------------------------------------------------------------------
     # Synthesis
     # ------------------------------------------------------------------
-    def synthesize(self, text: str, speaker_id: int = 0) -> Optional[bytes]:
+    def synthesize(
+        self,
+        text: str,
+        speaker_id: int = 0,
+        length_scale: Optional[float] = None,
+        noise_scale: Optional[float] = None,
+        noise_w: Optional[float] = None,
+    ) -> Optional[bytes]:
         """
         Synthesize speech from Hausa text using the custom ONNX model.
+
+        length_scale/noise_scale/noise_w, when given, override the
+        VITS_LENGTH_SCALE/VITS_NOISE_SCALE/VITS_NOISE_W env vars (which in
+        turn override the model config's own defaults) — lets pacing/clarity
+        be A/B tested per-request via /api/tts query params.
 
         Returns:
             bytes: Raw PCM-16 audio data at 24 kHz, or None if unavailable.
@@ -218,11 +230,19 @@ class VitsEngine:
             x = np.array([sequence], dtype=np.int64)
             x_lengths = np.array([x.shape[1]], dtype=np.int64)
 
-            # 2. Inference params (piper config carries its own defaults)
+            # 2. Inference params (piper config carries its own defaults).
+            # Env vars let pacing/clarity be tuned (e.g. to fix rushed
+            # speech) without touching the baked-in model config or
+            # redeploying code — just set the Fly secret/env and restart.
+            # length_scale > 1.0 = slower; noise_scale/noise_w lower =
+            # less stochastic variation (can read as more "even" pacing).
             inference = self.config.get("inference", {})
-            noise_scale = float(inference.get("noise_scale", 0.667))
-            length_scale = float(inference.get("length_scale", 1.0))
-            noise_w = float(inference.get("noise_w", 0.8))
+            if noise_scale is None:
+                noise_scale = float(os.getenv("VITS_NOISE_SCALE", inference.get("noise_scale", 0.667)))
+            if length_scale is None:
+                length_scale = float(os.getenv("VITS_LENGTH_SCALE", inference.get("length_scale", 1.0)))
+            if noise_w is None:
+                noise_w = float(os.getenv("VITS_NOISE_W", inference.get("noise_w", 0.8)))
 
             inputs = {}
             if "input" in self.input_names:

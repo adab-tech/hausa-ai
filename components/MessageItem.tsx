@@ -27,7 +27,7 @@ export const MessageItem = memo(({
   currentAxiomIndex: number;
   onFeedback?: (id: string, type: 'up' | 'down', correction?: string) => void;
   feedback?: 'up' | 'down';
-  onPlaySpeech?: (text: string, id: string) => void;
+  onPlaySpeech?: (text: string, id: string, normalized?: string) => void;
   playingSpeechId?: string | null;
 }) => {
   const [showTrace, setShowTrace] = useState(false);
@@ -101,7 +101,7 @@ export const MessageItem = memo(({
 
                   {onPlaySpeech && (
                     <button
-                      onClick={() => onPlaySpeech(m.text, m.id)}
+                      onClick={() => onPlaySpeech(m.text, m.id, m.normalized)}
                       className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider transition-all focus:outline-none px-3 py-1 rounded-full border ${
                         playingSpeechId === m.id
                           ? 'bg-dyn-accent text-dyn-bg-primary border-dyn-accent shadow-[0_0_12px_rgba(var(--accent-gold-rgb),0.3)] animate-pulse'
