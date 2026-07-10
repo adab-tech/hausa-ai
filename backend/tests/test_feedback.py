@@ -107,3 +107,24 @@ async def test_correction_approval_flow(client):
 async def test_review_nonexistent_correction_404s(client):
     resp = await client.post("/api/corrections/does-not-exist/review", json={"action": "approve"})
     assert resp.status_code == 404
+
+
+def test_concurrent_add_correction_does_not_lose_entries():
+    """Simulate many near-simultaneous submissions (e.g. a burst of feedback
+    from concurrent public users) hitting add_correction from separate
+    threads. The read-modify-write cycle is guarded by a lock, so no entry
+    should be silently dropped by an interleaved read."""
+    import threading
+
+    def _worker(i: int):
+        corrections_store.add_correction(f"msg-{i}", f"wrong-{i}", f"right-{i}")
+
+    threads = [threading.Thread(target=_worker, args=(i,)) for i in range(25)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    entries = corrections_store.list_corrections()
+    assert len(entries) == 25
+    assert len({e["id"] for e in entries}) == 25
