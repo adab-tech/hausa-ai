@@ -30,7 +30,25 @@ flyctl deploy --remote-only   # build on Fly's builders, not your laptop
 
 `fly.toml` already sets `APP_ENV=production` and a `performance-2x` / 8GB machine (needed for the always-loaded Whisper/Piper/Ollama models — do not shrink this without testing, cold model loads will OOM on smaller machines).
 
-If you don't have an Ollama-served model reachable from Fly, set `OLLAMA_HOST` to wherever you're running it, or rely on the Gemini fallback chain in `backend/routers/chat.py` (requires `GEMINI_API_KEY`).
+**Ollama runs inside the same container** (`backend/start.sh`, installed in the
+Dockerfile via `curl -fsSL https://ollama.com/install.sh | sh`) — it is NOT a
+separate service. `OLLAMA_HOST=http://localhost:11434` in `fly.toml` only
+works because `start.sh` boots `ollama serve` before `uvicorn`. The model
+(`OLLAMA_MODEL`, default `aya-expanse:8b`) is pulled at container boot into
+`OLLAMA_MODELS=/app/data/ollama-models` — the persistent volume — so only the
+very first boot pays the multi-GB download cost; redeploys reuse the cached
+model. FastAPI starts immediately without waiting for the pull to finish, so
+`/health` passes fast; chat requests fall back to Gemini/the static template
+(`backend/routers/fallback.py`) until the first pull completes.
+
+**Known constraint, not yet load-tested:** an 8B model on CPU-only (no GPU on
+this machine) sharing 8GB RAM with Whisper + Piper/VITS is genuinely tight.
+Expect slow (possibly 15-40s+) chat replies, and watch for OOM under real
+concurrent traffic (a live voice call runs STT + LLM + TTS at once). If this
+turns out to be too slow/unstable, the options are: a smaller Ollama model
+(faster/lighter, unverified for Hausa quality), a separate dedicated Fly
+machine for Ollama, or re-enabling the Gemini fallback (requires
+`GEMINI_API_KEY`, real per-token cost — was intentionally skipped for now).
 
 ### Security model (a public tool that learns from users)
 

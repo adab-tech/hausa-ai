@@ -8,6 +8,8 @@ primary_region = "jnb"
   APP_ENV = "production"
   PORT = "8080"
   OLLAMA_HOST = "http://localhost:11434"
+  OLLAMA_MODEL = "aya-expanse:8b"
+  OLLAMA_MODELS = "/app/data/ollama-models"
 
 [http_service]
   internal_port = 8080
