@@ -51,7 +51,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="flex flex-col">
               <h1 className="font-serif italic text-3xl text-dyn-accent tracking-tighter leading-none">Hausa AI</h1>
               <span className="text-[9px] text-dyn-text-muted uppercase tracking-[0.25em] font-bold mt-1.5 flex items-center gap-1.5">
-                <Cpu className="w-3 h-3 text-dyn-accent shrink-0" /> Murya-7 Core
+                <Cpu className="w-3 h-3 text-dyn-accent shrink-0" /> Murya
               </span>
             </div>
             <button onClick={() => setSidebarOpen(false)} aria-label="Rufe menu (Close menu)" className="md:hidden ml-auto p-1 text-dyn-text-secondary hover:text-dyn-text-primary hover:bg-white/5 rounded-lg">

@@ -1,0 +1,26 @@
+node_modules
+.venv
+venv
+__pycache__
+.git
+.idea
+.wrangler
+.tmp.driveupload
+.tmp.drivedownload
+New folder
+waxal_hausa
+models
+migrated_prompt_history
+data
+backend
+android
+output_tests
+murya_samples
+logs
+landing
+docs
+*.pdf
+*.png
+*.pyc
+.coverage
+dist
