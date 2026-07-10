@@ -162,13 +162,13 @@ async def test_chat_error_yields_done_event(client):
 
 
 @pytest.mark.anyio
-async def test_chat_falls_back_to_cerebras_when_ollama_down(client, monkeypatch):
-    """When Ollama fails, the endpoint should try Cerebras next (before Gemini
-    or the static fallback) and stream its output."""
+async def test_chat_uses_cerebras_as_primary(client, monkeypatch):
+    """Cerebras is tried first — Ollama should never be invoked when it
+    succeeds."""
     monkeypatch.setenv("CEREBRAS_API_KEY", "fake-key")
 
     mock_client = AsyncMock()
-    mock_client.chat = AsyncMock(side_effect=Exception("ollama down"))
+    mock_client.chat = AsyncMock(side_effect=Exception("ollama should not be called"))
 
     async def _fake_stream_cerebras(*_args, **_kwargs):
         for piece in ("Sannu", ", ", "yaya kake?"):
@@ -176,13 +176,33 @@ async def test_chat_falls_back_to_cerebras_when_ollama_down(client, monkeypatch)
 
     with patch("routers.chat.ollama.AsyncClient", return_value=mock_client), \
          patch("routers.chat.stream_cerebras", _fake_stream_cerebras):
-        response = await client.post("/api/chat", json={"text": "Cerebras fallback test"})
+        response = await client.post("/api/chat", json={"text": "Cerebras primary test"})
 
     assert response.status_code == 200
     events = _iter_sse(response.content)
     final = events[-1]
     assert final["isDone"] is True
     assert "Sannu" in final["text"]
+    mock_client.chat.assert_not_called()
+
+
+@pytest.mark.anyio
+async def test_chat_falls_back_to_ollama_when_cerebras_down(client, monkeypatch):
+    """When Cerebras fails (or has no key), the endpoint should fall through
+    to Ollama next, before Gemini or the static fallback."""
+    monkeypatch.delenv("CEREBRAS_API_KEY", raising=False)
+
+    mock_client = AsyncMock()
+    mock_client.chat = AsyncMock(side_effect=_fake_ollama_chat)
+
+    with patch("routers.chat.ollama.AsyncClient", return_value=mock_client):
+        response = await client.post("/api/chat", json={"text": "Ollama fallback test"})
+
+    assert response.status_code == 200
+    events = _iter_sse(response.content)
+    final = events[-1]
+    assert final["isDone"] is True
+    mock_client.chat.assert_called()
 
 
 # ---------------------------------------------------------------------------

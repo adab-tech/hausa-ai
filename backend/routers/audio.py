@@ -346,6 +346,13 @@ def _write_wav(path: str, audio: np.ndarray, sample_rate: int):
 # LLM chat (non-streaming, for voice — we want the full response at once)
 # ---------------------------------------------------------------------------
 async def _llm_respond(transcript: str, history: list[dict], addressee_gender: str = "unspecified") -> str:
+    # Cerebras is the fast, hosted primary — local Ollama on this box is
+    # slow enough that trying it first before Cerebras just adds latency.
+    try:
+        return await _llm_respond_cerebras(transcript, history, addressee_gender)
+    except Exception as cerebras_err:
+        logger.warning("Cerebras unavailable for voice (%s), switching to Ollama...", cerebras_err)
+
     import ollama
 
     client = ollama.AsyncClient(host=OLLAMA_HOST)
@@ -360,12 +367,8 @@ async def _llm_respond(transcript: str, history: list[dict], addressee_gender: s
         )
         return response["message"]["content"].strip()
     except Exception as ollama_err:
-        logger.warning("Ollama unavailable for voice (%s), switching to Cerebras...", ollama_err)
-        try:
-            return await _llm_respond_cerebras(transcript, history, addressee_gender)
-        except Exception as cerebras_err:
-            logger.warning("Cerebras unavailable for voice (%s), switching to Gemini...", cerebras_err)
-            return await _llm_respond_gemini(transcript, history, addressee_gender)
+        logger.warning("Ollama unavailable for voice (%s), switching to Gemini...", ollama_err)
+        return await _llm_respond_gemini(transcript, history, addressee_gender)
 
 
 async def _llm_respond_cerebras(transcript: str, history: list[dict], addressee_gender: str = "unspecified") -> str:

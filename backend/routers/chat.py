@@ -1,5 +1,7 @@
 """
-/api/chat  — streaming text generation via Ollama, falling back to Gemini via google-genai SDK.
+/api/chat  — streaming text generation via Cerebras (gemma-4-31b), falling
+back to local Ollama, then Gemini via google-genai SDK, then a static
+rule-based generator.
 
 The frontend sends:
   POST /api/chat
@@ -453,42 +455,43 @@ async def chat_endpoint(request: Request, req: ChatRequest):
         
         async def fetch_stream():
             try:
-                # Step A: Attempt Local Ollama inference, but don't wait
-                # forever for the first token — a slow-but-not-erroring
-                # Ollama should still hand off to Cerebras.
-                stream = await client.chat(
-                    model=DEFAULT_MODEL,
-                    messages=messages,
-                    stream=True,
-                    options=_OLLAMA_OPTIONS,
-                )
-                aiter = stream.__aiter__()
+                # Step A: Cerebras is the fast, hosted primary. Local Ollama
+                # on this box is slow enough that trying it first before
+                # Cerebras just adds latency for no upside.
+                async for delta in stream_cerebras(messages):
+                    await queue.put(delta)
+            except Exception as cerebras_err:
+                print(f"[Murya] Cerebras unavailable ({type(cerebras_err).__name__}: {cerebras_err}), switching to Ollama...")
                 try:
-                    first_part = await asyncio.wait_for(
-                        aiter.__anext__(), timeout=_OLLAMA_FIRST_TOKEN_TIMEOUT
+                    # Step B: Local Ollama, bounded by a first-token timeout
+                    # so a slow (not just erroring) response still moves on.
+                    stream = await client.chat(
+                        model=DEFAULT_MODEL,
+                        messages=messages,
+                        stream=True,
+                        options=_OLLAMA_OPTIONS,
                     )
-                except StopAsyncIteration:
-                    first_part = None
-                except asyncio.TimeoutError:
-                    if hasattr(aiter, "aclose"):
-                        await aiter.aclose()
-                    raise RuntimeError(
-                        f"Ollama exceeded {_OLLAMA_FIRST_TOKEN_TIMEOUT}s time-to-first-token"
-                    )
+                    aiter = stream.__aiter__()
+                    try:
+                        first_part = await asyncio.wait_for(
+                            aiter.__anext__(), timeout=_OLLAMA_FIRST_TOKEN_TIMEOUT
+                        )
+                    except StopAsyncIteration:
+                        first_part = None
+                    except asyncio.TimeoutError:
+                        if hasattr(aiter, "aclose"):
+                            await aiter.aclose()
+                        raise RuntimeError(
+                            f"Ollama exceeded {_OLLAMA_FIRST_TOKEN_TIMEOUT}s time-to-first-token"
+                        )
 
-                if first_part is not None:
-                    await queue.put(first_part["message"]["content"])
-                    async for part in aiter:
-                        await queue.put(part["message"]["content"])
-            except Exception as ollama_err:
-                # Step B: Fallback to Cerebras (hosted, low-latency)
-                print(f"[Murya] Ollama unavailable ({type(ollama_err).__name__}), switching to Cerebras...")
-                try:
-                    async for delta in stream_cerebras(messages):
-                        await queue.put(delta)
-                except Exception as cerebras_err:
+                    if first_part is not None:
+                        await queue.put(first_part["message"]["content"])
+                        async for part in aiter:
+                            await queue.put(part["message"]["content"])
+                except Exception as ollama_err:
                     # Step C: Fallback to Gemini via google-genai SDK
-                    print(f"[Murya] Cerebras failed ({type(cerebras_err).__name__}: {cerebras_err}), switching to Gemini...")
+                    print(f"[Murya] Ollama failed ({type(ollama_err).__name__}: {ollama_err}), switching to Gemini...")
                     try:
                         async for delta in stream_gemini(req):
                             await queue.put(delta)
