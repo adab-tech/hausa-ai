@@ -12,95 +12,35 @@ export const ArewaLogo: React.FC<{ size?: number; active?: boolean; watermark?: 
       style={{ width: size, height: size }}
     >
       <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <linearGradient id="formal-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="var(--accent-color)" />
-            <stop offset="100%" stopColor="var(--accent-color)" stopOpacity="0.3" />
-          </linearGradient>
-          <filter id="elegant-glow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="3" result="blur" />
-            <feComposite in="SourceGraphic" in2="blur" operator="over" />
-          </filter>
-        </defs>
-        
-        {/* Outer Tech Ring */}
+        {/* Same mark as the murya.ng landing page: an octagon (8 speakers ·
+            Arewa geometry) framing a voice waveform — one brand mark across
+            the app and the public site. */}
+
+        {/* Outer Tech Ring (app-only embellishment for the "active" state) */}
         {active && (
-          <circle 
-            cx="50" 
-            cy="50" 
-            r="46" 
-            stroke="var(--accent-color)" 
-            strokeWidth="0.5" 
-            strokeDasharray="4 4" 
+          <circle
+            cx="50"
+            cy="50"
+            r="46"
+            stroke="var(--accent-color)"
+            strokeWidth="0.5"
+            strokeDasharray="4 4"
             className="opacity-20 animate-[spin_40s_linear_infinite]"
           />
         )}
-        
-        {/* Arewa Knot Path: Vertical Figure-8 */}
-        <path 
-          d="M 50 50 C 65 30 65 10 50 10 C 35 10 35 30 50 50 C 65 70 65 90 50 90 C 35 90 35 70 50 50 Z" 
-          stroke="url(#formal-grad)" 
-          strokeWidth={active ? "3.2" : "1.8"} 
-          strokeLinecap="round" 
+
+        <polygon
+          points="90.6,66.9 66.9,90.6 33.1,90.6 9.4,66.9 9.4,33.1 33.1,9.4 66.9,9.4 90.6,33.1"
+          stroke="var(--accent-color)"
+          strokeWidth={active ? "4.4" : "3.6"}
           strokeLinejoin="round"
-          filter={active ? "url(#elegant-glow)" : "none"}
           className="transition-all duration-700"
           style={{ filter: active ? 'drop-shadow(0 0 8px var(--accent-color))' : 'none' }}
         />
-
-        {/* Arewa Knot Path: Horizontal Figure-8 */}
-        <path 
-          d="M 50 50 C 70 65 90 65 90 50 C 90 35 70 35 50 50 C 30 65 10 65 10 50 C 10 35 30 35 50 50 Z" 
-          stroke="url(#formal-grad)" 
-          strokeWidth={active ? "3.2" : "1.8"} 
-          strokeLinecap="round" 
-          strokeLinejoin="round"
-          filter={active ? "url(#elegant-glow)" : "none"}
-          className="transition-all duration-700"
-          style={{ filter: active ? 'drop-shadow(0 0 8px var(--accent-color))' : 'none' }}
-        />
-
-        {/* Central Core Framing Diamond */}
-        <path 
-          d="M 50 34 L 66 50 L 50 66 L 34 50 Z" 
-          stroke="var(--accent-color)" 
-          strokeWidth={active ? "1.8" : "1.0"} 
-          strokeLinejoin="round"
-          className="opacity-70"
-        />
-        
-        {/* Cyber Nodes at the four outer loops */}
-        <circle 
-          cx="50" 
-          cy="10" 
-          r={active ? "3.5" : "2"} 
-          fill="var(--accent-color)" 
-          className={active ? 'animate-pulse' : 'opacity-60'} 
-        />
-        <circle 
-          cx="50" 
-          cy="90" 
-          r={active ? "3.5" : "2"} 
-          fill="var(--accent-color)" 
-          className={active ? 'animate-pulse' : 'opacity-60'} 
-        />
-        <circle 
-          cx="10" 
-          cy="50" 
-          r={active ? "3.5" : "2"} 
-          fill="var(--accent-color)" 
-          className={active ? 'animate-pulse' : 'opacity-60'} 
-        />
-        <circle 
-          cx="90" 
-          cy="50" 
-          r={active ? "3.5" : "2"} 
-          fill="var(--accent-color)" 
-          className={active ? 'animate-pulse' : 'opacity-60'} 
-        />
-
-        {/* Center Neural core */}
-        <circle cx="50" cy="50" r="5" fill="var(--accent-color)" className={active ? 'animate-pulse' : 'opacity-40'} />
+        <circle cx="37" cy="50" r="4.3" fill="var(--accent-color)" className={active ? 'animate-pulse' : 'opacity-90'} />
+        <path d="M44.1,41.6 A11 11 0 0 1 44.1,58.4" stroke="var(--accent-color)" strokeWidth={active ? "4.4" : "3.6"} strokeLinecap="round" className="transition-all duration-700" />
+        <path d="M49.2,35.4 A19 19 0 0 1 49.2,64.6" stroke="var(--accent-color)" strokeWidth={active ? "4.4" : "3.6"} strokeLinecap="round" className="transition-all duration-700" />
+        <path d="M54.4,29.3 A27 27 0 0 1 54.4,70.7" stroke="var(--accent-color)" strokeWidth={active ? "4.4" : "3.6"} strokeLinecap="round" className="transition-all duration-700" />
         {active && (
            <circle cx="50" cy="50" r="16" stroke="var(--accent-color)" strokeWidth="0.5" className="animate-ping opacity-15" />
         )}
