@@ -48,6 +48,22 @@ const VIBE_META: Record<SovereignVibe, { icon: React.ElementType; blurb: string 
   Academic: { icon: GraduationCap, blurb: 'Sepia manuscript, scholarly' },
 };
 
+/** The two voices put "in front" for user testing — vetted post-fix
+ *  (see the SPEAKER_MAP / WAXAL-match-threshold backend fixes) and given
+ *  fictional Hausa names so they read as personas, not raw model slots.
+ *  Everything else stays available under "More voices" for QA. */
+const FEATURED_VOICES: { id: number; name: string; gender: 'Namiji' | 'Mace' }[] = [
+  { id: 0, name: 'Malam Garba', gender: 'Namiji' },
+  { id: 4, name: 'Malama Asabe', gender: 'Mace' },
+];
+
+function speakerLabel(speakerId: number | null): string {
+  if (speakerId === null) return 'Baseline (Auto)';
+  const featured = FEATURED_VOICES.find(v => v.id === speakerId);
+  if (featured) return `${featured.name} (${featured.gender})`;
+  return `Murya ${speakerId < 4 ? `M${speakerId + 1}` : `F${speakerId - 3}`} (${speakerId < 4 ? 'Namiji' : 'Mace'})`;
+}
+
 /** Shared row control for dropdown option panels: icon badge, label, and a
  *  clear selected-state checkmark + accent glow (not just a background tint). */
 const OptionButton: React.FC<{
@@ -116,6 +132,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onClearChat,
   hasMessages,
 }) => {
+  const [showMoreVoices, setShowMoreVoices] = React.useState(false);
   return (
     <>
       <aside className={`fixed md:relative top-0 bottom-0 left-0 z-50 w-[290px] bg-dyn-bg-secondary/90 md:bg-dyn-bg-secondary/40 border-r border-dyn-border backdrop-blur-xl md:backdrop-blur-md flex flex-col justify-between p-6 transition-all duration-500 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
@@ -189,31 +206,55 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     {speakerId === null
                       ? <Mic2 className="w-4 h-4 text-dyn-accent shrink-0" />
                       : React.createElement(speakerId < 4 ? Mars : Venus, { className: 'w-4 h-4 text-dyn-accent shrink-0' })}
-                    <span className="truncate">{speakerId === null ? 'Baseline (Piper)' : `Speaker ${speakerId + 1} (${speakerId < 4 ? 'Namiji' : 'Mace'})`}</span>
+                    <span className="truncate">{speakerLabel(speakerId)}</span>
                   </span>
                   <ChevronRight className={`w-4 h-4 shrink-0 transform transition-transform duration-300 ease-out ${showSpeakerDial ? 'rotate-90' : 'rotate-0'}`} />
                 </button>
                 {showSpeakerDial && (
                   <div role="listbox" className="absolute top-[52px] left-0 right-0 bg-dyn-bg-tertiary/98 border border-dyn-border rounded-2xl p-2 shadow-2xl z-[100] animate-reveal backdrop-blur-xl origin-top max-h-[34vh] overflow-y-auto no-scrollbar space-y-1">
-                    <OptionButton
-                      role="option"
-                      icon={Mic2}
-                      label="Baseline (Piper)"
-                      selected={speakerId === null}
-                      onClick={() => { setSpeakerId(null); setShowSpeakerDial(false); }}
-                    />
-                    <div className="h-[1px] bg-dyn-border my-1.5"></div>
-                    {Array.from({length: 8}, (_, i) => (
+                    {FEATURED_VOICES.map(v => (
                       <OptionButton
-                        key={i}
+                        key={v.id}
                         role="option"
-                        icon={i < 4 ? Mars : Venus}
-                        label={`Murya ${i < 4 ? `M${i + 1} (Namiji)` : `F${i - 3} (Mace)`}`}
-                        sublabel="WAXAL"
-                        selected={speakerId === i}
-                        onClick={() => { setSpeakerId(i); setShowSpeakerDial(false); }}
+                        icon={v.gender === 'Namiji' ? Mars : Venus}
+                        label={`${v.name} (${v.gender})`}
+                        sublabel="Featured"
+                        selected={speakerId === v.id}
+                        onClick={() => { setSpeakerId(v.id); setShowSpeakerDial(false); }}
                       />
                     ))}
+                    <div className="h-[1px] bg-dyn-border my-1.5"></div>
+                    <button
+                      type="button"
+                      onClick={() => setShowMoreVoices(!showMoreVoices)}
+                      className="w-full flex items-center justify-between px-3 py-1.5 text-[9px] uppercase tracking-wider text-dyn-text-muted font-bold hover:text-dyn-text-secondary transition-colors"
+                    >
+                      <span>More voices</span>
+                      <ChevronRight className={`w-3 h-3 transform transition-transform duration-200 ${showMoreVoices ? 'rotate-90' : 'rotate-0'}`} />
+                    </button>
+                    {showMoreVoices && (
+                      <>
+                        <OptionButton
+                          role="option"
+                          icon={Mic2}
+                          label="Baseline (Auto)"
+                          sublabel="Server default"
+                          selected={speakerId === null}
+                          onClick={() => { setSpeakerId(null); setShowSpeakerDial(false); }}
+                        />
+                        {Array.from({length: 8}, (_, i) => i).filter(i => !FEATURED_VOICES.some(v => v.id === i)).map(i => (
+                          <OptionButton
+                            key={i}
+                            role="option"
+                            icon={i < 4 ? Mars : Venus}
+                            label={`Murya ${i < 4 ? `M${i + 1} (Namiji)` : `F${i - 3} (Mace)`}`}
+                            sublabel="WAXAL"
+                            selected={speakerId === i}
+                            onClick={() => { setSpeakerId(i); setShowSpeakerDial(false); }}
+                          />
+                        ))}
+                      </>
+                    )}
                   </div>
                 )}
               </div>
