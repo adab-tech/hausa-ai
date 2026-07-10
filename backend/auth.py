@@ -10,6 +10,7 @@ When ``API_KEY`` is not set (the default for a fully local deployment),
 authentication is disabled and all requests are allowed through.
 """
 
+import hmac
 import os
 
 from fastapi import HTTPException, Security, status
@@ -26,7 +27,7 @@ async def verify_api_key(api_key: str | None = Security(_api_key_header)) -> Non
     if _CONFIGURED_KEY is None:
         # No key configured → open access (self-hosted default).
         return
-    if api_key != _CONFIGURED_KEY:
+    if api_key is None or not hmac.compare_digest(api_key, _CONFIGURED_KEY):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or missing API key. Set the X-API-Key header.",
@@ -52,7 +53,7 @@ async def verify_reviewer_key(reviewer_key: str | None = Security(_reviewer_key_
     if _CONFIGURED_REVIEWER_KEY is None:
         # No reviewer key configured → open access (self-hosted/dev default).
         return
-    if reviewer_key != _CONFIGURED_REVIEWER_KEY:
+    if reviewer_key is None or not hmac.compare_digest(reviewer_key, _CONFIGURED_REVIEWER_KEY):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or missing reviewer key. Set the X-Reviewer-Key header.",
