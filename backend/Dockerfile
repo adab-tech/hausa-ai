@@ -25,11 +25,13 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies for faster-whisper and piper-tts
+# Install system dependencies for faster-whisper and piper-tts.
+# zstd is required by Ollama's own install.sh to extract its release archive.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     libsndfile1 \
     curl \
+    zstd \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Ollama — serves the local LLM behind /api/chat and /api/live.
