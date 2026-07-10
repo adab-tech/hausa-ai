@@ -76,3 +76,9 @@ backend/data/
 .vercel
 .fly_token
 .claude/worktrees/
+
+# Claude Code session exports — dev-machine debugging artifacts, not app
+# source. Committing these is how a live Gemini API key ended up leaked
+# in git history (since scrubbed via git filter-repo) — these files can
+# contain pasted secrets, so they must never be tracked.
+migrated_prompt_history/
