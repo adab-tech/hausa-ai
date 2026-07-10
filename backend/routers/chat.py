@@ -96,6 +96,14 @@ GEMINI_MODEL = os.getenv("VERTEX_MODEL", "gemini-2.5-flash")
 _OLLAMA_NUM_THREAD = int(os.getenv("OLLAMA_INFERENCE_THREADS", "2"))
 _OLLAMA_OPTIONS = {"num_thread": _OLLAMA_NUM_THREAD}
 
+# How long to wait for Ollama's FIRST token before giving up on it and
+# switching to Cerebras. A merely-slow (not erroring) Ollama never trips the
+# except-based fallback below on its own, so a request can otherwise hang
+# for as long as the client is willing to wait. Once Ollama does start
+# producing tokens we let it finish rather than abandoning mid-stream, which
+# would interleave two different replies.
+_OLLAMA_FIRST_TOKEN_TIMEOUT = float(os.getenv("OLLAMA_FIRST_TOKEN_TIMEOUT", "12"))
+
 
 # ---------------------------------------------------------------------------
 # Pydantic models
@@ -445,14 +453,33 @@ async def chat_endpoint(request: Request, req: ChatRequest):
         
         async def fetch_stream():
             try:
-                # Step A: Attempt Local Ollama inference
-                async for part in await client.chat(
+                # Step A: Attempt Local Ollama inference, but don't wait
+                # forever for the first token — a slow-but-not-erroring
+                # Ollama should still hand off to Cerebras.
+                stream = await client.chat(
                     model=DEFAULT_MODEL,
                     messages=messages,
                     stream=True,
                     options=_OLLAMA_OPTIONS,
-                ):
-                    await queue.put(part["message"]["content"])
+                )
+                aiter = stream.__aiter__()
+                try:
+                    first_part = await asyncio.wait_for(
+                        aiter.__anext__(), timeout=_OLLAMA_FIRST_TOKEN_TIMEOUT
+                    )
+                except StopAsyncIteration:
+                    first_part = None
+                except asyncio.TimeoutError:
+                    if hasattr(aiter, "aclose"):
+                        await aiter.aclose()
+                    raise RuntimeError(
+                        f"Ollama exceeded {_OLLAMA_FIRST_TOKEN_TIMEOUT}s time-to-first-token"
+                    )
+
+                if first_part is not None:
+                    await queue.put(first_part["message"]["content"])
+                    async for part in aiter:
+                        await queue.put(part["message"]["content"])
             except Exception as ollama_err:
                 # Step B: Fallback to Cerebras (hosted, low-latency)
                 print(f"[Murya] Ollama unavailable ({type(ollama_err).__name__}), switching to Cerebras...")

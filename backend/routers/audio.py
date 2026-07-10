@@ -42,6 +42,11 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "aya-expanse:8b")
 # See routers/chat.py's _OLLAMA_OPTIONS comment for why this is hardcoded
 # rather than left to Ollama's own thread auto-detection.
 _OLLAMA_OPTIONS = {"num_thread": int(os.getenv("OLLAMA_INFERENCE_THREADS", "2"))}
+
+# Same rationale as routers/chat.py: a slow-but-not-erroring Ollama never
+# trips the except-based fallback on its own, so bound how long voice
+# chat waits before handing off to Cerebras.
+_OLLAMA_VOICE_TIMEOUT = float(os.getenv("OLLAMA_FIRST_TOKEN_TIMEOUT", "12"))
 PIPER_MODEL = os.getenv("PIPER_MODEL", "ha_NG-openbible-medium")
 WHISPER_MODEL = os.getenv("WHISPER_MODEL", "base")  # tiny/base/small/medium
 
@@ -349,7 +354,10 @@ async def _llm_respond(transcript: str, history: list[dict], addressee_gender: s
     messages.append({"role": "user", "content": transcript})
 
     try:
-        response = await client.chat(model=OLLAMA_MODEL, messages=cast(Any, messages), options=_OLLAMA_OPTIONS)
+        response = await asyncio.wait_for(
+            client.chat(model=OLLAMA_MODEL, messages=cast(Any, messages), options=_OLLAMA_OPTIONS),
+            timeout=_OLLAMA_VOICE_TIMEOUT,
+        )
         return response["message"]["content"].strip()
     except Exception as ollama_err:
         logger.warning("Ollama unavailable for voice (%s), switching to Cerebras...", ollama_err)
