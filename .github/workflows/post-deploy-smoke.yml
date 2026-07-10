@@ -14,7 +14,9 @@ jobs:
     if: >-
       ${{
         github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.head_branch == 'main'
+        github.event.workflow_run.head_branch == 'main' &&
+        secrets.GCP_WIF_PROVIDER != '' &&
+        secrets.GCP_SERVICE_ACCOUNT != ''
       }}
     runs-on: ubuntu-latest
     env:
