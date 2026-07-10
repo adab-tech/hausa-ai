@@ -1,0 +1,287 @@
+Defaulting to user installation because normal site-packages is not writeable
+Collecting fastapi~=0.115.0
+  Downloading fastapi-0.115.14-py3-none-any.whl.metadata (27 kB)
+Collecting uvicorn~=0.30.0 (from uvicorn[standard]~=0.30.0)
+  Downloading uvicorn-0.30.6-py3-none-any.whl.metadata (6.6 kB)
+Requirement already satisfied: httpx<1,>=0.27 in /home/runner/.local/lib/python3.12/site-packages (0.28.1)
+Collecting python-multipart~=0.0.9
+  Downloading python_multipart-0.0.32-py3-none-any.whl.metadata (2.1 kB)
+Collecting websockets<17,>=12
+  Downloading websockets-16.1-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl.metadata (6.8 kB)
+Collecting ollama~=0.3.0
+  Downloading ollama-0.3.3-py3-none-any.whl.metadata (3.8 kB)
+Collecting numpy~=1.26
+  Downloading numpy-1.26.4-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (61 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 61.0/61.0 kB 25.6 MB/s eta 0:00:00
+Collecting Pillow~=10.4.0
+  Downloading pillow-10.4.0-cp312-cp312-manylinux_2_28_x86_64.whl.metadata (9.2 kB)
+Collecting google-auth
+  Downloading google_auth-2.55.2-py3-none-any.whl.metadata (5.2 kB)
+Collecting google-genai
+  Downloading google_genai-2.11.0-py3-none-any.whl.metadata (55 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 55.8/55.8 kB 23.5 MB/s eta 0:00:00
+Collecting imageio
+  Downloading imageio-2.37.3-py3-none-any.whl.metadata (9.7 kB)
+Collecting imageio-ffmpeg
+  Downloading imageio_ffmpeg-0.6.0-py3-none-manylinux2014_x86_64.whl.metadata (1.5 kB)
+Collecting bcrypt<5,>=4.0
+  Downloading bcrypt-4.3.0-cp39-abi3-manylinux_2_34_x86_64.whl.metadata (10 kB)
+Collecting slowapi<1,>=0.1.9
+  Downloading slowapi-0.1.10-py3-none-any.whl.metadata (3.3 kB)
+Requirement already satisfied: requests in /usr/lib/python3/dist-packages (2.31.0)
+Collecting starlette<0.47.0,>=0.40.0 (from fastapi~=0.115.0)
+  Downloading starlette-0.46.2-py3-none-any.whl.metadata (6.2 kB)
+Collecting pydantic!=1.8,!=1.8.1,!=2.0.0,!=2.0.1,!=2.1.0,<3.0.0,>=1.7.4 (from fastapi~=0.115.0)
+  Downloading pydantic-2.13.4-py3-none-any.whl.metadata (109 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 109.4/109.4 kB 44.6 MB/s eta 0:00:00
+Requirement already satisfied: typing-extensions>=4.8.0 in /usr/lib/python3/dist-packages (from fastapi~=0.115.0) (4.10.0)
+Requirement already satisfied: click>=7.0 in /usr/lib/python3/dist-packages (from uvicorn~=0.30.0->uvicorn[standard]~=0.30.0) (8.1.6)
+Requirement already satisfied: h11>=0.8 in /home/runner/.local/lib/python3.12/site-packages (from uvicorn~=0.30.0->uvicorn[standard]~=0.30.0) (0.16.0)
+Requirement already satisfied: anyio in /home/runner/.local/lib/python3.12/site-packages (from httpx<1,>=0.27) (4.14.1)
+Requirement already satisfied: certifi in /usr/lib/python3/dist-packages (from httpx<1,>=0.27) (2023.11.17)
+Requirement already satisfied: httpcore==1.* in /home/runner/.local/lib/python3.12/site-packages (from httpx<1,>=0.27) (1.0.9)
+Requirement already satisfied: idna in /usr/lib/python3/dist-packages (from httpx<1,>=0.27) (3.6)
+Collecting httpx<1,>=0.27
+  Downloading httpx-0.27.2-py3-none-any.whl.metadata (7.1 kB)
+Requirement already satisfied: sniffio in /home/runner/.local/lib/python3.12/site-packages (from httpx<1,>=0.27) (1.3.1)
+Requirement already satisfied: pyasn1-modules>=0.2.1 in /usr/lib/python3/dist-packages (from google-auth) (0.2.8)
+Requirement already satisfied: cryptography>=38.0.3 in /usr/lib/python3/dist-packages (from google-auth) (41.0.7)
+INFO: pip is looking at multiple versions of google-genai to determine which version is compatible with other requirements. This could take a while.
+Collecting google-genai
+  Downloading google_genai-2.10.0-py3-none-any.whl.metadata (53 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 53.5/53.5 kB 14.4 MB/s eta 0:00:00
+  Downloading google_genai-2.9.0-py3-none-any.whl.metadata (53 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 53.5/53.5 kB 22.5 MB/s eta 0:00:00
+  Downloading google_genai-2.8.0-py3-none-any.whl.metadata (53 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 53.0/53.0 kB 22.8 MB/s eta 0:00:00
+  Downloading google_genai-2.7.0-py3-none-any.whl.metadata (52 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 52.7/52.7 kB 21.8 MB/s eta 0:00:00
+  Downloading google_genai-2.6.0-py3-none-any.whl.metadata (52 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 52.7/52.7 kB 23.0 MB/s eta 0:00:00
+  Downloading google_genai-2.5.0-py3-none-any.whl.metadata (52 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 52.7/52.7 kB 22.3 MB/s eta 0:00:00
+  Downloading google_genai-2.4.0-py3-none-any.whl.metadata (52 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 52.7/52.7 kB 21.0 MB/s eta 0:00:00
+INFO: pip is still looking at multiple versions of google-genai to determine which version is compatible with other requirements. This could take a while.
+  Downloading google_genai-2.3.0-py3-none-any.whl.metadata (52 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 52.7/52.7 kB 22.5 MB/s eta 0:00:00
+  Downloading google_genai-2.2.0-py3-none-any.whl.metadata (52 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 52.6/52.6 kB 22.4 MB/s eta 0:00:00
+  Downloading google_genai-2.1.0-py3-none-any.whl.metadata (52 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 52.6/52.6 kB 21.6 MB/s eta 0:00:00
+  Downloading google_genai-2.0.1-py3-none-any.whl.metadata (52 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 52.6/52.6 kB 21.5 MB/s eta 0:00:00
+  Downloading google_genai-2.0.0-py3-none-any.whl.metadata (52 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 52.6/52.6 kB 21.8 MB/s eta 0:00:00
+INFO: This is taking longer than usual. You might need to provide the dependency resolver with stricter constraints to reduce runtime. See https://pip.pypa.io/warnings/backtracking for guidance. If you want to abort this run, press Ctrl + C.
+  Downloading google_genai-1.75.0-py3-none-any.whl.metadata (52 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 52.7/52.7 kB 23.3 MB/s eta 0:00:00
+  Downloading google_genai-1.74.0-py3-none-any.whl.metadata (52 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 52.7/52.7 kB 23.0 MB/s eta 0:00:00
+  Downloading google_genai-1.73.1-py3-none-any.whl.metadata (52 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 52.4/52.4 kB 23.2 MB/s eta 0:00:00
+  Downloading google_genai-1.73.0-py3-none-any.whl.metadata (52 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 52.4/52.4 kB 22.1 MB/s eta 0:00:00
+  Downloading google_genai-1.72.0-py3-none-any.whl.metadata (52 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 52.4/52.4 kB 22.6 MB/s eta 0:00:00
+  Downloading google_genai-1.71.0-py3-none-any.whl.metadata (52 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 52.4/52.4 kB 23.3 MB/s eta 0:00:00
+  Downloading google_genai-1.70.0-py3-none-any.whl.metadata (52 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 52.4/52.4 kB 20.9 MB/s eta 0:00:00
+  Downloading google_genai-1.69.0-py3-none-any.whl.metadata (52 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 52.4/52.4 kB 18.1 MB/s eta 0:00:00
+  Downloading google_genai-1.68.0-py3-none-any.whl.metadata (52 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 52.3/52.3 kB 22.5 MB/s eta 0:00:00
+  Downloading google_genai-1.67.0-py3-none-any.whl.metadata (52 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 52.3/52.3 kB 12.9 MB/s eta 0:00:00
+  Downloading google_genai-1.66.0-py3-none-any.whl.metadata (51 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 52.0/52.0 kB 22.7 MB/s eta 0:00:00
+  Downloading google_genai-1.65.0-py3-none-any.whl.metadata (51 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 52.0/52.0 kB 19.6 MB/s eta 0:00:00
+  Downloading google_genai-1.64.0-py3-none-any.whl.metadata (53 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 53.2/53.2 kB 24.0 MB/s eta 0:00:00
+  Downloading google_genai-1.63.0-py3-none-any.whl.metadata (53 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 53.1/53.1 kB 23.1 MB/s eta 0:00:00
+  Downloading google_genai-1.62.0-py3-none-any.whl.metadata (53 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 53.1/53.1 kB 23.9 MB/s eta 0:00:00
+  Downloading google_genai-1.61.0-py3-none-any.whl.metadata (53 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 53.1/53.1 kB 22.7 MB/s eta 0:00:00
+  Downloading google_genai-1.60.0-py3-none-any.whl.metadata (53 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 53.1/53.1 kB 23.6 MB/s eta 0:00:00
+  Downloading google_genai-1.59.0-py3-none-any.whl.metadata (53 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 53.1/53.1 kB 22.8 MB/s eta 0:00:00
+  Downloading google_genai-1.58.0-py3-none-any.whl.metadata (53 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 53.1/53.1 kB 23.2 MB/s eta 0:00:00
+  Downloading google_genai-1.57.0-py3-none-any.whl.metadata (53 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 53.3/53.3 kB 25.7 MB/s eta 0:00:00
+  Downloading google_genai-1.56.0-py3-none-any.whl.metadata (53 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 53.3/53.3 kB 22.2 MB/s eta 0:00:00
+  Downloading google_genai-1.55.0-py3-none-any.whl.metadata (47 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 47.9/47.9 kB 20.2 MB/s eta 0:00:00
+  Downloading google_genai-1.54.0-py3-none-any.whl.metadata (47 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 47.8/47.8 kB 19.9 MB/s eta 0:00:00
+  Downloading google_genai-1.53.0-py3-none-any.whl.metadata (47 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 47.7/47.7 kB 19.9 MB/s eta 0:00:00
+  Downloading google_genai-1.52.0-py3-none-any.whl.metadata (46 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 46.8/46.8 kB 19.3 MB/s eta 0:00:00
+  Downloading google_genai-1.51.0-py3-none-any.whl.metadata (46 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 46.8/46.8 kB 20.4 MB/s eta 0:00:00
+  Downloading google_genai-1.50.1-py3-none-any.whl.metadata (46 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 46.7/46.7 kB 19.3 MB/s eta 0:00:00
+  Downloading google_genai-1.50.0-py3-none-any.whl.metadata (46 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 46.7/46.7 kB 19.1 MB/s eta 0:00:00
+  Downloading google_genai-1.49.0-py3-none-any.whl.metadata (46 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 46.7/46.7 kB 18.6 MB/s eta 0:00:00
+  Downloading google_genai-1.48.0-py3-none-any.whl.metadata (46 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 46.7/46.7 kB 19.9 MB/s eta 0:00:00
+  Downloading google_genai-1.47.0-py3-none-any.whl.metadata (46 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 46.8/46.8 kB 19.3 MB/s eta 0:00:00
+  Downloading google_genai-1.46.0-py3-none-any.whl.metadata (46 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 46.2/46.2 kB 19.9 MB/s eta 0:00:00
+  Downloading google_genai-1.45.0-py3-none-any.whl.metadata (45 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 45.8/45.8 kB 19.2 MB/s eta 0:00:00
+  Downloading google_genai-1.44.0-py3-none-any.whl.metadata (45 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 45.3/45.3 kB 18.7 MB/s eta 0:00:00
+  Downloading google_genai-1.43.0-py3-none-any.whl.metadata (45 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 45.3/45.3 kB 18.7 MB/s eta 0:00:00
+  Downloading google_genai-1.42.0-py3-none-any.whl.metadata (45 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 45.3/45.3 kB 18.9 MB/s eta 0:00:00
+  Downloading google_genai-1.41.0-py3-none-any.whl.metadata (45 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 45.4/45.4 kB 19.2 MB/s eta 0:00:00
+  Downloading google_genai-1.40.0-py3-none-any.whl.metadata (45 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 45.4/45.4 kB 19.9 MB/s eta 0:00:00
+  Downloading google_genai-1.39.1-py3-none-any.whl.metadata (45 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 45.4/45.4 kB 17.2 MB/s eta 0:00:00
+  Downloading google_genai-1.39.0-py3-none-any.whl.metadata (45 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 45.4/45.4 kB 17.9 MB/s eta 0:00:00
+  Downloading google_genai-1.38.0-py3-none-any.whl.metadata (43 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 43.6/43.6 kB 18.5 MB/s eta 0:00:00
+  Downloading google_genai-1.37.0-py3-none-any.whl.metadata (43 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 43.6/43.6 kB 19.6 MB/s eta 0:00:00
+  Downloading google_genai-1.36.0-py3-none-any.whl.metadata (43 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 43.6/43.6 kB 18.9 MB/s eta 0:00:00
+  Downloading google_genai-1.35.0-py3-none-any.whl.metadata (43 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 43.6/43.6 kB 17.6 MB/s eta 0:00:00
+  Downloading google_genai-1.34.0-py3-none-any.whl.metadata (43 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 43.6/43.6 kB 17.6 MB/s eta 0:00:00
+  Downloading google_genai-1.33.0-py3-none-any.whl.metadata (43 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 43.1/43.1 kB 18.0 MB/s eta 0:00:00
+  Downloading google_genai-1.32.0-py3-none-any.whl.metadata (43 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 43.1/43.1 kB 18.0 MB/s eta 0:00:00
+  Downloading google_genai-1.31.0-py3-none-any.whl.metadata (43 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 43.1/43.1 kB 19.0 MB/s eta 0:00:00
+  Downloading google_genai-1.30.0-py3-none-any.whl.metadata (43 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 43.1/43.1 kB 17.8 MB/s eta 0:00:00
+  Downloading google_genai-1.29.0-py3-none-any.whl.metadata (43 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 43.1/43.1 kB 18.4 MB/s eta 0:00:00
+  Downloading google_genai-1.28.0-py3-none-any.whl.metadata (43 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 43.1/43.1 kB 13.1 MB/s eta 0:00:00
+  Downloading google_genai-1.27.0-py3-none-any.whl.metadata (43 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 43.1/43.1 kB 19.3 MB/s eta 0:00:00
+  Downloading google_genai-1.26.0-py3-none-any.whl.metadata (42 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 42.4/42.4 kB 16.9 MB/s eta 0:00:00
+  Downloading google_genai-1.25.0-py3-none-any.whl.metadata (41 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 41.6/41.6 kB 16.3 MB/s eta 0:00:00
+  Downloading google_genai-1.24.0-py3-none-any.whl.metadata (40 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 40.5/40.5 kB 17.7 MB/s eta 0:00:00
+  Downloading google_genai-1.23.0-py3-none-any.whl.metadata (38 kB)
+  Downloading google_genai-1.22.0-py3-none-any.whl.metadata (37 kB)
+  Downloading google_genai-1.21.1-py3-none-any.whl.metadata (37 kB)
+  Downloading google_genai-1.21.0-py3-none-any.whl.metadata (37 kB)
+  Downloading google_genai-1.20.0-py3-none-any.whl.metadata (35 kB)
+  Downloading google_genai-1.19.0-py3-none-any.whl.metadata (35 kB)
+  Downloading google_genai-1.18.0-py3-none-any.whl.metadata (35 kB)
+  Downloading google_genai-1.17.0-py3-none-any.whl.metadata (35 kB)
+  Downloading google_genai-1.16.1-py3-none-any.whl.metadata (35 kB)
+  Downloading google_genai-1.15.0-py3-none-any.whl.metadata (35 kB)
+  Downloading google_genai-1.14.0-py3-none-any.whl.metadata (33 kB)
+  Downloading google_genai-1.13.0-py3-none-any.whl.metadata (32 kB)
+  Downloading google_genai-1.12.1-py3-none-any.whl.metadata (32 kB)
+  Downloading google_genai-1.11.0-py3-none-any.whl.metadata (32 kB)
+  Downloading google_genai-1.10.0-py3-none-any.whl.metadata (32 kB)
+  Downloading google_genai-1.9.0-py3-none-any.whl.metadata (32 kB)
+  Downloading google_genai-1.8.0-py3-none-any.whl.metadata (32 kB)
+  Downloading google_genai-1.7.0-py3-none-any.whl.metadata (32 kB)
+  Downloading google_genai-1.5.0-py3-none-any.whl.metadata (29 kB)
+  Downloading google_genai-1.4.0-py3-none-any.whl.metadata (29 kB)
+  Downloading google_genai-1.3.0-py3-none-any.whl.metadata (28 kB)
+  Downloading google_genai-1.2.0-py3-none-any.whl.metadata (26 kB)
+Collecting websockets<17,>=12
+  Downloading websockets-14.2-cp312-cp312-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (6.8 kB)
+Collecting typing-extensions>=4.8.0 (from fastapi~=0.115.0)
+  Downloading typing_extensions-4.16.0-py3-none-any.whl.metadata (3.3 kB)
+Collecting limits>=2.3 (from slowapi<1,>=0.1.9)
+  Downloading limits-5.8.0-py3-none-any.whl.metadata (10 kB)
+Collecting httptools>=0.5.0 (from uvicorn[standard]~=0.30.0)
+  Downloading httptools-0.8.0-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl.metadata (3.5 kB)
+Collecting python-dotenv>=0.13 (from uvicorn[standard]~=0.30.0)
+  Downloading python_dotenv-1.2.2-py3-none-any.whl.metadata (27 kB)
+Requirement already satisfied: pyyaml>=5.1 in /usr/lib/python3/dist-packages (from uvicorn[standard]~=0.30.0) (6.0.1)
+Collecting uvloop!=0.15.0,!=0.15.1,>=0.14.0 (from uvicorn[standard]~=0.30.0)
+  Downloading uvloop-0.22.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (4.9 kB)
+Collecting watchfiles>=0.13 (from uvicorn[standard]~=0.30.0)
+  Downloading watchfiles-1.2.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (4.9 kB)
+Collecting deprecated>=1.2 (from limits>=2.3->slowapi<1,>=0.1.9)
+  Downloading deprecated-1.3.1-py2.py3-none-any.whl.metadata (5.9 kB)
+Requirement already satisfied: packaging>=21 in /usr/lib/python3/dist-packages (from limits>=2.3->slowapi<1,>=0.1.9) (24.0)
+Collecting annotated-types>=0.6.0 (from pydantic!=1.8,!=1.8.1,!=2.0.0,!=2.0.1,!=2.1.0,<3.0.0,>=1.7.4->fastapi~=0.115.0)
+  Downloading annotated_types-0.7.0-py3-none-any.whl.metadata (15 kB)
+Collecting pydantic-core==2.46.4 (from pydantic!=1.8,!=1.8.1,!=2.0.0,!=2.0.1,!=2.1.0,<3.0.0,>=1.7.4->fastapi~=0.115.0)
+  Downloading pydantic_core-2.46.4-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (6.6 kB)
+Collecting typing-inspection>=0.4.2 (from pydantic!=1.8,!=1.8.1,!=2.0.0,!=2.0.1,!=2.1.0,<3.0.0,>=1.7.4->fastapi~=0.115.0)
+  Downloading typing_inspection-0.4.2-py3-none-any.whl.metadata (2.6 kB)
+Collecting wrapt<3,>=1.10 (from deprecated>=1.2->limits>=2.3->slowapi<1,>=0.1.9)
+  Downloading wrapt-2.2.2-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl.metadata (7.4 kB)
+Downloading fastapi-0.115.14-py3-none-any.whl (95 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 95.5/95.5 kB 37.3 MB/s eta 0:00:00
+Downloading uvicorn-0.30.6-py3-none-any.whl (62 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 62.8/62.8 kB 28.6 MB/s eta 0:00:00
+Downloading python_multipart-0.0.32-py3-none-any.whl (30 kB)
+Downloading ollama-0.3.3-py3-none-any.whl (10 kB)
+Downloading httpx-0.27.2-py3-none-any.whl (76 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 76.4/76.4 kB 35.1 MB/s eta 0:00:00
+Downloading numpy-1.26.4-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (18.0 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 18.0/18.0 MB 158.1 MB/s eta 0:00:00
+Downloading pillow-10.4.0-cp312-cp312-manylinux_2_28_x86_64.whl (4.5 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.5/4.5 MB 168.5 MB/s eta 0:00:00
+Downloading google_auth-2.55.2-py3-none-any.whl (256 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 256.8/256.8 kB 85.9 MB/s eta 0:00:00
+Downloading google_genai-1.2.0-py3-none-any.whl (130 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 130.7/130.7 kB 55.4 MB/s eta 0:00:00
+Downloading websockets-14.2-cp312-cp312-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl (170 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 170.2/170.2 kB 70.9 MB/s eta 0:00:00
+Downloading imageio-2.37.3-py3-none-any.whl (317 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 317.6/317.6 kB 4.1 MB/s eta 0:00:00
+Downloading imageio_ffmpeg-0.6.0-py3-none-manylinux2014_x86_64.whl (29.5 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 29.5/29.5 MB 132.3 MB/s eta 0:00:00
+Downloading bcrypt-4.3.0-cp39-abi3-manylinux_2_34_x86_64.whl (284 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 284.2/284.2 kB 90.8 MB/s eta 0:00:00
+Downloading slowapi-0.1.10-py3-none-any.whl (14 kB)
+Downloading httptools-0.8.0-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl (523 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 523.9/523.9 kB 132.2 MB/s eta 0:00:00
+Downloading limits-5.8.0-py3-none-any.whl (60 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 61.0/61.0 kB 26.2 MB/s eta 0:00:00
+Downloading pydantic-2.13.4-py3-none-any.whl (472 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 472.3/472.3 kB 126.0 MB/s eta 0:00:00
+Downloading pydantic_core-2.46.4-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (2.1 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.1/2.1 MB 191.3 MB/s eta 0:00:00
+Downloading python_dotenv-1.2.2-py3-none-any.whl (22 kB)
+Downloading starlette-0.46.2-py3-none-any.whl (72 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 72.0/72.0 kB 33.8 MB/s eta 0:00:00
+Downloading typing_extensions-4.16.0-py3-none-any.whl (45 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 45.6/45.6 kB 20.8 MB/s eta 0:00:00
+Downloading uvloop-0.22.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (4.4 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.4/4.4 MB 167.5 MB/s eta 0:00:00
+Downloading watchfiles-1.2.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (456 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 456.4/456.4 kB 125.8 MB/s eta 0:00:00
+Downloading annotated_types-0.7.0-py3-none-any.whl (13 kB)
+Downloading deprecated-1.3.1-py2.py3-none-any.whl (11 kB)
+Downloading typing_inspection-0.4.2-py3-none-any.whl (14 kB)
+Downloading wrapt-2.2.2-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl (169 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 169.8/169.8 kB 70.2 MB/s eta 0:00:00
+Installing collected packages: wrapt, websockets, uvloop, uvicorn, typing-extensions, python-multipart, python-dotenv, Pillow, numpy, imageio-ffmpeg, httptools, google-auth, bcrypt, annotated-types, typing-inspection, pydantic-core, imageio, deprecated, watchfiles, starlette, pydantic, limits, httpx, slowapi, ollama, google-genai, fastapi
+  Attempting uninstall: httpx
+    Found existing installation: httpx 0.28.1
+    Uninstalling httpx-0.28.1:
+      Successfully uninstalled httpx-0.28.1
+Successfully installed Pillow-10.4.0 annotated-types-0.7.0 bcrypt-4.3.0 deprecated-1.3.1 fastapi-0.115.14 google-auth-2.55.2 google-genai-1.2.0 httptools-0.8.0 httpx-0.27.2 imageio-2.37.3 imageio-ffmpeg-0.6.0 limits-5.8.0 numpy-1.26.4 ollama-0.3.3 pydantic-2.13.4 pydantic-core-2.46.4 python-dotenv-1.2.2 python-multipart-0.0.32 slowapi-0.1.10 starlette-0.46.2 typing-extensions-4.16.0 typing-inspection-0.4.2 uvicorn-0.30.6 uvloop-0.22.1 watchfiles-1.2.0 websockets-14.2 wrapt-2.2.2
