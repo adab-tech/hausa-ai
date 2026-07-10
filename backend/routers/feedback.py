@@ -20,10 +20,11 @@ import time
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from auth import verify_admin_session
+from rate_limit import limiter
 import corrections_store
 
 router = APIRouter()
@@ -44,7 +45,8 @@ class ReviewRequest(BaseModel):
 
 
 @router.post("/feedback")
-async def record_feedback(req: FeedbackRequest):
+@limiter.limit("30/minute")
+async def record_feedback(request: Request, req: FeedbackRequest):
     _DATA_DIR.mkdir(parents=True, exist_ok=True)
     entry = {
         "messageId": req.messageId,

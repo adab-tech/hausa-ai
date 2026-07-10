@@ -7,6 +7,9 @@ websockets>=12,<17
 # Admin login (bcrypt password hashing for admin_store.py)
 bcrypt>=4.0,<5
 
+# Rate limiting on public endpoints (rate_limit.py)
+slowapi>=0.1.9,<1
+
 # Ollama client (talks to local Ollama server)
 ollama~=0.3.0
 

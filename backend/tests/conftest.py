@@ -29,6 +29,20 @@ def anyio_backend():
     return "asyncio"
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _disable_rate_limiting():
+    """The full suite fires far more than 20-30 requests/minute against the
+    same fake client IP within one session-scoped `client` — without this,
+    the rate limiter itself (not test logic) would start failing unrelated
+    tests. test_rate_limiting.py re-enables it deliberately to verify the
+    limiter actually works."""
+    import rate_limit
+
+    rate_limit.limiter.enabled = False
+    yield
+    rate_limit.limiter.enabled = True
+
+
 @pytest.fixture(scope="session")
 async def client():
     """Async test client wired to the FastAPI app."""

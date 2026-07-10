@@ -28,7 +28,9 @@ from pathlib import Path
 from typing import Any, cast
 
 import numpy as np
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Response, HTTPException
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Response, HTTPException, Request
+
+from rate_limit import limiter
 from routers.fallback import generate_fallback_response
 import corrections_store
 
@@ -428,7 +430,8 @@ def _add_wav_header(pcm_bytes: bytes, sample_rate: int = 24000) -> bytes:
 
 
 @router.get("/tts")
-async def tts_endpoint(text: str, speaker_id: int = 0):
+@limiter.limit("20/minute")
+async def tts_endpoint(request: Request, text: str, speaker_id: int = 0):
     """
     Synthesize text into speech using the custom VITS model and return a WAV file.
     """

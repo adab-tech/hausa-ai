@@ -19,8 +19,10 @@ import tempfile
 from contextlib import suppress
 from functools import lru_cache
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
+
+from rate_limit import limiter
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -86,8 +88,10 @@ class VideoRequest(BaseModel):
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
-@router.post("/generate-image")
-async def generate_image(req: ImageRequest):
+async def _generate_image_impl(req: ImageRequest) -> dict:
+    """Actual image-generation logic, callable directly (no HTTP request, no
+    rate limit) — generate_video uses this as an internal step, distinct
+    from a real client hitting POST /generate-image."""
     full_prompt = (
         f"A majestic Hausa cultural scene in {req.vibe} style: {req.prompt}. "
         "Dignified, scholarly, authentic, 8k."
@@ -125,8 +129,15 @@ async def generate_image(req: ImageRequest):
         return {"data": None, "error": "Image generation is not available right now."}
 
 
+@router.post("/generate-image")
+@limiter.limit("5/minute")
+async def generate_image(request: Request, req: ImageRequest):
+    return await _generate_image_impl(req)
+
+
 @router.post("/generate-video")
-async def generate_video(req: VideoRequest):
+@limiter.limit("5/minute")
+async def generate_video(request: Request, req: VideoRequest):
     """
     Video generation using the Imagen static output + Ken Burns pan/zoom animation.
     This creates an instant, lightweight MP4 without local GPU requirements.
@@ -139,7 +150,7 @@ async def generate_video(req: VideoRequest):
         # 1. A real base image is required — without one, panning/zooming a
         # drawn placeholder produces a fake "video" that isn't actually video
         # generation. Fail honestly instead.
-        img_res = await generate_image(ImageRequest(prompt=req.prompt, vibe="Classic"))
+        img_res = await _generate_image_impl(ImageRequest(prompt=req.prompt, vibe="Classic"))
         if not (img_res and img_res.get("data") and "base64," in img_res["data"]):
             return {"uri": None, "error": "Video generation is not available right now."}
 
