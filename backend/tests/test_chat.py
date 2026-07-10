@@ -1,7 +1,7 @@
 """Tests for /api/chat."""
 
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -123,9 +123,10 @@ async def test_chat_with_image_attachment(client):
 
 @pytest.mark.anyio
 async def test_chat_with_manifest_image_signal(client):
-    """A MANIFEST: IMAGE tag in LLM reply triggers image generation."""
-
-    from PIL import Image
+    """A MANIFEST: IMAGE tag in the LLM reply surfaces a manifest field in the
+    final SSE event — the frontend, not the chat endpoint, is what actually
+    calls /api/generate-image afterward (see localService.ts's
+    unifiedExchange), so there's no image pipeline to mock here."""
 
     async def _chat_with_manifest(*_args, **_kwargs):
         async def _gen():
@@ -133,24 +134,17 @@ async def test_chat_with_manifest_image_signal(client):
 
         return _gen()
 
-    fake_img = Image.new("RGB", (8, 8), color=(50, 50, 50))
-    fake_pipe_result = MagicMock()
-    fake_pipe_result.images = [fake_img]
-    fake_pipe = MagicMock(return_value=fake_pipe_result)
-
     mock_client = AsyncMock()
     mock_client.chat = AsyncMock(side_effect=_chat_with_manifest)
 
-    with (
-        patch("routers.chat.ollama.AsyncClient", return_value=mock_client),
-        patch("routers.image._get_image_pipeline", return_value=fake_pipe),
-    ):
+    with patch("routers.chat.ollama.AsyncClient", return_value=mock_client):
         response = await client.post("/api/chat", json={"text": "Describe the night"})
 
     assert response.status_code == 200
     events = _iter_sse(response.content)
     final = events[-1]
     assert final["isDone"] is True
+    assert final["manifest"] == {"type": "IMAGE", "prompt": "moonlit Sahara"}
 
 
 @pytest.mark.anyio

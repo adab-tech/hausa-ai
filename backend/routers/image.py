@@ -17,7 +17,6 @@ import logging
 import os
 import tempfile
 from contextlib import suppress
-from functools import lru_cache
 
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
@@ -26,52 +25,6 @@ from rate_limit import limiter
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-
-# ---------------------------------------------------------------------------
-# Image model selection — default to FLUX.1-schnell (Apache 2.0, fast CPU/GPU)
-# ---------------------------------------------------------------------------
-IMAGE_MODEL = os.getenv("IMAGE_MODEL", "black-forest-labs/FLUX.1-schnell")
-IMAGE_DEVICE = os.getenv("IMAGE_DEVICE", "cpu")  # "cuda" on GPU runners
-
-# ---------------------------------------------------------------------------
-# Video model selection — default to ModelScope T2V 1.7B (Apache 2.0)
-# Override: VIDEO_MODEL=<hf-model-id> VIDEO_DEVICE=cuda
-# VIDEO_DEVICE falls back to IMAGE_DEVICE at call-time, not at import-time.
-# ---------------------------------------------------------------------------
-VIDEO_MODEL = os.getenv("VIDEO_MODEL", "damo-vilab/text-to-video-ms-1.7b")
-VIDEO_DEVICE = os.getenv("VIDEO_DEVICE", "cpu")
-
-
-@lru_cache(maxsize=1)
-def _get_image_pipeline():
-    """Lazy-load the diffusion pipeline once and cache it."""
-    import torch
-    from diffusers import AutoPipelineForText2Image
-
-    dtype = torch.float16 if IMAGE_DEVICE != "cpu" else torch.float32
-
-    logger.info("Loading image pipeline: %s on %s", IMAGE_MODEL, IMAGE_DEVICE)
-    pipe = AutoPipelineForText2Image.from_pretrained(
-        IMAGE_MODEL,
-        torch_dtype=dtype,
-    )
-    pipe = pipe.to(IMAGE_DEVICE)
-    return pipe
-
-
-@lru_cache(maxsize=1)
-def _get_video_pipeline():
-    """Lazy-load the text-to-video pipeline once and cache it."""
-    import torch
-    from diffusers import TextToVideoSDPipeline
-
-    dtype = torch.float16 if VIDEO_DEVICE != "cpu" else torch.float32
-
-    logger.info("Loading video pipeline: %s on %s", VIDEO_MODEL, VIDEO_DEVICE)
-    pipe = TextToVideoSDPipeline.from_pretrained(VIDEO_MODEL, torch_dtype=dtype)
-    pipe = pipe.to(VIDEO_DEVICE)
-    return pipe
-
 
 # ---------------------------------------------------------------------------
 # Request/Response models

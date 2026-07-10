@@ -29,18 +29,22 @@ audioop-lts>=0.2,<1; python_version >= "3.13"
 # Custom VITS ONNX inference engine (see requirements-inference.txt for pinned version)
 onnxruntime>=1.18,<2
 
-# Image & video generation — Diffusers + FLUX/Stable Diffusion / ModelScope T2V
-diffusers>=0.30,<1
-transformers>=4.44,<5
-accelerate>=0.33,<1
-torch~=2.3.0; python_version < "3.13"
-torch>=2.5.0; python_version >= "3.13"
+# Image generation goes through Gemini's Imagen API (routers/image.py's
+# _generate_image_impl) — NOT a local Diffusers/torch pipeline. A local
+# FLUX/Stable-Diffusion path (_get_image_pipeline/_get_video_pipeline) was
+# removed: it was dead code (never called) that pulled in several GB of
+# torch/diffusers/transformers/nvidia-cuda-* purely for imports that never
+# ran, and was the reason the production image exceeded Fly's unpacked-size
+# limit and silently reverted every deploy. Re-add torch/diffusers only if
+# a real local generation path is actually wired up and called.
 Pillow>=10.4,<13
 
-# Video export (used by diffusers.utils.export_to_video)
+# Video export (used by generate_video's Ken Burns pan/zoom, routers/image.py)
 imageio>=2.34,<3
 imageio-ffmpeg>=0.5,<1
 
-# GCP Authentication (for Vertex AI fallback)
+# Gemini SDK (image generation + the Ollama-unavailable fallback chain in
+# routers/chat.py / routers/audio.py) and GCP auth
+google-genai>=1.0.0,<2
 google-auth>=2.30,<3
 requests>=2.31,<3
