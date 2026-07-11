@@ -399,6 +399,52 @@ def test_constitution_permits_code_switching():
     assert "ilimin halittu (Biology)" in SOVEREIGN_CONSTITUTION
 
 
+def test_constitution_declares_capabilities():
+    """The model must know its own real abilities so it answers 'me kake
+    iyawa' truthfully instead of hallucinating (or forgetting) features."""
+    from routers.chat import SOVEREIGN_CONSTITUTION
+
+    assert "[CAPABILITIES]" in SOVEREIGN_CONSTITUTION
+
+
+def test_current_time_context_has_now_and_wat():
+    """The datetime block must carry a UTC anchor and the Nigeria/WAT time so
+    the model can answer 'ƙarfe nawa ne?' for Nigeria and compute elsewhere."""
+    import re
+    from datetime import datetime, timezone
+    from routers.chat import _current_time_context
+
+    ctx = _current_time_context()
+    assert "[CURRENT_DATETIME]" in ctx
+    assert "UTC" in ctx and "WAT" in ctx
+    # The current year must actually appear (proves it's live, not hardcoded).
+    assert str(datetime.now(timezone.utc).year) in ctx
+
+
+@pytest.mark.anyio
+async def test_time_context_injected_into_system_prompt(client):
+    """Every chat request's system message must carry the live datetime block
+    so date/time questions are answerable on the primary path."""
+    from routers.chat import _CHAT_CACHE
+    _CHAT_CACHE.clear()
+
+    captured = {}
+
+    async def _capture_ollama(*args, **kwargs):
+        captured["messages"] = kwargs.get("messages") or (args[0] if args else None)
+        async def _gen():
+            yield {"message": {"content": "Sannu."}}
+        return _gen()
+
+    mock_client = AsyncMock()
+    mock_client.chat = AsyncMock(side_effect=_capture_ollama)
+    with patch("routers.chat.ollama.AsyncClient", return_value=mock_client):
+        await client.post("/api/chat", json={"text": "Karfe nawa ne a Kano?"})
+
+    system_msg = next(m for m in captured["messages"] if m["role"] == "system")
+    assert "[CURRENT_DATETIME]" in system_msg["content"]
+
+
 # ---------------------------------------------------------------------------
 # Live web search grounding
 # ---------------------------------------------------------------------------

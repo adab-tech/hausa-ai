@@ -77,6 +77,8 @@ SOVEREIGN_CONSTITUTION = """
 - When asked about Kano: discuss its founding by Kano dan Gijimasu circa 999 AD, the Emir's palace (Gidan Sarki), Kurmi Market (one of West Africa's oldest), the ancient city walls (ganuwar Kano), the historic dye pits (rini), Kanawa craftsmanship in leather (tabarma) and textile (kwalli), the role of Kano as a trans-Saharan trade hub, and the modern emirate system.
 - When asked about Islamic scholarship: reference the Sokoto Caliphate (1804), Usman dan Fodio, the malamai tradition, and Qur'anic schools (makarantar allo).
 - Respond INTELLIGENTLY and CONTEXTUALLY. Never give generic, template-like answers.
+[CAPABILITIES]:
+- You are a full multimodal Hausa assistant. You can: converse in text; understand images the user attaches; speak replies aloud and listen to the user's voice in live voice mode (in several distinct male and female Hausa voices); generate an image or short video when explicitly asked (via the manifest tag below); search the live web for current information; code-switch technical terms; and you know the current date and time (given below). Describe these abilities truthfully and helpfully when asked what you can do ('me kake iyawa', 'yaya nake amfani da kai') — and NEVER claim an ability you do not have.
 [MANIFEST_SIGNAL]:
 - ONLY when the user explicitly asks you to draw, generate, or show an image/picture/photo ('hoto', 'zana mini', 'draw', 'image', 'picture') or a video ('bidiyo', 'video'), end your reply with the tag: [MANIFEST: IMAGE|PROMPT] or [MANIFEST: VIDEO|PROMPT], where PROMPT is a short English visual description.
 - If the user did NOT ask for an image or video, never mention, describe, or caption an imaginary photo/video — you have no way to actually show one without the tag, and describing one you didn't generate misleads the user.
@@ -93,6 +95,28 @@ NO_LIVE_ACCESS_BLOCK = """[REAL_TIME_LIMITS]:
 
 GEMINI_LIVE_ACCESS_BLOCK = """[REAL_TIME_ACCESS]:
 - You have a live web-search tool. For questions about current events, today's news, recent happenings, prices, weather, or anything time-sensitive (e.g. 'meye labari a Kaduna a yau?'), USE it and answer with what you find — do not claim you cannot access current information. Attribute concrete facts to their sources when relevant, still in dignified Hausa."""
+
+
+def _current_time_context() -> str:
+    """A live date/time block injected into every system prompt so the model
+    can answer 'ƙarfe nawa ne?' / 'wace rana ce yau?' directly and correctly,
+    for Nigeria and (by computing from the UTC anchor) anywhere in the world.
+    The server runs in UTC (Fly.io); WAT is a fixed UTC+1 with no DST."""
+    from datetime import datetime, timezone, timedelta
+
+    now_utc = datetime.now(timezone.utc)
+    wat = now_utc + timedelta(hours=1)
+    return (
+        "[CURRENT_DATETIME]:\n"
+        f"- Now: {now_utc:%A, %d %B %Y, %H:%M} UTC.\n"
+        f"- Nigeria (WAT, UTC+1) — the user's most likely timezone (Kano, Lagos, "
+        f"Abuja, Sokoto, Kaduna all use it): {wat:%A, %d %B %Y, %H:%M}.\n"
+        "- You DO know the current date and time from the above — answer date/time "
+        "questions directly and confidently, in dignified Hausa. For another city or "
+        "country, compute its time from the UTC value using that place's standard UTC "
+        "offset; if daylight-saving time might apply, say the result may be off by an "
+        "hour rather than stating it as certain."
+    )
 
 # Injected into the Cerebras/Ollama system prompt (REPLACING NO_LIVE_ACCESS_BLOCK)
 # only when a live Tavily search actually returned fresh results for a
@@ -270,7 +294,7 @@ def _build_messages(req: ChatRequest, search_context: str | None = None) -> list
         if search_context
         else NO_LIVE_ACCESS_BLOCK
     )
-    system_content = f"{SOVEREIGN_CONSTITUTION}\n{live_block}\nVibe: {req.vibe}\n[ADDRESSEE_GENDER]: {req.addresseeGender}\n{req.memoryPrompt}\n{corrections_store.get_approved_corrections_prompt()}"
+    system_content = f"{SOVEREIGN_CONSTITUTION}\n{_current_time_context()}\n{live_block}\nVibe: {req.vibe}\n[ADDRESSEE_GENDER]: {req.addresseeGender}\n{req.memoryPrompt}\n{corrections_store.get_approved_corrections_prompt()}"
     messages: list[dict[str, Any]] = [{"role": "system", "content": system_content}]
 
     # Keep last 6 turns (context slicing — same as original)
@@ -371,7 +395,7 @@ async def stream_gemini(req: ChatRequest) -> AsyncGenerator[str, None]:
 
     # Gemini genuinely has search grounding wired below, so this path gets
     # the REAL_TIME_ACCESS grant instead of the no-access block.
-    system_content = f"{SOVEREIGN_CONSTITUTION}\n{GEMINI_LIVE_ACCESS_BLOCK}\nVibe: {req.vibe}\n[ADDRESSEE_GENDER]: {req.addresseeGender}\n{req.memoryPrompt}\n{corrections_store.get_approved_corrections_prompt()}"
+    system_content = f"{SOVEREIGN_CONSTITUTION}\n{_current_time_context()}\n{GEMINI_LIVE_ACCESS_BLOCK}\nVibe: {req.vibe}\n[ADDRESSEE_GENDER]: {req.addresseeGender}\n{req.memoryPrompt}\n{corrections_store.get_approved_corrections_prompt()}"
 
     # Try new google.genai SDK
     try:

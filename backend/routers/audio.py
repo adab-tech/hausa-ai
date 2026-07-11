@@ -89,10 +89,24 @@ _VOICE_SYSTEM = """
 """
 
 
+def _voice_time_context() -> str:
+    """Compact current-date/time line for voice replies (server runs UTC;
+    WAT = UTC+1, no DST) so the voice assistant can answer 'ƙarfe nawa ne?'."""
+    from datetime import datetime, timezone, timedelta
+    wat = datetime.now(timezone.utc) + timedelta(hours=1)
+    return (
+        f"[CURRENT_DATETIME]: In Nigeria (WAT, UTC+1) it is now "
+        f"{wat:%A, %d %B %Y, %H:%M}. You know the current date/time — answer "
+        f"such questions directly in Hausa; for other timezones compute from "
+        f"WAT (UTC+1)."
+    )
+
+
 def _voice_system_prompt(addressee_gender: str = "unspecified") -> str:
-    """_VOICE_SYSTEM plus any human-approved corrections, refreshed per call
-    so newly-approved corrections take effect without a server restart."""
-    return f"{_VOICE_SYSTEM}\n[ADDRESSEE_GENDER]: {addressee_gender}\n{corrections_store.get_approved_corrections_prompt()}"
+    """_VOICE_SYSTEM plus current date/time and any human-approved corrections,
+    refreshed per call so newly-approved corrections take effect without a
+    server restart."""
+    return f"{_VOICE_SYSTEM}\n{_voice_time_context()}\n[ADDRESSEE_GENDER]: {addressee_gender}\n{corrections_store.get_approved_corrections_prompt()}"
 
 
 # ---------------------------------------------------------------------------
