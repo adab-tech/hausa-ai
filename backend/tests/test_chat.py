@@ -407,18 +407,32 @@ def test_constitution_declares_capabilities():
     assert "[CAPABILITIES]" in SOVEREIGN_CONSTITUTION
 
 
-def test_current_time_context_has_now_and_wat():
-    """The datetime block must carry a UTC anchor and the Nigeria/WAT time so
-    the model can answer 'ƙarfe nawa ne?' for Nigeria and compute elsewhere."""
-    import re
+def test_current_time_context_has_utc_and_world_anchors():
+    """The datetime block must carry the UTC anchor, Nigeria/WAT, and the
+    precomputed world anchors (so world timezones are read, not miscomputed
+    by the LLM). Proves it's live via the current year."""
     from datetime import datetime, timezone
     from routers.chat import _current_time_context
 
     ctx = _current_time_context()
     assert "[CURRENT_DATETIME]" in ctx
     assert "UTC" in ctx and "WAT" in ctx
-    # The current year must actually appear (proves it's live, not hardcoded).
+    # World anchors precomputed server-side (the fix for the wrong-Tokyo bug).
+    assert "Tokyo" in ctx and "Makka" in ctx
     assert str(datetime.now(timezone.utc).year) in ctx
+
+
+def test_current_time_context_tokyo_is_exact():
+    """The Tokyo line must match a fresh zoneinfo computation to the hour —
+    guards against regressing to LLM-computed (wrong) offsets."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    from routers.chat import _current_time_context
+
+    ctx = _current_time_context()
+    tokyo_now = datetime.now(ZoneInfo("Asia/Tokyo"))
+    # The exact "HH:MM" for Tokyo must appear in the block.
+    assert f"{tokyo_now:%H:%M}" in ctx
 
 
 @pytest.mark.anyio

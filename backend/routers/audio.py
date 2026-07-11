@@ -90,16 +90,27 @@ _VOICE_SYSTEM = """
 
 
 def _voice_time_context() -> str:
-    """Compact current-date/time line for voice replies (server runs UTC;
-    WAT = UTC+1, no DST) so the voice assistant can answer 'ƙarfe nawa ne?'."""
-    from datetime import datetime, timezone, timedelta
-    wat = datetime.now(timezone.utc) + timedelta(hours=1)
-    return (
-        f"[CURRENT_DATETIME]: In Nigeria (WAT, UTC+1) it is now "
-        f"{wat:%A, %d %B %Y, %H:%M}. You know the current date/time — answer "
-        f"such questions directly in Hausa; for other timezones compute from "
-        f"WAT (UTC+1)."
-    )
+    """Compact current-date/time line for voice replies (kept short for voice
+    delivery). Nigeria + Makka precomputed exactly via zoneinfo; server is
+    UTC. Falls back to fixed WAT (UTC+1) if tzdata is unavailable."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    now_utc = datetime.now(ZoneInfo("UTC"))
+    try:
+        wat = now_utc.astimezone(ZoneInfo("Africa/Lagos"))
+        makka = now_utc.astimezone(ZoneInfo("Asia/Riyadh"))
+        return (
+            f"[CURRENT_DATETIME]: Nigeria (WAT) now = {wat:%A, %d %B %Y, %H:%M}; "
+            f"Makka = {makka:%H:%M}. You know the current date/time — answer directly "
+            f"in Hausa; for other places compute from these."
+        )
+    except Exception:
+        from datetime import timedelta
+        wat = now_utc + timedelta(hours=1)
+        return (
+            f"[CURRENT_DATETIME]: Nigeria (WAT, UTC+1) now = {wat:%A, %d %B %Y, %H:%M}. "
+            f"You know the current date/time — answer directly in Hausa."
+        )
 
 
 def _voice_system_prompt(addressee_gender: str = "unspecified") -> str:

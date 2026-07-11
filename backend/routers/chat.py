@@ -97,26 +97,48 @@ GEMINI_LIVE_ACCESS_BLOCK = """[REAL_TIME_ACCESS]:
 - You have a live web-search tool. For questions about current events, today's news, recent happenings, prices, weather, or anything time-sensitive (e.g. 'meye labari a Kaduna a yau?'), USE it and answer with what you find — do not claim you cannot access current information. Attribute concrete facts to their sources when relevant, still in dignified Hausa."""
 
 
-def _current_time_context() -> str:
-    """A live date/time block injected into every system prompt so the model
-    can answer 'ƙarfe nawa ne?' / 'wace rana ce yau?' directly and correctly,
-    for Nigeria and (by computing from the UTC anchor) anywhere in the world.
-    The server runs in UTC (Fly.io); WAT is a fixed UTC+1 with no DST."""
-    from datetime import datetime, timezone, timedelta
+# High-relevance timezone anchors for a Hausa + Muslim + diaspora audience.
+# Precomputed SERVER-SIDE (exact, DST-aware via zoneinfo) rather than asking
+# the LLM to do offset arithmetic — models fumble that (a test asking for
+# Tokyo returned the wrong hour AND wrong day). The model reads the right
+# value for listed places and only estimates for the long tail.
+_TIME_ANCHORS = [
+    ("Nigeria (Kano, Lagos, Abuja) — WAT", "Africa/Lagos"),
+    ("Makka / Saudi Arabia", "Asia/Riyadh"),
+    ("London / UK", "Europe/London"),
+    ("New York / US East", "America/New_York"),
+    ("Dubai / UAE", "Asia/Dubai"),
+    ("Tokyo / Japan", "Asia/Tokyo"),
+]
 
-    now_utc = datetime.now(timezone.utc)
-    wat = now_utc + timedelta(hours=1)
-    return (
-        "[CURRENT_DATETIME]:\n"
-        f"- Now: {now_utc:%A, %d %B %Y, %H:%M} UTC.\n"
-        f"- Nigeria (WAT, UTC+1) — the user's most likely timezone (Kano, Lagos, "
-        f"Abuja, Sokoto, Kaduna all use it): {wat:%A, %d %B %Y, %H:%M}.\n"
+
+def _current_time_context() -> str:
+    """A live, exact date/time block injected into every system prompt so the
+    model can answer 'ƙarfe nawa ne?' / 'wace rana ce yau?' directly for
+    Nigeria and the world's most-asked timezones. The server runs in UTC
+    (Fly.io); zoneinfo applies each zone's real DST rules (needs the tzdata
+    package — see requirements.txt)."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    now_utc = datetime.now(ZoneInfo("UTC"))
+    lines = [f"[CURRENT_DATETIME]: Now = {now_utc:%A, %d %B %Y, %H:%M} UTC. Exact local times:"]
+    try:
+        for label, tz in _TIME_ANCHORS:
+            local = now_utc.astimezone(ZoneInfo(tz))
+            lines.append(f"- {label}: {local:%A, %d %B %Y, %H:%M}.")
+    except Exception:
+        # tzdata missing — degrade to Nigeria only (fixed UTC+1, no DST).
+        from datetime import timedelta
+        wat = now_utc + timedelta(hours=1)
+        lines.append(f"- Nigeria (WAT, UTC+1): {wat:%A, %d %B %Y, %H:%M}.")
+    lines.append(
         "- You DO know the current date and time from the above — answer date/time "
-        "questions directly and confidently, in dignified Hausa. For another city or "
-        "country, compute its time from the UTC value using that place's standard UTC "
-        "offset; if daylight-saving time might apply, say the result may be off by an "
-        "hour rather than stating it as certain."
+        "questions directly and confidently in dignified Hausa, using the EXACT value "
+        "for the place asked. For a place not listed, compute from the UTC value using "
+        "its standard offset and say it may be off by an hour if daylight-saving applies."
     )
+    return "\n".join(lines)
 
 # Injected into the Cerebras/Ollama system prompt (REPLACING NO_LIVE_ACCESS_BLOCK)
 # only when a live Tavily search actually returned fresh results for a
