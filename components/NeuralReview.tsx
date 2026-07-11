@@ -313,7 +313,7 @@ export const NeuralReview: React.FC<{ onClose: () => void; onOpenWhitePaper?: ()
                 <div className="space-y-1">
                   <p className="text-dyn-accent text-[9px] uppercase tracking-[0.4em] font-black">Lead Engineer / Architect</p>
                   <p className="text-3xl font-serif italic text-dyn-text-primary">Adamu Danjuma Abubakar</p>
-                  <p className="text-[10px] text-dyn-text-muted uppercase tracking-widest font-mono">ADAB-TECH RESEARCH LABS, KANO</p>
+                  <p className="text-[10px] text-dyn-text-muted uppercase tracking-widest font-mono">ADAB-TECH RESEARCH LABS</p>
                 </div>
                 {onOpenWhitePaper && (
                    <button 
@@ -331,8 +331,11 @@ export const NeuralReview: React.FC<{ onClose: () => void; onOpenWhitePaper?: ()
           {activeTab === 'waxal' && (
              <div className="space-y-8 animate-reveal">
                
-               {/* Dashboard Stats */}
-               {waxalStats ? (
+               {/* Dashboard Stats. Guard on .general, not mere truthiness:
+                   /api/waxal/* is admin-gated, and a 401 JSON body
+                   ({"detail": ...}) is truthy — rendering it crashed the
+                   whole React tree to a black screen for non-admin users. */}
+               {waxalStats?.general ? (
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {/* Stat Card 1 */}
                     <div className="p-6 rounded-3xl bg-dyn-bg-tertiary/20 border border-dyn-border flex flex-col justify-between shadow-lg">
@@ -412,6 +415,15 @@ export const NeuralReview: React.FC<{ onClose: () => void; onOpenWhitePaper?: ()
                           </div>
                         ))}
                       </div>
+                    </div>
+                  </div>
+               ) : waxalStats?.denied ? (
+                  <div className="text-center py-8 space-y-2">
+                    <div className="text-dyn-accent font-serif italic text-lg">Sai shiga na masu bita</div>
+                    <div className="text-dyn-text-secondary/60 font-mono text-xs max-w-md mx-auto leading-relaxed">
+                      Wannan sashen rumbun bayanai na masu bita ne kaɗai. (This dataset
+                      section is reviewer-only — sign in with an admin account to browse
+                      the WAXAL corpus.)
                     </div>
                   </div>
                ) : (

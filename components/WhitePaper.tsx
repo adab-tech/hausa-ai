@@ -152,20 +152,34 @@ export const WhitePaper: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
         {/* Progress & Milestones */}
         <section className="space-y-12">
-          <h2 className="text-[11px] uppercase tracking-[0.8em] text-silk-gold font-black">III. Research Milestones</h2>
+          <h2 className="text-[11px] uppercase tracking-[0.8em] text-silk-gold font-black">III. Tarihin Aikin — Project Timeline</h2>
           <div className="space-y-4">
              {[
-               { date: "Oct 2025", event: "Initial core extraction from standard Hausa dataset.", status: "Baseline" },
-               { date: "Dec 2025", event: "Verification of Litvinova's Tonal Mapping through high-fidelity tests.", status: "Breakthrough" },
-               { date: "Feb 2026", event: "Deployment of Murya with real-time Grounding Node.", status: "Production" },
-               { date: "Mar 2026", event: "Manifestation Engine V2: 4K Cultural Image Synthesis.", status: "Creative" },
-               { date: "Apr 2026", event: "Formalizing Axiom-8: Socio-Linguistic Autonomy.", status: "Pending" }
+               {
+                 date: "Afrilu 2026",
+                 event: "Kafuwar aikin — an buɗe rumbun aikin, an gudanar da zagayen gwaji na farko, kuma an samar da bayanan horo na farko: haɗakar kalmomin Turanci–Hausa daga ƙamusun Robinson (1914) da shirya rumbun muryar WAXAL. Gwaje-gwajen farko sun bayyana kurakurai a horo da turawa — muka gyara.",
+                 gloss: "Inception — repository created, first testing cycles, and the first training data: English–Hausa pairs derived from the Robinson (1914) lexicon and WAXAL speech-corpus staging. Early training and deployment runs surfaced errors, which we fixed.",
+                 status: "Gwaji · Testing & Error-Detection"
+               },
+               {
+                 date: "Mayu–Yuni 2026",
+                 event: "Ginawa da gyara — an ƙarfafa hanyar sarrafa bayanai, an maimaita zagayen horar da model a kan Modal, an kuma kafa harsashin turawa a kan Fly.io.",
+                 gloss: "Iteration — data-pipeline hardening, repeated model-training cycles on Modal, and deploy infrastructure brought up on Fly.io.",
+                 status: "Ginawa · Iteration"
+               },
+               {
+                 date: "Yuli 2026",
+                 event: "Nasarar horo — an kammala horar da muryar VITS ta WAXAL, masu magana guda takwas, an wallafa model ɗin a Hugging Face (adab-tech/murya-piper-hausa-tts), an mallaki murya.ng, kuma an ƙaddamar da aikin ga jama'a: murya.ng da app.murya.ng.",
+                 gloss: "Fine-tuning succeeded — the eight-speaker WAXAL VITS voice trained and shipped, the model published to Hugging Face (adab-tech/murya-piper-hausa-tts), the murya.ng domain acquired, and the project launched publicly at murya.ng and app.murya.ng.",
+                 status: "Ƙaddamarwa · Launch"
+               }
              ].map((m, i) => (
                <div key={i} className="flex flex-col sm:flex-row items-baseline gap-8 py-8 border-b border-white/5 group">
-                 <span className="text-xl font-serif italic text-silk-gold w-32 shrink-0">{m.date}</span>
-                 <div className="flex-1 space-y-1">
+                 <span className="text-xl font-serif italic text-silk-gold w-40 shrink-0">{m.date}</span>
+                 <div className="flex-1 space-y-2">
                    <p className="text-2xl font-serif italic text-white/80 group-hover:text-white transition-colors">{m.event}</p>
-                   <span className="text-[10px] uppercase font-black tracking-widest text-white/10 group-hover:text-silk-gold/40 transition-colors">{m.status} Verified</span>
+                   <p className="text-sm text-ivory/40 leading-relaxed">{m.gloss}</p>
+                   <span className="text-[10px] uppercase font-black tracking-widest text-white/10 group-hover:text-silk-gold/40 transition-colors">{m.status}</span>
                  </div>
                </div>
              ))}

@@ -358,3 +358,17 @@ async def test_chat_warmup(client):
     warmups = [e for e in events if e.get("warmup") is True]
     assert len(warmups) > 0
 
+
+# ---------------------------------------------------------------------------
+# Sovereign Constitution content
+# ---------------------------------------------------------------------------
+
+
+def test_constitution_permits_code_switching():
+    """The constitution must carry the [CODE_SWITCHING] section so English
+    scientific/technical terms are not force-translated into awkward calques."""
+    from routers.chat import SOVEREIGN_CONSTITUTION
+
+    assert "[CODE_SWITCHING]" in SOVEREIGN_CONSTITUTION
+    assert "ilimin halittu (Biology)" in SOVEREIGN_CONSTITUTION
+
