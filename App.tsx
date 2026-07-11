@@ -10,7 +10,7 @@ import { Sidebar } from './components/Sidebar.tsx';
 import { LiveCallPanel } from './components/LiveCallPanel.tsx';
 import { InputConsole } from './components/InputConsole.tsx';
 import { MessageItem, AXIOM_PHRASES } from './components/MessageItem.tsx';
-import { decodeAudioData, decode, createBlob } from './utils/audio.ts';
+import { decodeAudioData, decode, createBlob, makeAudioContext, resampleLinear } from './utils/audio.ts';
 import { Menu, Compass } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -218,18 +218,45 @@ const App: React.FC = () => {
         setVoiceStatus('connecting');
         setLiveTranscripts([]);
 
-        if (!audioContextsRef.current.in) audioContextsRef.current.in = new AudioContext({ sampleRate: 16000 });
-        if (!audioContextsRef.current.out) audioContextsRef.current.out = new AudioContext({ sampleRate: 24000 });
+        // Robust context creation. The 16000 for input is only a HINT — older
+        // Safari and some Android WebViews throw on (or silently ignore) a
+        // forced sampleRate, so makeAudioContext falls back to the device
+        // default and we resample mic frames to 16 kHz ourselves below. The
+        // output context deliberately uses the default rate: decodeAudioData
+        // builds AudioBuffers tagged 24000 explicitly, and WebAudio resamples
+        // buffers to the context rate automatically at playback.
+        if (!audioContextsRef.current.in) audioContextsRef.current.in = makeAudioContext(16000);
+        if (!audioContextsRef.current.out) audioContextsRef.current.out = makeAudioContext();
 
         const inputCtx = audioContextsRef.current.in!;
         const outputCtx = audioContextsRef.current.out!;
+
+        // iOS Safari frequently leaves AudioContexts "suspended" even after a
+        // user gesture — playback then never happens and out.currentTime stays
+        // frozen, which would also jam the half-duplex mic gate below. We are
+        // still inside the tap handler here, so resume() is permitted; await
+        // it so scheduling starts from a running clock.
+        try {
+          await Promise.all([inputCtx.resume(), outputCtx.resume()]);
+        } catch {
+          // Non-fatal: some browsers reject resume() on an already-running
+          // context; state is re-checked before each playback below.
+        }
 
         sessionPromiseRef.current = gemini.connectLive(speakerId, {
           onopen: () => {
             setIsLiveActive(true);
             setVoiceStatus('connected');
             const source = inputCtx.createMediaStreamSource(stream);
+            // ScriptProcessor is deprecated (future migration: AudioWorklet
+            // with a ScriptProcessor fallback), but it still works everywhere
+            // today and keeps the volume meter + half-duplex gate logic simple.
+            // It is connected to destination below because some browsers never
+            // fire onaudioprocess otherwise (its output is silence).
             const scriptProcessor = inputCtx.createScriptProcessor(4096, 1, 1);
+            // The REAL capture rate — browsers that ignored the 16000 hint
+            // (Safari, many WebViews) typically run at 44100/48000 here.
+            const captureRate = inputCtx.sampleRate;
             scriptProcessor.onaudioprocess = (e) => {
               const inputData = e.inputBuffer.getChannelData(0);
               let sum = 0;
@@ -242,7 +269,15 @@ const App: React.FC = () => {
               // with echoCancellation on (speakerphones/low-end devices leak).
               const out = audioContextsRef.current.out;
               if (out && out.currentTime < audioContextsRef.current.nextStartTime + 0.4) return;
-              sessionPromiseRef.current?.then(s => s.sendRealtimeInput({ media: createBlob(inputData) }));
+              // The server expects 16 kHz mono PCM-16. If the context runs at
+              // the hardware rate (hint ignored), downsample this frame first —
+              // otherwise 48 kHz audio gets interpreted as 16 kHz and the
+              // user's voice arrives ~3x slow/garbled at the ASR. Encode the
+              // blob synchronously: the browser may recycle inputData before
+              // the session promise resolves (resampleLinear always copies).
+              const frame16k = resampleLinear(inputData, captureRate, 16000);
+              const media = createBlob(frame16k);
+              sessionPromiseRef.current?.then(s => s.sendRealtimeInput({ media }));
             };
             source.connect(scriptProcessor);
             scriptProcessor.connect(inputCtx.destination);
@@ -250,6 +285,14 @@ const App: React.FC = () => {
           onmessage: async (msg: any) => {
             const base64 = msg.serverContent?.modelTurn?.parts[0]?.inlineData?.data;
             if (base64) {
+              // iOS Safari can re-suspend the context (tab switch, route
+              // change, interruption); scheduling on a suspended context is
+              // silent and freezes currentTime, jamming the mic gate above.
+              if (outputCtx.state === 'suspended') {
+                try { await outputCtx.resume(); } catch { /* re-checked next chunk */ }
+              }
+              // 24000 here is the SERVER's PCM rate, not the context rate —
+              // WebAudio resamples the buffer to outputCtx.sampleRate on play.
               const buffer = await decodeAudioData(decode(base64), outputCtx, 24000, 1);
               const source = outputCtx.createBufferSource();
               source.buffer = buffer;

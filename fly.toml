@@ -35,6 +35,12 @@ primary_region = "jnb"
   # ear). length_scale > 1 stretches phoneme durations back to a natural
   # pace; still overridable per-request via /api/tts?length_scale=.
   VITS_LENGTH_SCALE = "1.1"
+  # STT quality: "small" recognizes Hausa (and its dialect variation)
+  # markedly better than the code-default "base" — the single biggest
+  # available lever for "it doesn't understand me" complaints. Costs more
+  # CPU per 2s chunk on this 2-vCPU box; if live-voice replies start
+  # lagging noticeably, revert to "base".
+  WHISPER_MODEL = "small"
 
 [http_service]
   internal_port = 8080

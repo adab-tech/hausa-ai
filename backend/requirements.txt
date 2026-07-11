@@ -1,7 +1,7 @@
 fastapi>=0.115,<1
 uvicorn[standard]>=0.30,<1
 httpx>=0.27,<1
-python-multipart>=0.0.9,<1
+python-multipart>=0.0.18,<1  # floor raised: CVE-2024-53981 (multipart DoS) fixed in 0.0.18
 websockets>=12,<17
 
 # Admin login (bcrypt password hashing for admin_store.py)
@@ -37,7 +37,7 @@ onnxruntime>=1.18,<2
 # ran, and was the reason the production image exceeded Fly's unpacked-size
 # limit and silently reverted every deploy. Re-add torch/diffusers only if
 # a real local generation path is actually wired up and called.
-Pillow>=10.4,<13
+Pillow>=11.3,<13  # floor raised: CVE-2025-48379 heap overflow fixed in 11.3.0
 
 # Video export (used by generate_video's Ken Burns pan/zoom, routers/image.py)
 imageio>=2.34,<3
@@ -47,7 +47,7 @@ imageio-ffmpeg>=0.5,<1
 # routers/chat.py / routers/audio.py) and GCP auth
 google-genai>=1.0.0,<2
 google-auth>=2.30,<3
-requests>=2.31,<3
+requests>=2.32.4,<3  # floor raised: CVE-2024-35195 (verify bypass) + CVE-2024-47081 (netrc leak)
 
 # Cerebras Cloud SDK (hosted low-latency inference — sits between Ollama and
 # Gemini in the chat/voice fallback chain in routers/chat.py / routers/audio.py)

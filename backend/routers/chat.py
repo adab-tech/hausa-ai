@@ -71,8 +71,6 @@ SOVEREIGN_CONSTITUTION = """
 [PROSODIC_HARDENING]:
 - Use Litvinova's R-to-L Tonal Mapping.
 - Mandatory Hooked Letters: ɓ, ɗ, ƙ, 'y.
-[REAL_TIME_ACCESS]:
-- You have a live web-search tool. For questions about current events, today's news, recent happenings, prices, weather, or anything time-sensitive (e.g. 'meye labari a Kaduna a yau?'), USE it and answer with what you find — do not claim you cannot access current information. Attribute concrete facts to their sources when relevant, still in dignified Hausa.
 [KNOWLEDGE_AND_CONTEXT]:
 - You have deep, accurate knowledge about Hausa culture, history, language, geography (Kano, Sokoto, Zaria, Daura, Katsina, Kanem-Bornu), Islamic scholarship in West Africa, Hausa literature, and Northern Nigerian affairs.
 - When asked about Kano: discuss its founding by Kano dan Gijimasu circa 999 AD, the Emir's palace (Gidan Sarki), Kurmi Market (one of West Africa's oldest), the ancient city walls (ganuwar Kano), the historic dye pits (rini), Kanawa craftsmanship in leather (tabarma) and textile (kwalli), the role of Kano as a trans-Saharan trade hub, and the modern emirate system.
@@ -82,6 +80,18 @@ SOVEREIGN_CONSTITUTION = """
 - ONLY when the user explicitly asks you to draw, generate, or show an image/picture/photo ('hoto', 'zana mini', 'draw', 'image', 'picture') or a video ('bidiyo', 'video'), end your reply with the tag: [MANIFEST: IMAGE|PROMPT] or [MANIFEST: VIDEO|PROMPT], where PROMPT is a short English visual description.
 - If the user did NOT ask for an image or video, never mention, describe, or caption an imaginary photo/video — you have no way to actually show one without the tag, and describing one you didn't generate misleads the user.
 """
+
+# Real-time-knowledge honesty: the search-grounding tool only exists on the
+# Gemini serving path (types.Tool(google_search=...) in stream_gemini). The
+# primary path is Cerebras, which has NO live web access — telling the model
+# it has a search tool there (as the constitution once did, globally) made it
+# hallucinate or roleplay current-events answers. Each path now gets the
+# block that is true for it.
+NO_LIVE_ACCESS_BLOCK = """[REAL_TIME_LIMITS]:
+- You have NO live web access on this serving path. For questions about today's news, current events, live prices, or weather, say plainly in dignified Hausa that you cannot check live sources right now, offer relevant background knowledge clearly marked as such, and NEVER invent or guess current facts, dates, scores, or figures."""
+
+GEMINI_LIVE_ACCESS_BLOCK = """[REAL_TIME_ACCESS]:
+- You have a live web-search tool. For questions about current events, today's news, recent happenings, prices, weather, or anything time-sensitive (e.g. 'meye labari a Kaduna a yau?'), USE it and answer with what you find — do not claim you cannot access current information. Attribute concrete facts to their sources when relevant, still in dignified Hausa."""
 
 # Defaults
 DEFAULT_MODEL = os.getenv("OLLAMA_MODEL", "aya-expanse:8b")
@@ -182,7 +192,9 @@ def _calculate_cultural_confidence(text: str) -> bool:
 
 
 def _build_messages(req: ChatRequest) -> list[dict[str, Any]]:
-    system_content = f"{SOVEREIGN_CONSTITUTION}\nVibe: {req.vibe}\n[ADDRESSEE_GENDER]: {req.addresseeGender}\n{req.memoryPrompt}\n{corrections_store.get_approved_corrections_prompt()}"
+    # Cerebras/Ollama consume these messages — neither has a search tool, so
+    # the honest NO_LIVE_ACCESS_BLOCK is appended (see its comment above).
+    system_content = f"{SOVEREIGN_CONSTITUTION}\n{NO_LIVE_ACCESS_BLOCK}\nVibe: {req.vibe}\n[ADDRESSEE_GENDER]: {req.addresseeGender}\n{req.memoryPrompt}\n{corrections_store.get_approved_corrections_prompt()}"
     messages: list[dict[str, Any]] = [{"role": "system", "content": system_content}]
 
     # Keep last 6 turns (context slicing — same as original)
@@ -281,7 +293,9 @@ async def stream_gemini(req: ChatRequest) -> AsyncGenerator[str, None]:
             "parts": [{"text": item.text}]
         })
 
-    system_content = f"{SOVEREIGN_CONSTITUTION}\nVibe: {req.vibe}\n[ADDRESSEE_GENDER]: {req.addresseeGender}\n{req.memoryPrompt}\n{corrections_store.get_approved_corrections_prompt()}"
+    # Gemini genuinely has search grounding wired below, so this path gets
+    # the REAL_TIME_ACCESS grant instead of the no-access block.
+    system_content = f"{SOVEREIGN_CONSTITUTION}\n{GEMINI_LIVE_ACCESS_BLOCK}\nVibe: {req.vibe}\n[ADDRESSEE_GENDER]: {req.addresseeGender}\n{req.memoryPrompt}\n{corrections_store.get_approved_corrections_prompt()}"
 
     # Try new google.genai SDK
     try:
