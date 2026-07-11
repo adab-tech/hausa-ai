@@ -345,12 +345,25 @@ def _synthesize_speech(
             logger.error("Failed to load WAXAL fallback sample: %s", e)
         return None
         
-    # Piper writes WAV; we strip the 44-byte header and return raw PCM
+    # Piper writes WAV; strip the 44-byte header, then resample to the
+    # 24 kHz contract every caller assumes. Our published Hausa voice is
+    # 22 050 Hz native — returning its PCM unresampled made clients play
+    # it at 24 kHz: ~9% too fast and audibly pitched up.
     wav_buf = io.BytesIO()
     with voice.stream_to_file(text, wav_buf):
         pass
     wav_buf.seek(44)
-    return wav_buf.read()
+    pcm = wav_buf.read()
+
+    native_rate = int(getattr(getattr(voice, "config", None), "sample_rate", 22050) or 22050)
+    if pcm and native_rate != 24000:
+        audio_f = np.frombuffer(pcm, dtype=np.int16).astype(np.float32)
+        duration = audio_f.size / float(native_rate)
+        n_out = int(round(duration * 24000))
+        t_in = np.linspace(0.0, duration, num=audio_f.size, endpoint=False)
+        t_out = np.linspace(0.0, duration, num=n_out, endpoint=False)
+        pcm = np.interp(t_out, t_in, audio_f).astype(np.int16).tobytes()
+    return pcm
 
 
 def _transcribe(pcm_bytes: bytes, sample_rate: int = 16000) -> str:

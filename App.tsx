@@ -208,7 +208,13 @@ const App: React.FC = () => {
 
     try {
         setVoiceStatus('requesting_permission');
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // echoCancellation is essential: without it the mic picks up the
+        // assistant's own TTS from the speakers and the model ends up
+        // transcribing and answering itself. (Belt: the half-duplex gate in
+        // onaudioprocess below; braces: this constraint.)
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        });
         setVoiceStatus('connecting');
         setLiveTranscripts([]);
 
@@ -229,6 +235,13 @@ const App: React.FC = () => {
               let sum = 0;
               for (let i = 0; i < inputData.length; i++) sum += inputData[i] * inputData[i];
               setVolume(Math.sqrt(sum / inputData.length));
+              // Half-duplex gate: while the assistant's reply is still playing
+              // (nextStartTime marks the scheduled END of queued TTS audio),
+              // plus a short tail for speaker-to-mic latency, do NOT stream mic
+              // frames — otherwise the model hears and answers itself even
+              // with echoCancellation on (speakerphones/low-end devices leak).
+              const out = audioContextsRef.current.out;
+              if (out && out.currentTime < audioContextsRef.current.nextStartTime + 0.4) return;
               sessionPromiseRef.current?.then(s => s.sendRealtimeInput({ media: createBlob(inputData) }));
             };
             source.connect(scriptProcessor);

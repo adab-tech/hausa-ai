@@ -30,6 +30,11 @@ primary_region = "jnb"
   # producing uneven/erratic speech rhythm. Confirmed by ear against 0.8
   # and 0.5 (see services/vits_engine.py's VITS_NOISE_W override).
   VITS_NOISE_W = "0.3"
+  # Counterweight to the low noise_w above: flattening duration variance
+  # also quickened delivery ("talking faster than normal" per founder's
+  # ear). length_scale > 1 stretches phoneme durations back to a natural
+  # pace; still overridable per-request via /api/tts?length_scale=.
+  VITS_LENGTH_SCALE = "1.1"
 
 [http_service]
   internal_port = 8080
