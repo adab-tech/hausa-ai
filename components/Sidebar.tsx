@@ -147,7 +147,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <Cpu className="w-3 h-3 text-dyn-accent shrink-0" /> Sovereign Hausa AI
               </span>
             </div>
-            <button onClick={() => setSidebarOpen(false)} aria-label="Rufe menu (Close menu)" className="md:hidden ml-auto p-1 text-dyn-text-secondary hover:text-dyn-text-primary hover:bg-white/5 rounded-lg">
+            <button onClick={() => setSidebarOpen(false)} aria-label="Rufe menu (Close menu)" className="md:hidden ml-auto p-3 -mr-2 text-dyn-text-secondary hover:text-dyn-text-primary hover:bg-white/5 rounded-lg">
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -328,7 +328,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <button
             onClick={onClearChat}
             disabled={!hasMessages}
-            className="w-full py-2.5 border border-red-500/20 hover:border-red-500/40 hover:bg-red-500/5 text-red-500/70 hover:text-red-500 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 disabled:opacity-20 disabled:cursor-not-allowed"
+            className="w-full min-h-[44px] py-2.5 border border-red-500/20 hover:border-red-500/40 hover:bg-red-500/5 text-red-500/70 hover:text-red-500 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 disabled:opacity-20 disabled:cursor-not-allowed"
           >
             <Trash2 className="w-3.5 h-3.5" />
             <span>Goge Hira (Clear)</span>

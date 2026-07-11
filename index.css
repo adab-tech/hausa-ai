@@ -136,14 +136,28 @@
   --font-family-serif: "Instrument Serif", serif;
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+/* NOTE: deliberately NO universal margin/padding reset here. Tailwind v4's
+   preflight already applies that reset inside "@layer base". Re-declaring it
+   UNLAYERED here made it beat every layered utility in the cascade
+   (unlayered wins over layered, regardless of specificity), silently
+   nullifying all padding and margin utility classes app-wide - the composer
+   buttons were rendering as bare 20px icons with zero padding.
+   (Also: never write the two characters star-slash inside this comment -
+   e.g. as part of a class-glob like p-star-slash-m-star - it terminates the
+   comment early and the stray tokens swallow the next CSS rule.) */
 
 html, body, #root {
   height: 100%;
+}
+
+/* Placeholders never wrap: a two-line placeholder in a rows=1 textarea clips
+   mid-glyph inside the rounded composer pill on narrow screens. Ellipsize
+   instead. */
+textarea::placeholder,
+input::placeholder {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 body {

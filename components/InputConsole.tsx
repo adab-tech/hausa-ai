@@ -89,7 +89,7 @@ export const InputConsole: React.FC<InputConsoleProps> = ({
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSendMessage(); } }}
-            placeholder="Shigar da umarninka anan... (Enter to send)"
+            placeholder="Rubuta saƙonka anan…"
             rows={1}
             aria-label="Shigar da umarni (Message input)"
             className="flex-1 bg-transparent py-2.5 sm:py-3.5 text-base sm:text-lg focus:outline-none placeholder:text-dyn-text-muted/40 font-serif not-italic resize-none no-scrollbar text-dyn-text-primary w-full leading-relaxed"

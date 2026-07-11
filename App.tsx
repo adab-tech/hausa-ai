@@ -358,7 +358,7 @@ const App: React.FC = () => {
             <button
               onClick={() => setSidebarOpen(true)}
               aria-label="Buɗe menu (Open menu)"
-              className="md:hidden p-2 text-dyn-text-secondary hover:text-dyn-text-primary hover:bg-white/5 rounded-xl border border-dyn-border/40"
+              className="md:hidden p-3 text-dyn-text-secondary hover:text-dyn-text-primary hover:bg-white/5 rounded-xl border border-dyn-border/40"
             >
               <Menu className="w-5 h-5" />
             </button>
