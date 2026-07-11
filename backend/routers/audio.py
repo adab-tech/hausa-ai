@@ -366,18 +366,37 @@ def _synthesize_speech(
     return pcm
 
 
+# Minimum RMS (of float32 audio in [-1, 1]) for a chunk to be treated as
+# speech. Whisper HALLUCINATES text on silence/noise-only input — it will
+# happily invent a Hausa greeting from an empty room — and each invented
+# "user turn" makes the assistant answer speech nobody said, locking the
+# live session into talking to itself. Gate cheaply on energy before ever
+# running STT.
+_SPEECH_RMS_THRESHOLD = float(os.getenv("MIC_RMS_THRESHOLD", "0.01"))
+
+
 def _transcribe(pcm_bytes: bytes, sample_rate: int = 16000) -> str:
-    """Run faster-whisper STT; returns transcript string."""
-    model = _get_whisper()
+    """Run faster-whisper STT; returns transcript string ('' for non-speech)."""
     float_audio = _pcm_bytes_to_float32(pcm_bytes)
+
+    # 1. Energy gate: skip silence/background noise without running Whisper.
+    rms = float(np.sqrt(np.mean(float_audio**2))) if float_audio.size else 0.0
+    if rms < _SPEECH_RMS_THRESHOLD:
+        return ""
+
+    model = _get_whisper()
     # Write to temp WAV for whisper; always clean up afterward
     tmp_path = None
     try:
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
             tmp_path = tmp.name
         _write_wav(tmp_path, float_audio, sample_rate)
-        segments, _ = model.transcribe(tmp_path, language="ha")
-        return " ".join(seg.text for seg in segments).strip()
+        # 2. vad_filter: Silero VAD inside faster-whisper strips non-speech
+        # spans, the main defense against hallucinated transcripts.
+        segments, _ = model.transcribe(tmp_path, language="ha", vad_filter=True)
+        text = " ".join(seg.text for seg in segments).strip()
+        # 3. Sanity floor: one or two characters is noise, not Hausa.
+        return text if len(text) > 2 else ""
     finally:
         if tmp_path:
             with suppress(OSError):
@@ -607,15 +626,20 @@ async def live_endpoint(ws: WebSocket, speaker_id: int = 0, addressee_gender: st
             chunk = bytes(pcm_buffer)
             pcm_buffer.clear()
 
-            # 1. STT
+            # 1. STT. On failure, SKIP the turn — never substitute an
+            # invented transcript. The old fallback ("Sannu barka") made
+            # the assistant answer speech the user never said, which (with
+            # the client's half-duplex mic gate active during playback)
+            # locked live sessions into a self-talk loop the real user
+            # couldn't interrupt.
             try:
                 transcript = await asyncio.get_event_loop().run_in_executor(
                     None, _transcribe, chunk
                 )
-            except Exception as exc:
-                logger.exception("STT failed, using fallback transcript")
-                transcript = "Sannu barka"
-            
+            except Exception:
+                logger.exception("STT failed; skipping this audio chunk")
+                continue
+
             if not transcript:
                 continue
 

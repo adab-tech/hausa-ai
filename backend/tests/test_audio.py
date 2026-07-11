@@ -89,6 +89,20 @@ def test_write_wav_non_zero_audio(tmp_path):
 # ---------------------------------------------------------------------------
 
 
+def test_transcribe_silence_returns_empty_without_running_whisper():
+    """Silence must be energy-gated BEFORE Whisper runs: Whisper hallucinates
+    text on non-speech input, and every hallucinated 'user turn' made the
+    live voice session answer speech nobody said (self-talk loop)."""
+    from unittest.mock import patch
+    from routers.audio import _transcribe
+
+    silent_chunk = b"\x00\x00" * 32_000  # 2s of pure silence @16 kHz PCM-16
+    with patch("routers.audio._get_whisper") as mock_whisper:
+        result = _transcribe(silent_chunk)
+    assert result == ""
+    mock_whisper.assert_not_called()
+
+
 def test_synthesize_speech_returns_none_when_piper_unavailable():
     """When Piper and VITS are not installed / models not present, TTS returns None."""
     from unittest.mock import patch
