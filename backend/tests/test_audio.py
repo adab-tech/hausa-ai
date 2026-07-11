@@ -10,6 +10,7 @@ from routers.audio import (
     SPEAKER_MAP,
     _find_closest_waxal_sample,
     _float32_to_pcm16_bytes,
+    _normalize_loudness,
     _pcm_bytes_to_float32,
     _synthesize_speech,
     _write_wav,
@@ -82,6 +83,62 @@ def test_write_wav_non_zero_audio(tmp_path):
 
     with wave.open(path, "rb") as wf:
         assert wf.getnframes() == 8000
+
+
+# ---------------------------------------------------------------------------
+# _normalize_loudness — every served TTS output is unified to the
+# landing-page sample loudness (RMS ≈ -14 dBFS, peak ≤ -0.5 dBFS) so replies
+# are consistently loud and never clip.
+# ---------------------------------------------------------------------------
+
+
+def _rms_dbfs(pcm: bytes) -> float:
+    audio = _pcm_bytes_to_float32(pcm)
+    rms = float(np.sqrt(np.mean(audio ** 2)))
+    return 20 * np.log10(rms)
+
+
+def _peak(pcm: bytes) -> float:
+    return float(np.max(np.abs(_pcm_bytes_to_float32(pcm))))
+
+
+def test_normalize_quiet_audio_boosted_to_target():
+    """A quiet sine (amp 0.05, ~-29 dBFS) is amplified UP to ~-14 dBFS RMS."""
+    t = np.linspace(0, 1, 24000, endpoint=False, dtype=np.float32)
+    quiet = (np.sin(2 * np.pi * 220 * t) * 0.05).astype(np.float32)
+    pcm = _float32_to_pcm16_bytes(quiet)
+
+    out = _normalize_loudness(pcm)
+    # Within ~1.5 dB of the -14 dBFS target.
+    assert abs(_rms_dbfs(out) - (-14.0)) <= 1.5
+
+
+def test_normalize_hot_audio_never_clips():
+    """A full-scale sine (amp 1.0) ends peak-limited at/below the ceiling."""
+    t = np.linspace(0, 1, 24000, endpoint=False, dtype=np.float32)
+    hot = np.sin(2 * np.pi * 220 * t).astype(np.float32)
+    pcm = _float32_to_pcm16_bytes(hot)
+
+    out = _normalize_loudness(pcm)
+    # ceiling is -0.5 dBFS ≈ 0.944 linear; allow a hair of int16 rounding.
+    assert _peak(out) <= 0.945
+
+
+def test_normalize_silence_unchanged():
+    """All-zero PCM is returned unchanged — no divide-by-zero, no NaN/crash."""
+    silence = _float32_to_pcm16_bytes(np.zeros(24000, dtype=np.float32))
+    out = _normalize_loudness(silence)
+    assert out == silence
+    assert not np.any(np.isnan(_pcm_bytes_to_float32(out)))
+
+
+def test_normalize_preserves_sample_count():
+    """Round-trip preserves the number of PCM samples (same byte length)."""
+    t = np.linspace(0, 1, 18000, endpoint=False, dtype=np.float32)
+    audio = (np.sin(2 * np.pi * 300 * t) * 0.3).astype(np.float32)
+    pcm = _float32_to_pcm16_bytes(audio)
+    out = _normalize_loudness(pcm)
+    assert len(out) == len(pcm)
 
 
 # ---------------------------------------------------------------------------

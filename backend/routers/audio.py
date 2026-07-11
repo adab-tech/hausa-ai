@@ -66,6 +66,15 @@ else:
 # How many 16 kHz PCM samples to accumulate before running STT (~2 s)
 CHUNK_SAMPLES = 32_000
 
+# Loudness normalization target for ALL served TTS. Raw model output has no
+# normalization — RMS swings ~-11.5..-14.5 dBFS and peaks hit 0 dBFS
+# (full-scale, clipping risk), so replies are uneven and "not loud". These
+# unify every voice source to the landing-page sample level
+# (landing/samples/*.wav: RMS ≈ -14 dBFS, peak ≈ -0.5 dBFS). Parsed once at
+# module load, overridable per deploy without a code change.
+TTS_TARGET_RMS_DBFS = float(os.getenv("TTS_TARGET_RMS_DBFS", "-14.0"))
+TTS_PEAK_CEILING_DBFS = float(os.getenv("TTS_PEAK_CEILING_DBFS", "-0.5"))
+
 # Sovereign Constitution system instruction for voice sessions
 _VOICE_SYSTEM = """
 [IDENTITY]: Murya, a sovereign Hausa AI.
@@ -284,7 +293,63 @@ def _float32_to_pcm16_bytes(arr: np.ndarray) -> bytes:
     return (clipped * 32767).astype(np.int16).tobytes()
 
 
+def _normalize_loudness(
+    pcm: bytes,
+    target_rms_dbfs: float = TTS_TARGET_RMS_DBFS,
+    peak_ceiling_dbfs: float = TTS_PEAK_CEILING_DBFS,
+) -> bytes:
+    """Normalize 16-bit mono PCM to a unified loudness (landing-sample level).
+
+    Applies RMS gain toward target_rms_dbfs, then peak-limits so nothing
+    exceeds peak_ceiling_dbfs (the ceiling wins over the RMS target — no
+    clipping). Silent input is returned unchanged (never divide by ~0).
+    """
+    audio = _pcm_bytes_to_float32(pcm)
+    if audio.size == 0:
+        return pcm
+
+    current_rms = float(np.sqrt(np.mean(audio ** 2)))
+    # Effectively silent — leave untouched rather than amplifying noise/NaN.
+    if current_rms < 1e-4:
+        return pcm
+
+    target_rms_linear = 10 ** (target_rms_dbfs / 20.0)
+    audio = audio * (target_rms_linear / current_rms)
+
+    # Peak-limit: prevent clipping; takes priority over the RMS target.
+    ceiling_linear = 10 ** (peak_ceiling_dbfs / 20.0)
+    peak = float(np.max(np.abs(audio)))
+    if peak > ceiling_linear:
+        audio = audio * (ceiling_linear / peak)
+
+    # Final safety clip, then re-encode (also handles [-1,1] clamp).
+    audio = np.clip(audio, -1.0, 1.0)
+    return _float32_to_pcm16_bytes(audio)
+
+
 def _synthesize_speech(
+    text: str,
+    speaker_id: int = 0,
+    length_scale: float | None = None,
+    noise_scale: float | None = None,
+    noise_w: float | None = None,
+) -> bytes | None:
+    """Run VITS/Piper TTS and return raw PCM-16 LE bytes at 24 kHz, loudness-
+    normalized so every synthesis path comes out at the landing-sample level.
+
+    Delegates to _synthesize_speech_raw for the actual synthesis, then
+    normalizes the single non-None return exactly once (None passes through
+    untouched)."""
+    pcm = _synthesize_speech_raw(
+        text, speaker_id,
+        length_scale=length_scale, noise_scale=noise_scale, noise_w=noise_w,
+    )
+    if pcm:
+        return _normalize_loudness(pcm)
+    return pcm
+
+
+def _synthesize_speech_raw(
     text: str,
     speaker_id: int = 0,
     length_scale: float | None = None,

@@ -36,6 +36,7 @@ from pydantic import BaseModel, Field
 
 from routers.fallback import generate_fallback_response
 from orthography import normalize_hausa_orthography, apply_tonal_heuristics
+from services.search_service import web_search, search_enabled
 import corrections_store
 
 # In-memory response cache
@@ -92,6 +93,73 @@ NO_LIVE_ACCESS_BLOCK = """[REAL_TIME_LIMITS]:
 
 GEMINI_LIVE_ACCESS_BLOCK = """[REAL_TIME_ACCESS]:
 - You have a live web-search tool. For questions about current events, today's news, recent happenings, prices, weather, or anything time-sensitive (e.g. 'meye labari a Kaduna a yau?'), USE it and answer with what you find — do not claim you cannot access current information. Attribute concrete facts to their sources when relevant, still in dignified Hausa."""
+
+# Injected into the Cerebras/Ollama system prompt (REPLACING NO_LIVE_ACCESS_BLOCK)
+# only when a live Tavily search actually returned fresh results for a
+# time-sensitive question. {results} is filled with a compact grounding block.
+LIVE_SEARCH_BLOCK = """[REAL_TIME_RESULTS]:
+- Fresh web search results for the user's time-sensitive question are provided below. Use them to answer in dignified Hausa, and cite the source name (or site) for concrete facts. If these results do NOT actually cover what was asked, say so honestly rather than inventing an answer — do not guess dates, figures, or scores beyond what the results support.
+{results}"""
+
+
+# Time-sensitivity classifier. Deterministic keyword/regex set (Hausa + English)
+# that flags queries about current / present-day info so they trigger a live
+# search. False positives are harmless — they just run a search that may return
+# nothing. Kept intentionally simple; matched case-insensitively as substrings.
+_LIVE_SEARCH_CUES = (
+    # Hausa cues
+    "yau", "yanzu", "labari", "labarai", "farashi", "kudin", "yanayi",
+    "zabe", "zaɓe", "sakamako", "a wannan",
+    # English cues
+    "today", "now", "current", "latest", "news", "price", "weather",
+    "who is the", "this year",
+)
+# Any explicit year 2024 or later reads as a present-day / recent-events query.
+_RECENT_YEAR_RE = re.compile(r"\b(202[4-9]|20[3-9]\d)\b")
+
+
+def _needs_live_search(text: str) -> bool:
+    """True when the query looks time-sensitive / about current events."""
+    lowered = text.lower()
+    if any(cue in lowered for cue in _LIVE_SEARCH_CUES):
+        return True
+    return bool(_RECENT_YEAR_RE.search(text))
+
+
+# Cap the grounding block: ~4 results, each content trimmed, to stay within the
+# 4096-token Ollama context budget shared with the constitution and history.
+_SEARCH_MAX_RESULTS = 4
+_SEARCH_CONTENT_CHARS = 300
+
+
+def _format_search_context(results: list[dict]) -> str:
+    """Render search results into a compact bullet block for the system prompt.
+    Returns "" when there is nothing usable so callers keep default behavior."""
+    lines: list[str] = []
+    for r in results[:_SEARCH_MAX_RESULTS]:
+        title = (r.get("title") or "").strip()
+        url = (r.get("url") or "").strip()
+        content = (r.get("content") or "").strip()[:_SEARCH_CONTENT_CHARS]
+        if not (title or content):
+            continue
+        source = f"{title} ({url})" if url else title
+        lines.append(f"- {source}: {content}")
+    return "\n".join(lines)
+
+
+async def _maybe_search_context(req: "ChatRequest") -> str | None:
+    """If live search is enabled and the query is time-sensitive, run it and
+    return a formatted grounding block. Returns None to preserve default
+    (no-live-access) behavior — never raises into the request path."""
+    if not (search_enabled() and _needs_live_search(req.text)):
+        return None
+    try:
+        results = await web_search(req.text, max_results=_SEARCH_MAX_RESULTS)
+    except Exception as err:  # web_search already swallows, this is belt-and-braces
+        print(f"[Murya] Live search errored ({type(err).__name__}: {err}); continuing without grounding.")
+        return None
+    context = _format_search_context(results)
+    return context or None
 
 # Defaults
 DEFAULT_MODEL = os.getenv("OLLAMA_MODEL", "aya-expanse:8b")
@@ -191,10 +259,18 @@ def _calculate_cultural_confidence(text: str) -> bool:
     return score > 70
 
 
-def _build_messages(req: ChatRequest) -> list[dict[str, Any]]:
-    # Cerebras/Ollama consume these messages — neither has a search tool, so
-    # the honest NO_LIVE_ACCESS_BLOCK is appended (see its comment above).
-    system_content = f"{SOVEREIGN_CONSTITUTION}\n{NO_LIVE_ACCESS_BLOCK}\nVibe: {req.vibe}\n[ADDRESSEE_GENDER]: {req.addresseeGender}\n{req.memoryPrompt}\n{corrections_store.get_approved_corrections_prompt()}"
+def _build_messages(req: ChatRequest, search_context: str | None = None) -> list[dict[str, Any]]:
+    # Cerebras/Ollama consume these messages — neither has a live search tool of
+    # its own, so by default the honest NO_LIVE_ACCESS_BLOCK is appended (see its
+    # comment above). When the async caller has already run a live Tavily search
+    # and passes the grounding block as `search_context`, that REPLACES the
+    # no-access block so the model answers from the fresh results instead.
+    live_block = (
+        LIVE_SEARCH_BLOCK.format(results=search_context)
+        if search_context
+        else NO_LIVE_ACCESS_BLOCK
+    )
+    system_content = f"{SOVEREIGN_CONSTITUTION}\n{live_block}\nVibe: {req.vibe}\n[ADDRESSEE_GENDER]: {req.addresseeGender}\n{req.memoryPrompt}\n{corrections_store.get_approved_corrections_prompt()}"
     messages: list[dict[str, Any]] = [{"role": "system", "content": system_content}]
 
     # Keep last 6 turns (context slicing — same as original)
@@ -435,7 +511,14 @@ async def chat_endpoint(request: Request, req: ChatRequest):
     # derived from text/history/vibe/gender only, so a cached reply describing
     # one user's uploaded image could otherwise be replayed to a different
     # user who sent the same caption text with a different (or no) image.
-    cacheable = not req.attachments
+    #
+    # Time-sensitive questions are also never cached — neither served from
+    # cache nor written to it. "Meye labari yau?" answered at 9am must not be
+    # replayed (stale) at 3pm, and a live-search-grounded reply is only valid
+    # for the moment it was fetched. This gates both the read below and the
+    # write in generate(), so it must match _needs_live_search (the same
+    # predicate that decides whether to fetch fresh results).
+    cacheable = not req.attachments and not _needs_live_search(req.text)
 
     # Check cache hit
     if cacheable and cache_key in _CHAT_CACHE:
@@ -460,7 +543,12 @@ async def chat_endpoint(request: Request, req: ChatRequest):
         else:
             del _CHAT_CACHE[cache_key]
 
-    messages = _build_messages(req)
+    # Live web grounding for the primary Cerebras/Ollama path: on a cache miss,
+    # if a Tavily key is configured and the question is time-sensitive, fetch
+    # fresh results and inject them into the system prompt (replacing the
+    # no-live-access block). Gracefully no-ops to normal behavior otherwise.
+    search_context = await _maybe_search_context(req)
+    messages = _build_messages(req, search_context=search_context)
 
     async def generate():
         # Heartbeat: emit a keepalive comment immediately

@@ -335,6 +335,32 @@ async def test_chat_with_attachments_not_cached(client):
 
 
 @pytest.mark.anyio
+async def test_chat_time_sensitive_query_not_cached(client):
+    """A time-sensitive question (news/today/prices…) must never be served
+    from or written to the cache — a stale 'today's news' reply replayed an
+    hour later is wrong, and a live-search-grounded answer is only valid at
+    fetch time. Same predicate that gates whether live search runs."""
+    from routers.chat import _CHAT_CACHE
+    _CHAT_CACHE.clear()
+
+    mock_client = AsyncMock()
+    mock_client.chat = AsyncMock(side_effect=_fake_ollama_chat)
+
+    with patch("routers.chat.ollama.AsyncClient", return_value=mock_client):
+        for _ in range(2):
+            response = await client.post(
+                "/api/chat",
+                json={"text": "Meye labari a Kano yau?"},
+            )
+            assert response.status_code == 200
+            _iter_sse(response.content)
+
+    # Both time-sensitive requests must reach the model; nothing cached.
+    assert mock_client.chat.call_count == 2
+    assert _CHAT_CACHE == {}
+
+
+@pytest.mark.anyio
 async def test_chat_warmup(client):
     """If the LLM takes > 2 seconds to respond, a warmup heartbeat is emitted."""
     import asyncio
@@ -371,4 +397,103 @@ def test_constitution_permits_code_switching():
 
     assert "[CODE_SWITCHING]" in SOVEREIGN_CONSTITUTION
     assert "ilimin halittu (Biology)" in SOVEREIGN_CONSTITUTION
+
+
+# ---------------------------------------------------------------------------
+# Live web search grounding
+# ---------------------------------------------------------------------------
+
+
+def test_needs_live_search_flags_time_sensitive():
+    """Present-day / current-events queries (Hausa + English) are flagged."""
+    from routers.chat import _needs_live_search
+
+    assert _needs_live_search("Meye labari a Kano yau?") is True
+    assert _needs_live_search("what is the price of fuel today") is True
+    assert _needs_live_search("Sakamakon zabe na 2027") is True  # 4-digit recent year
+
+
+def test_needs_live_search_ignores_historical():
+    """Historical questions with no time cue are NOT flagged."""
+    from routers.chat import _needs_live_search
+
+    assert _needs_live_search("Wane ne Usman dan Fodio?") is False
+    assert _needs_live_search("Ka gaya mini tarihin garin Kano") is False
+
+
+@pytest.mark.anyio
+async def test_chat_injects_search_grounding(client, monkeypatch):
+    """With a Tavily key set and a time-sensitive query, the fresh search
+    results are injected into the system message the model receives."""
+    from routers.chat import _CHAT_CACHE
+    _CHAT_CACHE.clear()
+    monkeypatch.setenv("TAVILY_API_KEY", "fake-tavily-key")
+    monkeypatch.setenv("CEREBRAS_API_KEY", "fake-key")
+
+    async def _fake_web_search(query, max_results=4):
+        return [
+            {
+                "title": "Kano Daily",
+                "url": "https://example.com/kano",
+                "content": "GROUNDED_FACT_TOKEN happened in Kano today.",
+            }
+        ]
+
+    captured = {}
+
+    async def _fake_stream_cerebras(messages, *_args, **_kwargs):
+        captured["messages"] = messages
+        yield "An amsa."
+
+    mock_client = AsyncMock()
+    mock_client.chat = AsyncMock(side_effect=Exception("ollama not used"))
+
+    with patch("routers.chat.web_search", _fake_web_search), \
+         patch("routers.chat.stream_cerebras", _fake_stream_cerebras), \
+         patch("routers.chat.ollama.AsyncClient", return_value=mock_client):
+        response = await client.post("/api/chat", json={"text": "Meye labari a Kano yau?"})
+
+    assert response.status_code == 200
+    system_msg = next(m for m in captured["messages"] if m["role"] == "system")
+    assert "GROUNDED_FACT_TOKEN" in system_msg["content"]
+    assert "[REAL_TIME_RESULTS]" in system_msg["content"]
+    # The no-access block must have been replaced.
+    assert "[REAL_TIME_LIMITS]" not in system_msg["content"]
+
+
+@pytest.mark.anyio
+async def test_chat_no_search_without_key(client, monkeypatch):
+    """With no Tavily key, behavior is unchanged: the honest no-live-access
+    block is present and web_search is never invoked."""
+    from routers.chat import _CHAT_CACHE
+    _CHAT_CACHE.clear()
+    monkeypatch.delenv("TAVILY_API_KEY", raising=False)
+    monkeypatch.delenv("TAVILY_SEARCH_API_KEY", raising=False)
+    monkeypatch.setenv("CEREBRAS_API_KEY", "fake-key")
+
+    search_called = {"hit": False}
+
+    async def _fake_web_search(query, max_results=4):
+        search_called["hit"] = True
+        return []
+
+    captured = {}
+
+    async def _fake_stream_cerebras(messages, *_args, **_kwargs):
+        captured["messages"] = messages
+        yield "An amsa."
+
+    mock_client = AsyncMock()
+    mock_client.chat = AsyncMock(side_effect=Exception("ollama not used"))
+
+    with patch("routers.chat.web_search", _fake_web_search), \
+         patch("routers.chat.stream_cerebras", _fake_stream_cerebras), \
+         patch("routers.chat.ollama.AsyncClient", return_value=mock_client):
+        response = await client.post("/api/chat", json={"text": "Meye labari a Kano yau?"})
+
+    assert response.status_code == 200
+    assert search_called["hit"] is False
+    system_msg = next(m for m in captured["messages"] if m["role"] == "system")
+    assert "[REAL_TIME_LIMITS]" in system_msg["content"]
+    assert "[REAL_TIME_RESULTS]" not in system_msg["content"]
 
