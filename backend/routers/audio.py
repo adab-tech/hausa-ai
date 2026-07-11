@@ -291,17 +291,13 @@ def _synthesize_speech(
     noise_w: float | None = None,
 ) -> bytes | None:
     """Run VITS/Piper TTS and return raw PCM-16 LE bytes at 24 kHz."""
-    # Normalize ASCII hooked-consonant notation (b' -> ɓ, k' -> ƙ, etc.)
-    # before synthesis. LLM output sometimes types these as apostrophe
-    # fallbacks instead of proper Unicode; the phoneme map has no entry
-    # linking "b'" to ɓ, so unnormalized text was being mispronounced as
-    # plain b/d/k/y instead of the correct implosive/ejective consonant.
-    # Then spell Arabic numerals as Hausa words — the phoneme map has NO
-    # digit glyphs, so "2026" would otherwise be silently dropped and
-    # produce no audio. Done here (not just by callers) so every synthesis
-    # path — /api/tts, the live WebSocket, and any future caller — gets it.
-    from orthography import normalize_hausa_orthography, spell_out_hausa_numbers
-    text = spell_out_hausa_numbers(normalize_hausa_orthography(text))
+    # Full TTS text-normalization pipeline (hooked consonants, numbers,
+    # currency ₦/$/€/£, percent, markdown/control symbols, separator
+    # repair — see orthography.prepare_text_for_tts for the failure modes
+    # each stage prevents). Done here (not just by callers) so every
+    # synthesis path — /api/tts, live WebSocket, future callers — gets it.
+    from orthography import prepare_text_for_tts
+    text = prepare_text_for_tts(text)
 
     # 1. Try WAXAL voice bank if speaker_id is explicitly selected
     if speaker_id is not None:

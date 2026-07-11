@@ -1,6 +1,7 @@
 from orthography import (
     hausa_cardinal,
     normalize_hausa_orthography,
+    prepare_text_for_tts,
     spell_out_hausa_numbers,
 )
 
@@ -58,3 +59,52 @@ def test_spell_out_in_sentence():
 
 def test_spell_out_leaves_plain_text_untouched():
     assert spell_out_hausa_numbers("Barka da zuwa") == "Barka da zuwa"
+
+
+# ---------------------------------------------------------------------------
+# prepare_text_for_tts — the full synthesis-input pipeline. Each case guards
+# a real failure mode of the 42-symbol phoneme map (silent drops, word
+# gluing, and '$'/'^'/'_' doubling as tokenizer control symbols).
+# ---------------------------------------------------------------------------
+def test_tts_prep_naira():
+    assert prepare_text_for_tts("Kudin ya kai ₦500") == "Kudin ya kai naira ɗari biyar"
+
+
+def test_tts_prep_dollar_never_reaches_tokenizer():
+    # '$' is the phoneme map's EOS control symbol — it must be converted,
+    # never passed through.
+    out = prepare_text_for_tts("Farashin $20 ne")
+    assert "$" not in out
+    assert out == "Farashin dala ashirin ne"
+
+
+def test_tts_prep_percent():
+    assert prepare_text_for_tts("kashi 50% na mutane") == "kashi hamsin cikin ɗari na mutane"
+
+
+def test_tts_prep_slash_gendered_alternatives():
+    # 'maka/miki' must not glue into 'makamiki' once '/' is dropped.
+    assert prepare_text_for_tts("zan taimaka maka/miki") == "zan taimaka maka ko miki"
+
+
+def test_tts_prep_newlines_do_not_glue_words():
+    out = prepare_text_for_tts("Babban taken\nabu na farko")
+    assert "takenabu" not in out
+    assert "taken abu" in out
+
+
+def test_tts_prep_markdown_stripped_with_spacing():
+    out = prepare_text_for_tts("**Muhimmi**: ga jerin abubuwa")
+    assert "*" not in out
+    assert out == "Muhimmi : ga jerin abubuwa" or out == "Muhimmi: ga jerin abubuwa"
+
+
+def test_tts_prep_control_symbols_removed():
+    out = prepare_text_for_tts("wannan _kalma_ da ^alama da $")
+    for ch in ("_", "^", "$"):
+        assert ch not in out
+
+
+def test_tts_prep_combined_hooked_and_numbers():
+    # Hooked-consonant normalization still runs inside the pipeline.
+    assert prepare_text_for_tts("k'asa 2") == "ƙasa biyu"

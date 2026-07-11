@@ -155,6 +155,66 @@ def spell_out_hausa_numbers(text: str) -> str:
     )
 
 
+# Currency symbols -> Hausa words. Currency-first is natural Hausa word
+# order ("naira dubu goma" = ten thousand naira), and the symbols usually
+# precede the digits in written text, so a plain global replacement lands
+# the word in the right place: '₦500' -> 'naira 500' -> 'naira ɗari biyar'.
+_CURRENCY_WORDS = {
+    "₦": " naira ",
+    "$": " dala ",
+    "€": " yuro ",
+    "£": " fam ",
+}
+
+
+def prepare_text_for_tts(text: str) -> str:
+    """Full text-normalization pipeline for speech synthesis.
+
+    The trained voice's phoneme map is 42 symbols; everything else is
+    silently skipped by the tokenizer, which has two failure modes worth
+    engineering around:
+      - meaning loss: ₦/%/digits vanish ("₦500" said as just "ɗari biyar");
+      - word gluing: dropped separators (newline, '/') concatenate the
+        words around them ("maka/miki" -> "makamiki", mispronounced).
+    Worse, '$', '^' and '_' ARE in the map — as the EOS/BOS/pad control
+    symbols — so a literal dollar sign in LLM output injects an
+    end-of-sequence token mid-speech.
+
+    Order matters: hooked consonants first (they may precede numbers),
+    currency before number spelling (so the amount is still digits when the
+    currency word is placed), percent before number spelling for the same
+    reason, then numbers, then separator repair, then whitespace collapse.
+    """
+    text = normalize_hausa_orthography(text)
+
+    # Currency symbols -> Hausa words (also removes '$' before it can be
+    # read as the tokenizer's EOS control symbol).
+    for sym, word in _CURRENCY_WORDS.items():
+        text = text.replace(sym, word)
+
+    # '50%' / '50 %' -> '50 cikin ɗari' ("in a hundred" — standard Hausa
+    # percentage phrasing; text that already says 'kashi 50%' becomes the
+    # canonical 'kashi 50 cikin ɗari'). A '%' not after a digit is just
+    # dropped later, which is fine.
+    text = re.sub(r"(?<=\d)\s*%", " cikin ɗari", text)
+
+    text = spell_out_hausa_numbers(text)
+
+    # Separators the phoneme map would drop, gluing adjacent words:
+    # 'maka/miki' -> 'maka ko miki' ("or" — this app's own replies use the
+    # slash constantly for gendered alternatives); '@' -> ' a ' (as read
+    # aloud in addresses); newlines/tabs become spaces via \s+ below.
+    text = re.sub(r"(?<=\w)/(?=\w)", " ko ", text)
+    text = text.replace("@", " a ")
+
+    # Markdown/formatting and control symbols -> space (NOT deleted — a
+    # deleted separator glues words). Keep the apostrophe: it's meaningful
+    # Hausa orthography (a'a, ɗan'uwa).
+    text = re.sub(r"[*#_^~|<>\[\]{}()\"“”„]", " ", text)
+
+    return re.sub(r"\s+", " ", text).strip()
+
+
 def segment_word_syllables(word: str) -> list[tuple[str, str]]:
     """
     Segments a Hausa word into a list of (syllable_text, weight) tuples.

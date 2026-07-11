@@ -478,12 +478,12 @@ async def chat_endpoint(request: Request, req: ChatRequest):
                         )
                     except StopAsyncIteration:
                         first_part = None
-                    except asyncio.TimeoutError:
+                    except asyncio.TimeoutError as timeout_err:
                         if hasattr(aiter, "aclose"):
                             await aiter.aclose()
                         raise RuntimeError(
                             f"Ollama exceeded {_OLLAMA_FIRST_TOKEN_TIMEOUT}s time-to-first-token"
-                        )
+                        ) from timeout_err
 
                     if first_part is not None:
                         await queue.put(first_part["message"]["content"])

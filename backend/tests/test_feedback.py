@@ -61,7 +61,7 @@ async def test_feedback_attributes_contributor_id(client, _isolated_feedback_fil
     )
     assert resp.status_code == 200
 
-    lines = [l for l in _isolated_feedback_file.read_text(encoding="utf-8").splitlines() if l.strip()]
+    lines = [ln for ln in _isolated_feedback_file.read_text(encoding="utf-8").splitlines() if ln.strip()]
     entry = json.loads(lines[-1])
     assert entry["contributorId"] == cid
 
@@ -73,7 +73,7 @@ async def test_feedback_without_contributor_id_is_null(client, _isolated_feedbac
 
     resp = await client.post("/api/feedback", json={"messageId": "m2", "type": "down", "text": "x"})
     assert resp.status_code == 200
-    lines = [l for l in _isolated_feedback_file.read_text(encoding="utf-8").splitlines() if l.strip()]
+    lines = [ln for ln in _isolated_feedback_file.read_text(encoding="utf-8").splitlines() if ln.strip()]
     entry = json.loads(lines[-1])
     assert entry["contributorId"] is None
 
