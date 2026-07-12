@@ -19,7 +19,6 @@ call is safe under that model. This does not coordinate across multiple
 machines/workers; don't scale out without revisiting this.
 """
 
-import logging
 import os
 import secrets
 import sqlite3
@@ -28,8 +27,6 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import bcrypt
-
-logger = logging.getLogger("murya.admin")
 
 _DATA_DIR = Path(os.getenv("FEEDBACK_DATA_DIR", Path(__file__).resolve().parent / "data"))
 _DB_PATH = _DATA_DIR / "admin.db"
@@ -111,11 +108,14 @@ def init_db() -> None:
             action = "password-updated"
         else:
             action = "unchanged"
-        # Diagnostic only — NEVER logs the password itself.
+        # Diagnostic only — NEVER logs the password itself, only its LENGTH.
+        # print() (not logger) so it reaches stdout: uvicorn doesn't wire up
+        # arbitrary loggers, so a logger.info here was silently dropped.
         all_usernames = [r["username"] for r in conn.execute("SELECT username FROM admins")]
-        logger.info(
-            "[admin] sync: username=%r action=%s reviewer_key_len=%d all_admins=%r",
-            ADMIN_USERNAME, action, len(secret), all_usernames,
+        print(
+            f"[admin] sync: username={ADMIN_USERNAME!r} action={action} "
+            f"reviewer_key_len={len(secret)} all_admins={all_usernames!r}",
+            flush=True,
         )
 
 
