@@ -33,8 +33,9 @@ from slowapi import _rate_limit_exceeded_handler
 
 from auth import verify_api_key, verify_admin_session
 from rate_limit import limiter
-from routers import admin_auth, audio, chat, feedback, image, waxal
+from routers import admin_auth, analytics, audio, chat, feedback, image, waxal
 import admin_store
+import analytics_store
 
 
 def _validate_runtime_config() -> None:
@@ -100,6 +101,9 @@ from contextlib import asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup: create/seed the admin accounts + sessions DB (see admin_store.py)
     admin_store.init_db()
+
+    # Startup: create the visitor-analytics DB (see analytics_store.py)
+    analytics_store.init_db()
 
     # Startup: Pre-load STT and TTS models to avoid cold-start latency
     import logging
@@ -174,6 +178,10 @@ app.include_router(audio.router, prefix="/api")
 app.include_router(waxal.router, prefix="/api", dependencies=[Depends(verify_admin_session)])
 app.include_router(feedback.router, prefix="/api", dependencies=_auth)
 app.include_router(admin_auth.router, prefix="/api")
+# analytics.router: the /analytics/visit beacon is PUBLIC by design (fired on
+# every page load), so it is NOT placed behind the optional API-key _auth
+# dependency; /admin/analytics self-gates via verify_admin_session.
+app.include_router(analytics.router, prefix="/api")
 
 
 @app.get("/health")

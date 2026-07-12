@@ -3,6 +3,20 @@
 All notable changes to the backend and frontend. Newest first. Dates are the
 day the change went live in production (Fly.io backend / Vercel `app.murya.ng`).
 
+## 2026-07-12 (later)
+
+### Added — Admin visitor analytics (Ziyara)
+- Privacy-preserving analytics in the admin dashboard: total visits, unique
+  devices (today / 7d / all-time), a 14-day daily-visits chart, geography **by
+  browser timezone** (no IP stored, no geoip dependency), and browser-language
+  breakdown. `backend/analytics_store.py`, `backend/routers/analytics.py`
+  (`POST /api/analytics/visit` public beacon + admin-gated
+  `GET /api/admin/analytics`), and the **Ziyara** tab in `NeuralReview`.
+  Uniqueness uses the existing anonymous `X-Contributor-Id` device token.
+- `docs/capacity_and_cost.md` — capacity/token estimates (text scales via
+  Cerebras; voice is the CPU-bound limiter on the single box; ~2.7k–3.8k tokens
+  per exchange; the ~1,600-token system prompt is the main cost lever).
+
 ## 2026-07-12
 
 ### Added — LLM tools & knowledge

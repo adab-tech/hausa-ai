@@ -399,6 +399,37 @@ class LocalService {
     }
   }
 
+  // ── Visitor analytics (privacy-preserving: no IP; geography by browser
+  // timezone; uniqueness by the anonymous contributor id) ───────────────────
+  async recordVisit(): Promise<void> {
+    try {
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+      await fetch(`${BACKEND_URL}/api/analytics/visit`, {
+        method: "POST",
+        headers: withContributor({ "Content-Type": "application/json" }),
+        body: JSON.stringify({
+          timezone,
+          lang: navigator.language || "",
+          path: typeof location !== "undefined" ? location.pathname : "/",
+        }),
+        keepalive: true,
+      });
+    } catch {
+      // Analytics must never affect the user experience.
+    }
+  }
+
+  async getAnalytics(): Promise<any | null> {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/admin/analytics`, { credentials: "include" });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch (err) {
+      console.error("Failed to fetch analytics:", err);
+      return null;
+    }
+  }
+
   // ── Admin session (cookie-based; see backend/admin_store.py) ──────────────
   async adminLogin(username: string, password: string): Promise<{ ok: true; username: string } | { ok: false; error: string }> {
     try {

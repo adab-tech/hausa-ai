@@ -120,6 +120,10 @@ const App: React.FC = () => {
 
   useEffect(() => scrollToBottom(), [messages, isLoading]);
 
+  // Record one privacy-preserving visit per app load (no IP; geography by
+  // browser timezone, uniqueness by the anonymous contributor id). Fire once.
+  useEffect(() => { gemini.recordVisit(); }, []);
+
   const handleSendMessage = async () => {
     if (!inputText.trim() && attachments.length === 0) return;
 
