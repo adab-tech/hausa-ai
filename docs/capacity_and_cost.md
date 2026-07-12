@@ -5,13 +5,18 @@ are planning figures, not benchmarks — real limits need load testing. The new
 **Ziyara** analytics tab in the admin dashboard gives you actual visitors/day
 to plan against._
 
-> **Cost status (2026-07): not a constraint.** The current Cerebras tier covers
-> more than enough tokens/day for present traffic at no cost. So token *volume*
-> and *price* are NOT the ceiling right now — the operative limits are the
-> single CPU box (voice) and the lack of a second machine (see Bottlenecks).
-> One thing to still check on the Cerebras plan: the **per-minute** rate limits
-> (requests/min, tokens/min) — those cap simultaneous/burst users even when the
-> daily token allowance is generous.
+> **Cost status (2026-07): free, and the allowance is huge.** Confirmed
+> Cerebras limits for `gemma-4-31b` (our primary), at no cost:
+>
+> | | per minute | per day |
+> |---|---|---|
+> | Requests | 500 | 720,000 |
+> | Tokens | 500,000 | **720,000,000** |
+>
+> Context length: **131,072 tokens** (so the ~1,600-token system prompt is
+> trivial here — no need to trim it for Cerebras). A bigger `gpt-oss-120b`
+> (Production tier) is also available with ~2× the limits (1,000 req/min,
+> 1M tok/min, **2,000,000,000 tokens/day**) if ever needed.
 
 ## Current production shape
 - **1× Fly.io machine**, `performance-2x` (2 vCPU, 8 GB), region `jnb`
@@ -26,13 +31,18 @@ to plan against._
 
 ## The two very different ceilings
 
-### Text chat — scales well (offloaded to Cerebras)
-The Fly box only proxies the token stream; generation is Cerebras'. So text is
-I/O-bound and light on the box. The limiter is **Cerebras throughput / your
-plan's token quota**, not the machine.
-- **Estimate: a few thousand → ~10k+ text chat exchanges/day** on the current
-  single box, bounded mainly by the Cerebras tier. Concurrency of hundreds of
-  simultaneous text streams is plausible before the box strains.
+### Text chat — effectively unconstrained by Cerebras
+The Fly box only proxies the token stream; generation is Cerebras'. With the
+real limits above (720M tokens/day, 720k requests/day) and ~3k–3.8k tokens per
+exchange:
+- **Daily ceiling ≈ 190,000–240,000 chat exchanges/day** (token-limited; the
+  720k requests/day is looser). At ~5 exchanges/visitor that's on the order of
+  **~40,000 visitors/day** from Cerebras alone.
+- **Burst ceiling ≈ 130–165 exchanges/minute** (500k tokens/min ÷ ~3k–3.8k;
+  the 500 requests/min is looser). This is the real cap on *simultaneous*
+  text users.
+- In practice the single Fly box's async proxying and the per-minute burst,
+  not the daily token budget, are what you'd hit first for text.
 
 ### Voice — scales poorly on one CPU box
 Each spoken reply is a VITS synthesis (~1–3 s CPU) and each ~2 s of mic audio is
@@ -60,19 +70,19 @@ Check your Cerebras dashboard for the plan's included tokens/minute and /day and
 price per million tokens to turn this into a naira/dollar figure.
 
 ## Bottlenecks, ranked
-_(Tokens/cost are NOT here — the Cerebras tier covers them for free at this
-stage. These are the limits that actually bite.)_
-1. **Voice on a single CPU box** — worst-scaling. Fix when voice traffic grows:
-   add Fly machines (autoscale) or move TTS/STT to a dedicated (ideally GPU)
+_(Tokens/cost are NOT here — 720M free tokens/day is far beyond current need.
+These are the limits that actually bite, in order.)_
+1. **Voice on a single CPU box** — worst-scaling by far. Text rides on Cerebras
+   (~40k visitors/day headroom); voice runs locally on 2 vCPUs (~1 comfortable
+   concurrent session). Fix when voice grows: add Fly machines / a GPU voice
    worker.
 2. **Single machine = single point of failure** — one machine down is a full
-   outage. Add a second machine before real traffic.
-3. **Cerebras per-minute rate limits** — even on a generous/free daily
-   allowance, requests/min and tokens/min cap how many users can be served
-   *simultaneously*. Check the plan's burst limits.
-4. **System-prompt size (~1,600 tokens every request)** — not a cost issue
-   while tokens are free, but it does add latency and eat into per-minute token
-   limits; trimming/caching it helps burst capacity.
+   outage. A second machine is the highest-value upgrade before real traffic.
+3. **Cerebras per-minute burst (500k tokens/min ≈ 130–165 exchanges/min)** —
+   the daily budget is huge, but this caps *simultaneous* text users. Bump to
+   `gpt-oss-120b` (1M tokens/min) if burst ever becomes the wall.
+4. **System-prompt size (~1,600 tokens)** — negligible now (131k context, free
+   tokens); only a minor latency/burst factor. Not worth trimming yet.
 
 ## Recommended next steps as traffic grows
 - **Now / low traffic**: current setup is fine. Watch the **Ziyara** tab for
