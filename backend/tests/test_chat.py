@@ -407,6 +407,63 @@ def test_constitution_declares_capabilities():
     assert "[CAPABILITIES]" in SOVEREIGN_CONSTITUTION
 
 
+# ---------------------------------------------------------------------------
+# Local knowledge tools — calculator / prayer / dictionary grounding
+# ---------------------------------------------------------------------------
+def test_tools_context_calculator():
+    """An arithmetic question yields an exact CALCULATION grounding block."""
+    from routers.chat import _tools_context
+
+    ctx = _tools_context("Menene 45 * 12?")
+    assert ctx is not None and "CALCULATION" in ctx and "540" in ctx
+
+
+def test_tools_context_percentage_of():
+    """Percent-of ('15% na 2000' = 300) is handled in Hausa and English."""
+    from routers.chat import _tools_context
+
+    ctx = _tools_context("Menene 15% na 2000?")
+    assert ctx is not None and "300" in ctx
+
+
+def test_tools_context_prayer():
+    """A Salla question yields a PRAYER TIMES block for the named city."""
+    from routers.chat import _tools_context
+
+    ctx = _tools_context("Menene lokutan salla a Kano?")
+    assert ctx is not None and "PRAYER TIMES" in ctx and "Kano" in ctx
+
+
+def test_tools_context_none_for_plain_chat():
+    """Ordinary conversation triggers no tool grounding."""
+    from routers.chat import _tools_context
+
+    assert _tools_context("Barka da yamma, yaya gida?") is None
+
+
+@pytest.mark.anyio
+async def test_calculator_grounding_reaches_model(client):
+    """The exact calculation must land in the system prompt the model sees."""
+    from routers.chat import _CHAT_CACHE
+    _CHAT_CACHE.clear()
+
+    captured = {}
+
+    async def _capture(*args, **kwargs):
+        captured["messages"] = kwargs.get("messages") or (args[0] if args else None)
+        async def _gen():
+            yield {"message": {"content": "Amsar ita ce 540."}}
+        return _gen()
+
+    mock_client = AsyncMock()
+    mock_client.chat = AsyncMock(side_effect=_capture)
+    with patch("routers.chat.ollama.AsyncClient", return_value=mock_client):
+        await client.post("/api/chat", json={"text": "menene 45 * 12?"})
+
+    system_msg = next(m for m in captured["messages"] if m["role"] == "system")
+    assert "CALCULATION" in system_msg["content"] and "540" in system_msg["content"]
+
+
 def test_current_time_context_has_utc_and_world_anchors():
     """The datetime block must carry the UTC anchor, Nigeria/WAT, and the
     precomputed world anchors (so world timezones are read, not miscomputed
