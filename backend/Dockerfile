@@ -57,6 +57,11 @@ COPY backend/ ./
 COPY models/piper_hausa_waxal/model.onnx models/piper_hausa_waxal/model.onnx.json /app/models/piper_hausa_waxal/
 ENV VITS_MODEL_DIR=/app/models/piper_hausa_waxal
 
+# Bake in the Robinson (1914) EN-HA lexicon so the dictionary/translation tool
+# works in the container (dictionary_service checks DICTIONARY_PATH first).
+COPY data/processed/robinson/en_ha_pairs.jsonl /app/data/robinson/en_ha_pairs.jsonl
+ENV DICTIONARY_PATH=/app/data/robinson/en_ha_pairs.jsonl
+
 # Copy compiled frontend from Stage 1 into the backend container
 COPY --from=frontend-builder /build/dist ./dist
 

@@ -37,6 +37,7 @@ from pydantic import BaseModel, Field
 from routers.fallback import generate_fallback_response
 from orthography import normalize_hausa_orthography, apply_tonal_heuristics
 from services.search_service import web_search, search_enabled
+from services import calc_service, prayer_service, dictionary_service
 import corrections_store
 
 # In-memory response cache
@@ -78,7 +79,9 @@ SOVEREIGN_CONSTITUTION = """
 - When asked about Islamic scholarship: reference the Sokoto Caliphate (1804), Usman dan Fodio, the malamai tradition, and Qur'anic schools (makarantar allo).
 - Respond INTELLIGENTLY and CONTEXTUALLY. Never give generic, template-like answers.
 [CAPABILITIES]:
-- You are a full multimodal Hausa assistant. You can: converse in text; understand images the user attaches; speak replies aloud and listen to the user's voice in live voice mode (in several distinct male and female Hausa voices); generate an image or short video when explicitly asked (via the manifest tag below); search the live web for current information; code-switch technical terms; and you know the current date and time (given below). Describe these abilities truthfully and helpfully when asked what you can do ('me kake iyawa', 'yaya nake amfani da kai') — and NEVER claim an ability you do not have.
+- You are a full multimodal Hausa assistant. You can: converse in text; understand images the user attaches; speak replies aloud and listen to the user's voice in live voice mode (in several distinct male and female Hausa voices); generate an image or short video when explicitly asked (via the manifest tag below); search the live web for current information; do exact arithmetic; give Islamic prayer times (Salla) for Nigerian cities; define/translate Hausa and English words from the Robinson (1914) dictionary; translate between Hausa and English; code-switch technical terms; and you know the current date and time (given below). Describe these abilities truthfully and helpfully when asked what you can do ('me kake iyawa', 'yaya nake amfani da kai') — and NEVER claim an ability you do not have.
+[TRANSLATION]:
+- When the user asks you to translate a word or phrase between Hausa and English, give the translation clearly and directly first (you may keep the courteous greeting brief). If a [LOCAL_TOOL_RESULTS] dictionary entry is provided below, prefer and cite it (Robinson 1914) for single words; for phrases and sentences, translate faithfully yourself in natural, standard language.
 [MANIFEST_SIGNAL]:
 - ONLY when the user explicitly asks you to draw, generate, or show an image/picture/photo ('hoto', 'zana mini', 'draw', 'image', 'picture') or a video ('bidiyo', 'video'), end your reply with the tag: [MANIFEST: IMAGE|PROMPT] or [MANIFEST: VIDEO|PROMPT], where PROMPT is a short English visual description.
 - If the user did NOT ask for an image or video, never mention, describe, or caption an imaginary photo/video — you have no way to actually show one without the tag, and describing one you didn't generate misleads the user.
@@ -207,6 +210,110 @@ async def _maybe_search_context(req: "ChatRequest") -> str | None:
     context = _format_search_context(results)
     return context or None
 
+
+# ---------------------------------------------------------------------------
+# Local knowledge tools — exact, offline grounding (no network). Each is a
+# server-computed source of truth the LLM must PRESENT (in dignified Hausa)
+# rather than compute itself: arithmetic, prayer times, and Robinson-lexicon
+# definitions. Same grounding pattern as live search, but synchronous.
+# ---------------------------------------------------------------------------
+_TOOLS_BLOCK_HEADER = (
+    "[LOCAL_TOOL_RESULTS]:\n"
+    "- These are EXACT results from Murya's own tools (calculator, prayer-time "
+    "engine, Robinson 1914 dictionary). Use the values verbatim — do not "
+    "recompute or second-guess them — and present them naturally in dignified "
+    "Hausa. For definitions, you may name the source (Robinson 1914)."
+)
+
+# Grab the longest arithmetic-looking run from a natural-language question.
+_MATH_TOKEN_RE = re.compile(
+    r"(?:\d[\d.]*|[-+*/%()]|\*\*|\s|sqrt|cbrt|factorial|abs|round|floor|ceil|"
+    r"exp|log10|log2|log|sin|cos|tan|pi|hypot|gcd|min|max)+",
+    re.IGNORECASE,
+)
+_DEFINE_RE = re.compile(
+    r"(?:ma'?anar|mene ne kalmar|menene kalmar|fassara|define|translate|"
+    r"meaning of|what does)\s+[\"']?([\wɓɗƙƴ']+)",
+    re.IGNORECASE,
+)
+_PRAYER_RE = re.compile(
+    r"\b(?:sallah?|salla|prayer times?|lokutan? salla|lokacin salla|adhan|"
+    r"azahar|azalla|la'?asar|magariba|magrib|isha'?i?|subah?|asuba|fajr|"
+    r"ƙarfe salla)\b",
+    re.IGNORECASE,
+)
+
+
+def _extract_expression(text: str) -> str | None:
+    """Longest arithmetic substring from `text`, normalized for calc_service."""
+    t = text.replace("×", "*").replace("÷", "/").replace(",", "")
+    # Percentage-of, in Hausa and English: "15% na 2000" / "15% of 2000" /
+    # "kashi 15 na 2000" -> "(15/100)*2000". Done before the '^'->'**' and the
+    # token scan so the percent becomes clean arithmetic (a bare '%' elsewhere
+    # is left as modulo, which calc_service handles).
+    t = re.sub(r"(\d+(?:\.\d+)?)\s*%\s*(?:na|of)\s+(\d+(?:\.\d+)?)", r"(\1/100)*\2", t, flags=re.IGNORECASE)
+    t = re.sub(r"kashi\s+(\d+(?:\.\d+)?)\s*%?\s*(?:na|daga|of)\s+(\d+(?:\.\d+)?)", r"(\1/100)*\2", t, flags=re.IGNORECASE)
+    t = t.replace("^", "**")
+    best = ""
+    for m in _MATH_TOKEN_RE.finditer(t):
+        cand = m.group(0).strip()
+        if any(c.isdigit() for c in cand) and len(cand) > len(best):
+            best = cand
+    return best or None
+
+
+def _extract_city(text: str) -> str | None:
+    lowered = text.lower()
+    for city in prayer_service.list_cities():
+        if city.lower() in lowered:
+            return city
+    return None
+
+
+def _tools_context(text: str) -> str | None:
+    """Run the applicable local tools for `text` and return a grounding block,
+    or None if none fired. Fast, synchronous, never raises."""
+    blocks: list[str] = []
+    try:
+        # 1. Calculator — exact arithmetic.
+        if calc_service.looks_like_math(text):
+            expr = _extract_expression(text)
+            result = calc_service.calculate(expr) if expr else None
+            if result is not None:
+                blocks.append(f"CALCULATION: {expr} = {result}")
+
+        # 2. Prayer times (Salla) for a Nigerian city (default Kano).
+        if _PRAYER_RE.search(text):
+            pt = prayer_service.prayer_times(_extract_city(text) or "Kano")
+            if pt:
+                t = pt["times"]
+                blocks.append(
+                    f"PRAYER TIMES — {pt['city']}, {pt['date']} ({pt['method']}, "
+                    f"{pt['timezone']}): Asuba/Fajr {t['fajr']}, fitowar rana {t['sunrise']}, "
+                    f"Azahar {t['dhuhr']}, La'asar {t['asr']}, Magariba {t['maghrib']}, "
+                    f"Isha'i {t['isha']}."
+                )
+
+        # 3. Dictionary — Robinson 1914 definition/translation of a word.
+        if dictionary_service.dictionary_ready():
+            m = _DEFINE_RE.search(text)
+            if m:
+                term = m.group(1)
+                defs = dictionary_service.define(term, max_results=6)
+                if defs:
+                    rendered = "; ".join(
+                        f"{d['headword']} → {d['translation']}" for d in defs
+                    )
+                    blocks.append(f"DICTIONARY (Robinson 1914) '{term}': {rendered}")
+    except Exception as err:  # tools must never break the request path
+        print(f"[Murya] Local tool error ({type(err).__name__}: {err}); skipping tools.")
+        return None
+
+    if not blocks:
+        return None
+    return _TOOLS_BLOCK_HEADER + "\n" + "\n".join(f"- {b}" for b in blocks)
+
+
 # Defaults
 DEFAULT_MODEL = os.getenv("OLLAMA_MODEL", "aya-expanse:8b")
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
@@ -305,18 +412,25 @@ def _calculate_cultural_confidence(text: str) -> bool:
     return score > 70
 
 
-def _build_messages(req: ChatRequest, search_context: str | None = None) -> list[dict[str, Any]]:
+def _build_messages(
+    req: ChatRequest,
+    search_context: str | None = None,
+    tools_context: str | None = None,
+) -> list[dict[str, Any]]:
     # Cerebras/Ollama consume these messages — neither has a live search tool of
     # its own, so by default the honest NO_LIVE_ACCESS_BLOCK is appended (see its
     # comment above). When the async caller has already run a live Tavily search
     # and passes the grounding block as `search_context`, that REPLACES the
     # no-access block so the model answers from the fresh results instead.
+    # `tools_context` (calculator / prayer / dictionary) is orthogonal to web
+    # access, so it is simply appended when present.
     live_block = (
         LIVE_SEARCH_BLOCK.format(results=search_context)
         if search_context
         else NO_LIVE_ACCESS_BLOCK
     )
-    system_content = f"{SOVEREIGN_CONSTITUTION}\n{_current_time_context()}\n{live_block}\nVibe: {req.vibe}\n[ADDRESSEE_GENDER]: {req.addresseeGender}\n{req.memoryPrompt}\n{corrections_store.get_approved_corrections_prompt()}"
+    tools_block = f"\n{tools_context}" if tools_context else ""
+    system_content = f"{SOVEREIGN_CONSTITUTION}\n{_current_time_context()}\n{live_block}{tools_block}\nVibe: {req.vibe}\n[ADDRESSEE_GENDER]: {req.addresseeGender}\n{req.memoryPrompt}\n{corrections_store.get_approved_corrections_prompt()}"
     messages: list[dict[str, Any]] = [{"role": "system", "content": system_content}]
 
     # Keep last 6 turns (context slicing — same as original)
@@ -594,7 +708,10 @@ async def chat_endpoint(request: Request, req: ChatRequest):
     # fresh results and inject them into the system prompt (replacing the
     # no-live-access block). Gracefully no-ops to normal behavior otherwise.
     search_context = await _maybe_search_context(req)
-    messages = _build_messages(req, search_context=search_context)
+    # Local tools (calculator, prayer times, dictionary) — exact offline
+    # grounding, computed synchronously; None when none apply.
+    tools_context = _tools_context(req.text)
+    messages = _build_messages(req, search_context=search_context, tools_context=tools_context)
 
     async def generate():
         # Heartbeat: emit a keepalive comment immediately
