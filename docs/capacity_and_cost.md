@@ -5,6 +5,14 @@ are planning figures, not benchmarks — real limits need load testing. The new
 **Ziyara** analytics tab in the admin dashboard gives you actual visitors/day
 to plan against._
 
+> **Cost status (2026-07): not a constraint.** The current Cerebras tier covers
+> more than enough tokens/day for present traffic at no cost. So token *volume*
+> and *price* are NOT the ceiling right now — the operative limits are the
+> single CPU box (voice) and the lack of a second machine (see Bottlenecks).
+> One thing to still check on the Cerebras plan: the **per-minute** rate limits
+> (requests/min, tokens/min) — those cap simultaneous/burst users even when the
+> daily token allowance is generous.
+
 ## Current production shape
 - **1× Fly.io machine**, `performance-2x` (2 vCPU, 8 GB), region `jnb`
   (Johannesburg), `min_machines_running = 1` (no redundancy, no autoscale yet).
@@ -52,15 +60,19 @@ Check your Cerebras dashboard for the plan's included tokens/minute and /day and
 price per million tokens to turn this into a naira/dollar figure.
 
 ## Bottlenecks, ranked
+_(Tokens/cost are NOT here — the Cerebras tier covers them for free at this
+stage. These are the limits that actually bite.)_
 1. **Voice on a single CPU box** — worst-scaling. Fix when voice traffic grows:
    add Fly machines (autoscale) or move TTS/STT to a dedicated (ideally GPU)
    worker.
-2. **Cerebras quota** — governs text scale and cost; watch usage vs. tier.
-3. **System-prompt size (~1,600 tokens every request)** — the single biggest
-   token-cost lever. Trimming it (or enabling prompt caching if Cerebras
-   supports it) could cut ~20–25% of tokens with no user-visible change.
-4. **Single machine = single point of failure** — one machine down is a full
+2. **Single machine = single point of failure** — one machine down is a full
    outage. Add a second machine before real traffic.
+3. **Cerebras per-minute rate limits** — even on a generous/free daily
+   allowance, requests/min and tokens/min cap how many users can be served
+   *simultaneously*. Check the plan's burst limits.
+4. **System-prompt size (~1,600 tokens every request)** — not a cost issue
+   while tokens are free, but it does add latency and eat into per-minute token
+   limits; trimming/caching it helps burst capacity.
 
 ## Recommended next steps as traffic grows
 - **Now / low traffic**: current setup is fine. Watch the **Ziyara** tab for
