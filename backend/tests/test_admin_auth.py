@@ -5,13 +5,38 @@ import pytest
 
 @pytest.fixture
 def isolated_admin_store(tmp_path, monkeypatch):
-    """Fresh admin_store DB per test, no seeded admin."""
+    """Fresh admin_store DB per test, no seeded admin (REVIEWER_API_KEY
+    cleared so init_db doesn't auto-sync an 'adamu' account that would
+    collide with tests creating their own)."""
     import admin_store
 
+    monkeypatch.delenv("REVIEWER_API_KEY", raising=False)
     monkeypatch.setattr(admin_store, "_DATA_DIR", tmp_path)
     monkeypatch.setattr(admin_store, "_DB_PATH", tmp_path / "admin.db")
     admin_store.init_db()
     return admin_store
+
+
+def test_password_syncs_from_secret_on_init(tmp_path, monkeypatch):
+    """The REVIEWER_API_KEY secret IS the admin password: init_db seeds it,
+    and a changed secret updates the stored hash on the next init (so the
+    owner changes their password by changing the secret + restarting)."""
+    import admin_store
+
+    monkeypatch.setattr(admin_store, "_DATA_DIR", tmp_path)
+    monkeypatch.setattr(admin_store, "_DB_PATH", tmp_path / "admin.db")
+    monkeypatch.setattr(admin_store, "ADMIN_USERNAME", "adamu")
+
+    # First boot with an initial secret seeds the account.
+    monkeypatch.setenv("REVIEWER_API_KEY", "first-password")
+    admin_store.init_db()
+    assert admin_store.verify_login("adamu", "first-password") is not None
+
+    # Owner changes the secret; next boot re-syncs the password.
+    monkeypatch.setenv("REVIEWER_API_KEY", "second-password")
+    admin_store.init_db()
+    assert admin_store.verify_login("adamu", "second-password") is not None
+    assert admin_store.verify_login("adamu", "first-password") is None
 
 
 @pytest.mark.anyio

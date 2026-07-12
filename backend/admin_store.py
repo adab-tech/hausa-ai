@@ -5,10 +5,13 @@ old REVIEWER_API_KEY-typed-into-sessionStorage pattern with a proper login:
 bcrypt password hashes, HttpOnly session cookies, and a per-admin identity
 so corrections finally carry a real "reviewed by" audit trail.
 
-REVIEWER_API_KEY becomes a one-time bootstrap credential: on first boot, if
-no admin accounts exist yet, it seeds a single "adamu" account whose
-password is REVIEWER_API_KEY's value. To reset it, delete admin.db (or the
-one admin row) and redeploy/restart so it reseeds.
+The REVIEWER_API_KEY secret IS the admin password (single-admin app). It is
+synced to the ADMIN_USERNAME account (default "adamu") on EVERY boot — the
+account is created if absent, or its stored hash is updated if the secret
+changed. So the owner sets/changes their own password by changing the Fly
+secret and restarting, with no DB surgery:
+    flyctl secrets set REVIEWER_API_KEY="<new password>" -a hausa-ai-backend
+Then log in at app.murya.ng/admin/login as ADMIN_USERNAME with that password.
 
 A single Fly.io machine with a mounted persistent volume is the deployment
 target today (see docs/deployment.md) — SQLite with a fresh connection per
@@ -48,9 +51,23 @@ def _get_conn():
         conn.close()
 
 
+# The admin username (single-admin app). Override with ADMIN_USERNAME.
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "adamu").strip() or "adamu"
+
+
 def init_db() -> None:
-    """Create tables if missing, and seed a bootstrap admin from
-    REVIEWER_API_KEY if no admin accounts exist yet."""
+    """Create tables if missing, and keep the admin password in sync with the
+    REVIEWER_API_KEY secret.
+
+    Model: the Fly secret REVIEWER_API_KEY IS the admin password. On every
+    boot, the ADMIN_USERNAME account is created (if absent) or its password is
+    updated (if the secret changed). So the owner changes their password by
+    changing the secret and restarting — no DB surgery needed:
+
+        flyctl secrets set REVIEWER_API_KEY="<new password>" -a hausa-ai-backend
+
+    If REVIEWER_API_KEY is unset, nothing is seeded (auth simply can't be used
+    until it is)."""
     with _get_conn() as conn:
         conn.execute(
             """CREATE TABLE IF NOT EXISTS admins (
@@ -70,11 +87,23 @@ def init_db() -> None:
             )"""
         )
 
-        row = conn.execute("SELECT COUNT(*) AS n FROM admins").fetchone()
-        if row["n"] == 0:
-            bootstrap_password = os.getenv("REVIEWER_API_KEY", "").strip()
-            if bootstrap_password:
-                _create_admin_locked(conn, "adamu", bootstrap_password)
+        secret = os.getenv("REVIEWER_API_KEY", "").strip()
+        if not secret:
+            return
+
+        existing = conn.execute(
+            "SELECT id, password_hash FROM admins WHERE username = ?",
+            (ADMIN_USERNAME,),
+        ).fetchone()
+        if existing is None:
+            _create_admin_locked(conn, ADMIN_USERNAME, secret)
+        elif not bcrypt.checkpw(secret.encode("utf-8"), existing["password_hash"].encode("utf-8")):
+            # Secret changed since last boot -> update the stored hash.
+            new_hash = bcrypt.hashpw(secret.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+            conn.execute(
+                "UPDATE admins SET password_hash = ? WHERE id = ?",
+                (new_hash, existing["id"]),
+            )
 
 
 def _create_admin_locked(conn: sqlite3.Connection, username: str, password: str) -> None:
