@@ -19,6 +19,7 @@ call is safe under that model. This does not coordinate across multiple
 machines/workers; don't scale out without revisiting this.
 """
 
+import logging
 import os
 import secrets
 import sqlite3
@@ -27,6 +28,8 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import bcrypt
+
+logger = logging.getLogger("murya.admin")
 
 _DATA_DIR = Path(os.getenv("FEEDBACK_DATA_DIR", Path(__file__).resolve().parent / "data"))
 _DB_PATH = _DATA_DIR / "admin.db"
@@ -92,11 +95,12 @@ def init_db() -> None:
             return
 
         existing = conn.execute(
-            "SELECT id, password_hash FROM admins WHERE username = ?",
+            "SELECT id, password_hash FROM admins WHERE username = ? COLLATE NOCASE",
             (ADMIN_USERNAME,),
         ).fetchone()
         if existing is None:
             _create_admin_locked(conn, ADMIN_USERNAME, secret)
+            action = "created"
         elif not bcrypt.checkpw(secret.encode("utf-8"), existing["password_hash"].encode("utf-8")):
             # Secret changed since last boot -> update the stored hash.
             new_hash = bcrypt.hashpw(secret.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
@@ -104,6 +108,15 @@ def init_db() -> None:
                 "UPDATE admins SET password_hash = ? WHERE id = ?",
                 (new_hash, existing["id"]),
             )
+            action = "password-updated"
+        else:
+            action = "unchanged"
+        # Diagnostic only — NEVER logs the password itself.
+        all_usernames = [r["username"] for r in conn.execute("SELECT username FROM admins")]
+        logger.info(
+            "[admin] sync: username=%r action=%s reviewer_key_len=%d all_admins=%r",
+            ADMIN_USERNAME, action, len(secret), all_usernames,
+        )
 
 
 def _create_admin_locked(conn: sqlite3.Connection, username: str, password: str) -> None:
@@ -124,7 +137,8 @@ def verify_login(username: str, password: str) -> int | None:
     """Return the admin id if username/password match, else None."""
     with _get_conn() as conn:
         row = conn.execute(
-            "SELECT id, password_hash FROM admins WHERE username = ?", (username,)
+            "SELECT id, password_hash FROM admins WHERE username = ? COLLATE NOCASE",
+            (username,),
         ).fetchone()
     if row is None:
         # Still run a hash comparison against a dummy value so a valid vs.
