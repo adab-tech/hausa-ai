@@ -1,9 +1,41 @@
 from orthography import (
     hausa_cardinal,
+    normalize_digits,
     normalize_hausa_orthography,
     prepare_text_for_tts,
     spell_out_hausa_numbers,
 )
+
+
+# ---------------------------------------------------------------------------
+# Foreign-digit normalization — the LLM sometimes emits Arabic-Indic/Persian
+# numerals in Hausa text; they must fold to Western digits (correct for Hausa,
+# and required for the number to display and to be speakable by TTS).
+# ---------------------------------------------------------------------------
+def test_normalize_arabic_indic_digits():
+    assert normalize_digits("Zaben ٢٠١٥") == "Zaben 2015"
+    assert normalize_digits("٠١٢٣٤٥٦٧٨٩") == "0123456789"
+
+
+def test_normalize_persian_digits():
+    assert normalize_digits("۲۰۱۹") == "2019"
+
+
+def test_normalize_digits_leaves_ascii_and_text_untouched():
+    assert normalize_digits("Zaben 2015 (2019)") == "Zaben 2015 (2019)"
+    assert normalize_digits("Barka da yamma") == "Barka da yamma"
+
+
+def test_orthography_folds_foreign_digits():
+    # The main normalizer folds digits too, so the reported bug string is fixed.
+    assert normalize_hausa_orthography("Zaben ٢٠١٥") == "Zaben 2015"
+
+
+def test_tts_prep_speaks_arabic_indic_year():
+    # Foreign digits must survive into the number speller (else silent in TTS).
+    out = prepare_text_for_tts("A shekara ta ٢٠١٥")
+    assert "٢" not in out
+    assert "dubu biyu da goma sha biyar" in out  # 2015
 
 def test_normalize_hausa_orthography():
     # Test cases for hooked letters b', d', k', 'y

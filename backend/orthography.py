@@ -20,11 +20,32 @@ HOOKED_MAP = {
     r"TS'": "TS"
 }
 
+# Eastern Arabic-Indic (U+0660-0669) and Persian/Urdu (U+06F0-06F9) digits ->
+# ASCII 0-9. The LLM sometimes emits these in Hausa text (e.g. "Zaben ٢٠١٥"),
+# which is wrong for Hausa (which uses Western digits) AND breaks TTS — those
+# glyphs aren't in the voice's phoneme map, so the number would be dropped,
+# and the ASCII-digit number speller wouldn't match them either.
+_FOREIGN_DIGITS = {
+    **{chr(0x0660 + i): str(i) for i in range(10)},  # ٠١٢٣٤٥٦٧٨٩
+    **{chr(0x06F0 + i): str(i) for i in range(10)},  # ۰۱۲۳۴۵۶۷۸۹
+}
+_FOREIGN_DIGIT_RE = re.compile("[" + "".join(_FOREIGN_DIGITS) + "]")
+
+
+def normalize_digits(text: str) -> str:
+    """Convert Arabic-Indic / Persian digit glyphs to ASCII 0-9. Leaves all
+    other text untouched."""
+    if not text:
+        return text
+    return _FOREIGN_DIGIT_RE.sub(lambda m: _FOREIGN_DIGITS[m.group(0)], text)
+
+
 def normalize_hausa_orthography(text: str) -> str:
     """
     Normalizes simplified or ASCII representation of Hausa hooked characters
     to standard Unicode representations. Handles uppercase and lowercase forms.
-    
+    Also folds any Arabic-Indic/Persian digits to ASCII (see normalize_digits).
+
     Examples:
       - 'doki' -> 'doki'
       - 'b\'aki' -> 'ɓaki'
@@ -32,8 +53,8 @@ def normalize_hausa_orthography(text: str) -> str:
       - 'k\'asa' -> 'ƙasa'
       - 'y\'anci' or '\'yanci' -> 'ƴanci'
     """
-    normalized = text
-    
+    normalized = normalize_digits(text)
+
     # 1. First replace explicit quote representations (e.g. b', d', k', y', 'y)
     # Using word boundaries where appropriate or specific patterns
     normalized = re.sub(r"\bb\'", "ɓ", normalized, flags=re.IGNORECASE)

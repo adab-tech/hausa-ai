@@ -35,7 +35,7 @@ from rate_limit import limiter
 from pydantic import BaseModel, Field
 
 from routers.fallback import generate_fallback_response
-from orthography import normalize_hausa_orthography, apply_tonal_heuristics
+from orthography import normalize_hausa_orthography, apply_tonal_heuristics, normalize_digits
 from services.search_service import web_search, search_enabled
 from services import calc_service, prayer_service, dictionary_service
 import corrections_store
@@ -377,7 +377,10 @@ _DEFAULT_VIDEO_PROMPT = "A sweeping cinematic view of ancient Kano walls and mud
 
 
 def _sanitize(text: str) -> str:
-    return _SANITIZE_RE.sub("", text).strip()
+    # normalize_digits: fold any Arabic-Indic/Persian numerals (٢٠١٥) the model
+    # emits back to Western digits (2015) — correct for Hausa and needed so the
+    # number is visible in the UI (and later speakable by TTS).
+    return normalize_digits(_SANITIZE_RE.sub("", text).strip())
 
 
 def _extract_manifest(user_text: str, response_text: str) -> dict[str, str] | None:
