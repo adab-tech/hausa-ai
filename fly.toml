@@ -25,12 +25,12 @@ primary_region = "jnb"
   # not known to hurt CPU inference.
   OLLAMA_FLASH_ATTENTION = "1"
   OLLAMA_KV_CACHE_TYPE = "q8_0"
-  # Expressiveness dials. 0.85/0.5 ("Looser") restored melody but trembled on
-  # sustained sounds (founder's ear); 0.75/0.4 keeps most of the rise/fall while
-  # steadying the wobble. NOTE: these add pitch VARIATION, not controlled tone —
-  # true intonation control needs a tone-channel retrain.
-  VITS_NOISE_W = "0.4"
-  VITS_NOISE_SCALE = "0.75"
+  # Let the TRAINED model speak naturally — do NOT crank these to force melody
+  # onto all speech (intonation varies per sentence and is its own retraining
+  # methodology, not a dial). noise_scale stays at the model's trained default
+  # (0.667, so this override is omitted); noise_w 0.3 only trims duration jitter
+  # for steady, professional rhythm. Chasing melody at 0.85 introduced tremble.
+  VITS_NOISE_W = "0.3"
   # Counterweight to the low noise_w above: flattening duration variance
   # also quickened delivery ("talking faster than normal" per founder's
   # ear). length_scale > 1 stretches phoneme durations back to a natural
