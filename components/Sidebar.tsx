@@ -23,6 +23,8 @@ interface SidebarProps {
   setAddresseeGender: (g: AddresseeGender) => void;
   showAddresseeDial: boolean;
   setShowAddresseeDial: (v: boolean) => void;
+  learningMode: boolean;
+  setLearningMode: (v: boolean) => void;
   onOpenReview: () => void;
   onOpenWhitePaper: () => void;
   onClearChat: () => void;
@@ -127,6 +129,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setAddresseeGender,
   showAddresseeDial,
   setShowAddresseeDial,
+  learningMode,
+  setLearningMode,
   onOpenReview,
   onOpenWhitePaper,
   onClearChat,
@@ -293,6 +297,35 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* Learning Mode (Malamin Hausa) toggle */}
+            <div className="space-y-2">
+              <label className="text-[9px] uppercase tracking-wider text-dyn-text-muted font-bold flex items-center gap-1.5">
+                <GraduationCap className="w-3 h-3 text-dyn-accent" /> Yanayin Koyo / Learning
+              </label>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={learningMode}
+                onClick={() => setLearningMode(!learningMode)}
+                className={`w-full min-h-[48px] px-4 py-3 border rounded-2xl text-xs font-bold uppercase tracking-wider transition-all duration-300 ease-out flex items-center justify-between gap-2 ${
+                  learningMode
+                    ? 'bg-dyn-accent/15 border-dyn-accent/50 text-dyn-accent shadow-[0_0_20px_var(--glow-color)]'
+                    : 'bg-dyn-bg-tertiary/60 border-dyn-border text-dyn-text-secondary hover:text-dyn-text-primary hover:bg-dyn-bg-tertiary'
+                }`}
+              >
+                <span className="flex items-center gap-2.5 min-w-0">
+                  <GraduationCap className="w-4 h-4 shrink-0" />
+                  <span className="truncate">{learningMode ? 'Malamin Hausa (Kunna)' : 'Yanayin Koyo (Kashe)'}</span>
+                </span>
+                <span className={`relative w-9 h-5 rounded-full shrink-0 transition-colors ${learningMode ? 'bg-dyn-accent' : 'bg-white/10'}`}>
+                  <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${learningMode ? 'left-[18px]' : 'left-0.5'}`}></span>
+                </span>
+              </button>
+              {learningMode && (
+                <p className="text-[9px] text-dyn-text-muted/80 italic px-1">Murya na koya maka Hausa da sauran darussa cikin haƙuri. (Tutor mode on.)</p>
+              )}
             </div>
           </div>
 

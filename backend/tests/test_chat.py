@@ -408,6 +408,41 @@ def test_constitution_declares_capabilities():
 
 
 # ---------------------------------------------------------------------------
+# Tutor (learning) mode — mode="tutor" turns Murya into Malamin Hausa.
+# ---------------------------------------------------------------------------
+def test_tutor_mode_injects_teaching_persona():
+    from routers.chat import _build_messages, ChatRequest
+
+    msgs = _build_messages(ChatRequest(text="Koya min Hausa", mode="tutor"))
+    system = next(m for m in msgs if m["role"] == "system")["content"]
+    assert "[LEARNING_MODE" in system and "MALAMIN HAUSA" in system
+
+
+def test_assistant_mode_has_no_tutor_persona():
+    from routers.chat import _build_messages, ChatRequest
+
+    msgs = _build_messages(ChatRequest(text="Sannu"))  # default mode="assistant"
+    system = next(m for m in msgs if m["role"] == "system")["content"]
+    assert "[LEARNING_MODE" not in system
+
+
+def test_cache_key_separates_tutor_from_assistant():
+    """Same text in tutor vs assistant mode must not collide in the cache."""
+    from routers.chat import _get_cache_key, ChatRequest
+
+    a = _get_cache_key(ChatRequest(text="Koya min", mode="assistant"))
+    t = _get_cache_key(ChatRequest(text="Koya min", mode="tutor"))
+    assert a != t
+
+
+@pytest.mark.anyio
+async def test_chat_rejects_invalid_mode(client):
+    """mode is constrained to assistant|tutor; anything else is a 422."""
+    resp = await client.post("/api/chat", json={"text": "hi", "mode": "hacker"})
+    assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
 # Local knowledge tools — calculator / prayer / dictionary grounding
 # ---------------------------------------------------------------------------
 def test_tools_context_calculator():

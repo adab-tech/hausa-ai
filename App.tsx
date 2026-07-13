@@ -31,6 +31,8 @@ const App: React.FC = () => {
   };
   const [showAddresseeDial, setShowAddresseeDial] = useState(false);
   const [showWhitePaper, setShowWhitePaper] = useState(false);
+  // Learning Mode: turns Murya into Malamin Hausa (a patient Hausa tutor).
+  const [learningMode, setLearningMode] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [volume, setVolume] = useState(0);
   const [currentAxiomIndex, setCurrentAxiomIndex] = useState(0);
@@ -155,7 +157,7 @@ const App: React.FC = () => {
     setMessages(prev => [...prev, aiMsgPlaceholder]);
 
     try {
-      const stream = gemini.unifiedExchange(currentInput, messages, currentAttachments, vibe, addresseeGender);
+      const stream = gemini.unifiedExchange(currentInput, messages, currentAttachments, vibe, addresseeGender, learningMode ? 'tutor' : 'assistant');
       for await (const chunk of stream) {
         setMessages(prev => prev.map(m => m.id === aiMsgId ? {
           ...m,
@@ -394,6 +396,8 @@ const App: React.FC = () => {
         setAddresseeGender={setAddresseeGender}
         showAddresseeDial={showAddresseeDial}
         setShowAddresseeDial={setShowAddresseeDial}
+        learningMode={learningMode}
+        setLearningMode={setLearningMode}
         onOpenReview={() => setShowReview(true)}
         onOpenWhitePaper={() => setShowWhitePaper(true)}
         onClearChat={clearChat}

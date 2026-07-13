@@ -99,6 +99,23 @@ NO_LIVE_ACCESS_BLOCK = """[REAL_TIME_LIMITS]:
 GEMINI_LIVE_ACCESS_BLOCK = """[REAL_TIME_ACCESS]:
 - You have a live web-search tool. For questions about current events, today's news, recent happenings, prices, weather, or anything time-sensitive (e.g. 'meye labari a Kaduna a yau?'), USE it and answer with what you find — do not claim you cannot access current information. Attribute concrete facts to their sources when relevant, still in dignified Hausa."""
 
+# Prepended to the system prompt when the request's mode == "tutor". Turns
+# Murya into a patient Hausa teacher (Malamin Hausa). Overrides tone toward
+# warmth/simplicity for LEARNING while keeping the grammatical-gender and
+# hooked-consonant discipline of the constitution.
+TUTOR_PROMPT = """[LEARNING_MODE — MALAMIN HAUSA]:
+You are now a warm, patient Hausa teacher. Your job is to TEACH, not just answer. Two kinds of learner may come to you:
+1. Someone learning the HAUSA LANGUAGE itself (often diaspora, children, or new speakers).
+2. A student who wants to understand a SUBJECT (maths, science, religion, history…) explained clearly in simple Hausa.
+Teaching method — follow it every turn:
+- Start from the learner's level; teach ONE small idea at a time; never overwhelm.
+- Give a concrete example, then invite the learner to try (a tiny practice question or 'ka gwada / ki gwada').
+- When you teach a Hausa word, give it with its English gloss and a short example sentence, spelled with correct hooked letters (ɓ ɗ ƙ ƴ) — e.g. "ruwa (water) — 'Ina son ruwa.'"
+- Encourage often and gently ('Madalla!', 'Ka yi ƙoƙari'); correct mistakes kindly, showing the right form.
+- Keep replies focused and not too long — a lesson, not a lecture.
+- Remind the learner they can tap 'Saurara' to HEAR any Hausa you write, to practise pronunciation.
+Stay in dignified but simpler Hausa, using the correct gendered singular address for the learner."""
+
 
 # High-relevance timezone anchors for a Hausa + Muslim + diaspora audience.
 # Precomputed SERVER-SIDE (exact, DST-aware via zoneinfo) rather than asking
@@ -362,6 +379,9 @@ class ChatRequest(BaseModel):
     addresseeGender: str = Field("unspecified", pattern=r"^(masculine|feminine|unspecified)$")
     memoryPrompt: str = Field("", max_length=4_000)
     attachments: list[Attachment] = Field(default_factory=list, max_length=5)
+    # "assistant" (default) is normal Murya; "tutor" turns Murya into a patient
+    # Hausa teacher (Malamin Hausa) — see TUTOR_PROMPT / [LEARNING_MODE].
+    mode: str = Field("assistant", pattern=r"^(assistant|tutor)$")
 
 
 # ---------------------------------------------------------------------------
@@ -433,7 +453,11 @@ def _build_messages(
         else NO_LIVE_ACCESS_BLOCK
     )
     tools_block = f"\n{tools_context}" if tools_context else ""
-    system_content = f"{SOVEREIGN_CONSTITUTION}\n{_current_time_context()}\n{live_block}{tools_block}\nVibe: {req.vibe}\n[ADDRESSEE_GENDER]: {req.addresseeGender}\n{req.memoryPrompt}\n{corrections_store.get_approved_corrections_prompt()}"
+    # Tutor mode prepends the teaching persona; it inherits all the model's
+    # other capabilities (dictionary grounding, calculator, gendered address,
+    # 'Saurara' TTS) automatically since those flow through the same prompt.
+    tutor_block = f"{TUTOR_PROMPT}\n" if req.mode == "tutor" else ""
+    system_content = f"{tutor_block}{SOVEREIGN_CONSTITUTION}\n{_current_time_context()}\n{live_block}{tools_block}\nVibe: {req.vibe}\n[ADDRESSEE_GENDER]: {req.addresseeGender}\n{req.memoryPrompt}\n{corrections_store.get_approved_corrections_prompt()}"
     messages: list[dict[str, Any]] = [{"role": "system", "content": system_content}]
 
     # Keep last 6 turns (context slicing — same as original)
@@ -461,8 +485,10 @@ def _get_cache_key(req: ChatRequest) -> str:
     # unspecified all produce different correct Hausa), so omitting it let two
     # requests differing only in gender collide and served one user's
     # gendered reply to the other.
+    # mode is included too: a "tutor" reply must never be replayed for an
+    # "assistant" request (or vice versa) — they produce different answers.
     history_str = "|".join(f"{h.role}:{h.text}" for h in req.history)
-    raw_str = f"{req.vibe}:{req.addresseeGender}:{req.memoryPrompt}:{history_str}:{req.text}"
+    raw_str = f"{req.mode}:{req.vibe}:{req.addresseeGender}:{req.memoryPrompt}:{history_str}:{req.text}"
     return hashlib.md5(raw_str.encode("utf-8")).hexdigest()
 
 

@@ -108,7 +108,8 @@ class LocalService {
     history: Message[],
     userAttachments?: Attachment[],
     vibe: SovereignVibe = "Classic",
-    addresseeGender: AddresseeGender = "unspecified"
+    addresseeGender: AddresseeGender = "unspecified",
+    mode: "assistant" | "tutor" = "assistant"
   ): AsyncGenerator<ExchangeChunk> {
     let finalAttachments: Attachment[] = [];
     let accumulatedText = "";
@@ -121,6 +122,7 @@ class LocalService {
       })),
       vibe,
       addresseeGender,
+      mode,
       memoryPrompt: learning.getMemoryPrompt(),
       attachments: (userAttachments ?? [])
         .filter((a) => a.data)
