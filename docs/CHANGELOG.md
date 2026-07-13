@@ -3,7 +3,26 @@
 All notable changes to the backend and frontend. Newest first. Dates are the
 day the change went live in production (Fly.io backend / Vercel `app.murya.ng`).
 
-## 2026-07-12 (latest)
+## 2026-07-13 (latest)
+
+### Added — Clean Hausa→English dictionary (open-licensed) + source credits
+- The dictionary/translation tool now loads a second, openly-licensed lexicon
+  alongside Robinson (1914): **Hausa Wiktionary** entries (CC-BY-SA 4.0) via
+  Kaikki.org — 2,187 headwords → 2,580 HA→EN pairs. This fixes the long-standing
+  rough **Hausa→English** direction: results are ranked so each source answers in
+  the direction it's authoritative for (e.g. `ruwa` → *water*, `ƙasa` →
+  *soil, earth*, `yaro` → *boy, child* — no more Robinson reverse-lookup noise).
+  `data/sources/wiktionary-hausa/`, `utils/build_hausa_en_open.py`,
+  `backend/services/dictionary_service.py` (dual-source loader + quality ranking).
+- **Paul Newman & Roxana Ma Newman** credited for their foundational Hausa
+  lexicography (Modern Hausa–English Dictionary, 1977; A Hausa–English Dictionary,
+  Yale 2007). These are **in copyright and deliberately NOT ingested** — a full
+  attribution + not-licensed status is recorded in
+  `data/sources/newman-dictionary/ATTRIBUTION.md`, with a ready-to-send licensing
+  request in `docs/newman_yale_permission_request.md`. Credit is given; ingestion
+  waits on a licence.
+
+## 2026-07-12 (earlier)
 
 ### Added — Document Translate & Summarize (Fassara & Takaitawa)
 - A **Fassara & Takaitawa** tool (sidebar) for one-shot translate/summarize of

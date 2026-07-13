@@ -1,10 +1,20 @@
 """
-Hausa <-> English dictionary lookup backed by the real Robinson (1914) lexicon.
+Hausa <-> English dictionary lookup backed by two openly-usable lexicons.
+
+Sources (both auto-detected and merged into one index; each entry keeps its own
+provenance):
+  * Robinson (1914) — public domain — clean ENGLISH->Hausa direction.
+    provenance "robinson_1914_vol2".
+  * Wiktionary/Kaikki — CC-BY-SA — clean HAUSA->English direction.
+    provenance "wiktionary_ha_ccbysa". See
+    data/sources/wiktionary-hausa/ATTRIBUTION.md and utils/build_hausa_en_open.py.
+Copyrighted dictionaries (e.g. Newman 2007) are deliberately NOT ingested here —
+see data/sources/newman-dictionary/ATTRIBUTION.md.
 
 Purpose — let Murya define/translate words with a CITED source instead of
-guessing. Every returned entry carries its provenance
-(e.g. "robinson_1914_vol2") so the chat path can say where a definition came
-from.
+guessing. Every returned entry carries its provenance so the chat path can say
+where a definition came from. Results are ranked so each source answers in the
+direction it is authoritative for (clean answers before noisy reverse lookups).
 
 Design contract — graceful degradation is mandatory:
   * If the lexicon file cannot be found or parsed, dictionary_ready() is False
@@ -39,6 +49,15 @@ _CONTAINER_PATH = Path("/app/data/robinson/en_ha_pairs.jsonl")
 # services/dictionary_service.py -> backend/ -> <repo-root>
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 _REPO_PATH = _REPO_ROOT / "data" / "processed" / "robinson" / "en_ha_pairs.jsonl"
+
+# Secondary, openly-licensed HAUSA->ENGLISH lexicon (Wiktionary via Kaikki,
+# CC-BY-SA — see data/sources/wiktionary-hausa/ATTRIBUTION.md). It gives a clean
+# HA->EN direction that Robinson (EN->HA, 1914) lacks. Loaded IN ADDITION to
+# Robinson when present; both feed the same indexes, each entry keeping its own
+# provenance. Newman and other copyrighted dictionaries are deliberately NOT a
+# source here (see data/sources/newman-dictionary/ATTRIBUTION.md).
+_HA_EN_CONTAINER_PATH = Path("/app/data/hausa_en_open/ha_en_pairs.jsonl")
+_HA_EN_REPO_PATH = _REPO_ROOT / "data" / "processed" / "hausa_en_open" / "ha_en_pairs.jsonl"
 
 # Diacritic folding: Hausa hooked letters -> plain ASCII, so "ƙasa" and "kasa"
 # resolve to the same index key. The ORIGINAL spelling is always preserved in
@@ -130,65 +149,111 @@ def _index_entry(key_field: str, index: dict[str, list[dict]], entry: dict) -> N
         bucket.append(entry)
 
 
+def _resolve_ha_en_path() -> Path | None:
+    """Resolve the optional open HA->EN lexicon (container path, then repo copy).
+    Returns None if neither exists — it is a strictly additive source, so its
+    absence never disables the dictionary."""
+    for candidate in (_HA_EN_CONTAINER_PATH, _HA_EN_REPO_PATH):
+        try:
+            if candidate.is_file():
+                return candidate
+        except OSError:
+            continue
+    return None
+
+
+def _load_file(path: Path) -> int:
+    """Read one JSONL lexicon file into the shared indexes; return the number of
+    entries indexed. Raises OSError on read failure (caller handles). Malformed
+    lines and OCR/grammar-tag artifacts are skipped, not fatal."""
+    count = 0
+    with path.open(encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(row, dict):
+                continue
+            entry = {
+                "source_en": row.get("source_en", ""),
+                "target_ha": row.get("target_ha", ""),
+                "context": row.get("context", ""),
+                "provenance": row.get("provenance", ""),
+            }
+            # Drop whole entries where either side is an OCR/grammar-tag
+            # artifact (e.g. target_ha "intr"/"etc") — a bad extraction,
+            # not a real translation pair.
+            if _is_noise(entry["source_en"]) or _is_noise(entry["target_ha"]):
+                continue
+            _index_entry("source_en", _EN_INDEX, entry)
+            _index_entry("target_ha", _HA_INDEX, entry)
+            count += 1
+    return count
+
+
 def _load() -> None:
-    """Read the lexicon once and build the English and Hausa indexes. Sets
-    _READY True on success. Never raises — any failure logs at warning and
-    leaves the dictionary unavailable."""
+    """Read the lexicon(s) once and build the English and Hausa indexes. Sets
+    _READY True if at least one source loaded. Never raises — any failure logs
+    at warning and leaves the dictionary unavailable.
+
+    Sources:
+      * Primary: Robinson (1914), or the DICTIONARY_PATH override (authoritative
+        — when set, ONLY that file is loaded).
+      * Secondary (additive, only when no override): the open HA->EN lexicon,
+        merged into the same indexes if present.
+    """
     global _LOADED, _READY
     _LOADED = True
     _EN_INDEX.clear()
     _HA_INDEX.clear()
 
-    path = _resolve_path()
-    if path is None:
+    override = bool(os.getenv(_ENV_VAR))
+    total = 0
+    loaded_any = False
+
+    # Primary source.
+    primary = _resolve_path()
+    if primary is None:
         logger.warning(
-            "Dictionary lexicon not found (checked %s, %s, %s); "
-            "dictionary lookups disabled.",
+            "Primary dictionary lexicon not found (checked %s, %s, %s).",
             os.getenv(_ENV_VAR) or "<%s unset>" % _ENV_VAR,
             _CONTAINER_PATH,
             _REPO_PATH,
         )
-        _READY = False
-        return
+    else:
+        try:
+            n = _load_file(primary)
+            total += n
+            loaded_any = True
+            logger.info("Dictionary source loaded: %d entries from %s.", n, primary)
+        except OSError as exc:
+            logger.warning("Failed to read dictionary lexicon %s: %s", primary, exc)
 
-    try:
-        count = 0
-        with path.open(encoding="utf-8") as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    row = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if not isinstance(row, dict):
-                    continue
-                entry = {
-                    "source_en": row.get("source_en", ""),
-                    "target_ha": row.get("target_ha", ""),
-                    "context": row.get("context", ""),
-                    "provenance": row.get("provenance", ""),
-                }
-                # Drop whole entries where either side is an OCR/grammar-tag
-                # artifact (e.g. target_ha "intr"/"etc") — a bad extraction,
-                # not a real translation pair.
-                if _is_noise(entry["source_en"]) or _is_noise(entry["target_ha"]):
-                    continue
-                _index_entry("source_en", _EN_INDEX, entry)
-                _index_entry("target_ha", _HA_INDEX, entry)
-                count += 1
-        _READY = True
+    # Secondary open HA->EN source — additive, skipped when an override pins a
+    # single authoritative file.
+    if not override:
+        ha_en = _resolve_ha_en_path()
+        if ha_en is not None:
+            try:
+                n = _load_file(ha_en)
+                total += n
+                loaded_any = True
+                logger.info("Dictionary source loaded: %d entries from %s.", n, ha_en)
+            except OSError as exc:
+                logger.warning("Failed to read HA->EN lexicon %s: %s", ha_en, exc)
+
+    _READY = loaded_any
+    if loaded_any:
         logger.info(
-            "Dictionary loaded: %d entries from %s (%d EN keys, %d HA keys).",
-            count,
-            path,
-            len(_EN_INDEX),
-            len(_HA_INDEX),
+            "Dictionary ready: %d total entries (%d EN keys, %d HA keys).",
+            total, len(_EN_INDEX), len(_HA_INDEX),
         )
-    except OSError as exc:
-        logger.warning("Failed to read dictionary lexicon %s: %s", path, exc)
-        _READY = False
+    else:
+        logger.warning("No dictionary sources loaded; lookups disabled.")
 
 
 def _ensure_loaded() -> None:
@@ -204,6 +269,35 @@ def dictionary_ready() -> bool:
     """True iff the lexicon loaded successfully and lookups will work."""
     _ensure_loaded()
     return _READY
+
+
+# Each source is trustworthy in the direction it was compiled for; the reverse
+# lookup is noisier. Robinson (1914) is an English->Hausa dictionary, so its
+# EN->HA direction is clean and its HA->EN reverse is rough. The open Wiktionary
+# lexicon is natively Hausa-headword, so its HA->EN direction is clean. Ranking
+# results by "am I being used in my native direction?" floats the clean answer
+# to the top (e.g. Hausa "ruwa" -> "water" from Wiktionary before Robinson's
+# garbled reverse entries).
+_NATIVE_DIRECTION = {
+    "robinson": "en->ha",
+    "wiktionary": "ha->en",
+}
+
+
+def _quality_rank(result: dict) -> tuple[int, int]:
+    """Sort key (lower = better). Primary: is the source queried in its
+    authoritative direction? 0 = yes (cleanest), 1 = unknown provenance,
+    2 = noisier reverse direction. Secondary tiebreak: prefer the natively
+    clean HA->EN source (Wiktionary) so a Hausa headword that also appears as a
+    garbled Robinson "English" entry still resolves to the clean gloss
+    (e.g. "ruwa" -> "water", not Robinson's reverse noise)."""
+    provenance = result.get("provenance", "")
+    direction = result.get("direction", "")
+    tiebreak = 0 if "wiktionary" in provenance else 1
+    for marker, native in _NATIVE_DIRECTION.items():
+        if marker in provenance:
+            return (0 if direction == native else 2, tiebreak)
+    return (1, tiebreak)
 
 
 def _make_result(entry: dict, direction: str) -> dict:
@@ -262,9 +356,11 @@ def define(term: str, max_results: int = 8) -> list[dict]:
             seen.add(fingerprint)
             results.append(result)
 
-    # Exact matches: English first, then Hausa.
+    # Exact matches from both indexes, then rank so each source appears in its
+    # authoritative direction first (clean answers before noisy reverse ones).
     _collect(_EN_INDEX.get(key, []), "en->ha")
     _collect(_HA_INDEX.get(key, []), "ha->en")
+    results.sort(key=_quality_rank)  # stable: preserves order within a rank
 
     # Fall back to prefix matches only when nothing matched exactly.
     if not results:
