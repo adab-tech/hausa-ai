@@ -172,6 +172,12 @@ export const WhitePaper: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                  event: "Nasarar horo — an kammala horar da muryar VITS ta WAXAL, masu magana guda takwas, an wallafa model ɗin a Hugging Face (adab-tech/murya-piper-hausa-tts), an mallaki murya.ng, kuma an ƙaddamar da aikin ga jama'a: murya.ng da app.murya.ng.",
                  gloss: "Fine-tuning succeeded — the eight-speaker WAXAL VITS voice trained and shipped, the model published to Hugging Face (adab-tech/murya-piper-hausa-tts), the murya.ng domain acquired, and the project launched publicly at murya.ng and app.murya.ng.",
                  status: "Ƙaddamarwa · Launch"
+               },
+               {
+                 date: "Yuli 2026 (ƙari)",
+                 event: "Ƙamus mai tsafta na Hausa–Turanci — an ƙara rumbun kalmomi mai lasisin buɗaɗɗe (Wiktionary ta Hausa, lasisin CC-BY-SA) don fassarar Hausa zuwa Turanci mai inganci, tare da Robinson (1914) na Turanci zuwa Hausa. An kuma girmama manyan masana ƙamusun Hausa — Farfesa Paul Newman da Roxana Ma Newman — amma ba a shigar da aikinsu mai kariyar mallaka ba sai da izini.",
+                 gloss: "Clean Hausa→English dictionary — added an openly-licensed lexicon (Hausa Wiktionary, CC-BY-SA) for accurate Hausa→English alongside Robinson (1914) for English→Hausa. We also credit the foundational Hausa lexicographers Prof. Paul Newman and Roxana Ma Newman — while deliberately NOT ingesting their in-copyright dictionaries without permission (see repository ATTRIBUTION records).",
+                 status: "Ƙari · Lexicon Addendum"
                }
              ].map((m, i) => (
                <div key={i} className="flex flex-col sm:flex-row items-baseline gap-8 py-8 border-b border-white/5 group">
