@@ -25,16 +25,21 @@ primary_region = "jnb"
   # not known to hurt CPU inference.
   OLLAMA_FLASH_ATTENTION = "1"
   OLLAMA_KV_CACHE_TYPE = "q8_0"
-  # Lower than the model config's baked-in 0.8 -- reduces per-phoneme
-  # duration jitter from the VITS duration predictor, which is what was
-  # producing uneven/erratic speech rhythm. Confirmed by ear against 0.8
-  # and 0.5 (see services/vits_engine.py's VITS_NOISE_W override).
-  VITS_NOISE_W = "0.3"
+  # Expressiveness dials, re-tuned by ear (the "Looser" preset). noise_w 0.3
+  # was steady but flattened the melody (founder's montante/descendante note);
+  # 0.5 restores rising/falling movement without the wobble of higher values.
+  # Paired with noise_scale 0.85 below. NOTE: these add pitch VARIATION, not
+  # controlled tone — true intonation control needs a tone-channel retrain.
+  VITS_NOISE_W = "0.5"
+  VITS_NOISE_SCALE = "0.85"
   # Counterweight to the low noise_w above: flattening duration variance
   # also quickened delivery ("talking faster than normal" per founder's
   # ear). length_scale > 1 stretches phoneme durations back to a natural
   # pace; still overridable per-request via /api/tts?length_scale=.
-  VITS_LENGTH_SCALE = "1.1"
+  # 1.25 = the "measured" pace chosen by ear against 1.1 and 1.4 — modern-TTS
+  # cadence without dragging. Paired with per-sentence pauses (see
+  # audio.py VITS_SENTENCE_PAUSE_MS) so speech also breathes at punctuation.
+  VITS_LENGTH_SCALE = "1.25"
   # STT quality: "small" recognizes Hausa (and its dialect variation)
   # markedly better than the code-default "base" — the single biggest
   # available lever for "it doesn't understand me" complaints. Costs more

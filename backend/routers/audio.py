@@ -21,6 +21,7 @@ import io
 import json
 import logging
 import os
+import re
 import struct
 import tempfile
 from contextlib import suppress
@@ -374,6 +375,55 @@ def _synthesize_speech(
     return pcm
 
 
+# Natural inter-sentence breathing: the VITS voice synthesizes a whole passage
+# in one pass and runs sentences together. Modern TTS pauses briefly at each
+# sentence end. We split on sentence punctuation, synthesize each piece, and
+# join the audio with a short silence — so "Barka da salla! Allah ya karɓa."
+# gets a real beat between the exclamation and the prayer.
+_SENTENCE_PAUSE_MS = int(os.getenv("VITS_SENTENCE_PAUSE_MS", "180"))
+_CLAUSE_PAUSE_MS = int(os.getenv("VITS_CLAUSE_PAUSE_MS", "90"))
+_TTS_SAMPLE_RATE = 24000
+# Split after . ! ? … (sentence) or : ; (clause), keeping the punctuation.
+_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?…:;])\s+")
+
+
+def _silence_pcm(ms: int) -> bytes:
+    """`ms` milliseconds of PCM-16 silence at the TTS sample rate."""
+    return b"\x00\x00" * int(_TTS_SAMPLE_RATE * ms / 1000)
+
+
+def _synthesize_with_sentence_pauses(vits, text, speaker_id,
+                                     length_scale, noise_scale, noise_w) -> bytes | None:
+    """Synthesize `text` sentence-by-sentence and concatenate with a short
+    silence between sentences, so speech breathes at punctuation instead of
+    running together. Falls back to a single synthesis when there is only one
+    sentence (or if splitting yields nothing)."""
+    parts = [p for p in _SENTENCE_SPLIT_RE.split(text.strip()) if p.strip()]
+    if len(parts) <= 1:
+        return vits.synthesize(
+            text, speaker_id=speaker_id,
+            length_scale=length_scale, noise_scale=noise_scale, noise_w=noise_w,
+        )
+    gap = _silence_pcm(_SENTENCE_PAUSE_MS)
+    short_gap = _silence_pcm(_CLAUSE_PAUSE_MS)
+    segments: list[bytes] = []
+    prev_end = ""
+    for part in parts:
+        pcm = vits.synthesize(
+            part, speaker_id=speaker_id,
+            length_scale=length_scale, noise_scale=noise_scale, noise_w=noise_w,
+        )
+        if not pcm:
+            continue
+        if segments:
+            # The beat reflects how the PREVIOUS sentence ended: a clause break
+            # (: or ;) gets a shorter pause than a full stop / question / bang.
+            segments.append(short_gap if prev_end in ";:" else gap)
+        segments.append(pcm)
+        prev_end = part.strip()[-1:]
+    return b"".join(segments) if segments else None
+
+
 def _synthesize_speech_raw(
     text: str,
     speaker_id: int = 0,
@@ -409,9 +459,8 @@ def _synthesize_speech_raw(
     # 2. Try custom VITS model first
     vits = _get_vits()
     if vits and vits.model_path.exists():
-        pcm = vits.synthesize(
-            text, speaker_id=speaker_id,
-            length_scale=length_scale, noise_scale=noise_scale, noise_w=noise_w,
+        pcm = _synthesize_with_sentence_pauses(
+            vits, text, speaker_id, length_scale, noise_scale, noise_w,
         )
         if pcm:
             logger.info("Generated speech using custom VITS model (speaker %d)", speaker_id)

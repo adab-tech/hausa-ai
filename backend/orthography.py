@@ -187,6 +187,44 @@ _CURRENCY_WORDS = {
     "£": " fam ",
 }
 
+# English glosses in parentheses: the constitution/tutor asks the model to give
+# a Hausa term with its English gloss on first mention — "ruwa (water)",
+# "ilimin halittu (Biology)". The SCREEN should keep the gloss, but the VOICE is
+# a Hausa voice and should speak ONLY the Hausa — not read the English aloud
+# (and not mangle it). This strips a parenthetical from the SPOKEN text when its
+# content looks like a short English gloss: plain ASCII letters, 1-3 words, and
+# no Hausa hooked letters. Longer or hooked-letter parentheticals are Hausa
+# asides and are kept.
+_HOOKED = "ɓɗƙƴƁƊƘƳ"
+_PAREN_RE = re.compile(r"\s*\(([^()]{1,40})\)")
+_ASCII_GLOSS_RE = re.compile(r"[A-Za-z][A-Za-z /'-]*$")
+# Common Hausa words that legitimately appear in parentheses as asides (ASCII,
+# so charset can't tell them from an English gloss) — always keep these spoken.
+_HAUSA_PAREN_KEEP = {
+    "misali", "wato", "watau", "kamar", "kuma", "gani", "duba", "watakila",
+    "wajen", "ma", "dss", "sauransu", "haka", "shi", "ita",
+}
+
+
+def strip_english_glosses_for_speech(text: str) -> str:
+    """Remove short English-gloss parentheticals from TTS text so the Hausa
+    voice speaks only the Hausa. Keeps Hausa asides (hooked letters, common
+    Hausa words, or >3 words). Spoken-text only — the displayed reply keeps its
+    parentheses."""
+    def _repl(m: "re.Match[str]") -> str:
+        inner = m.group(1).strip()
+        if any(c in inner for c in _HOOKED):      # Hausa aside -> keep
+            return m.group(0)
+        words = inner.split()
+        if len(words) > 3:                        # phrase -> likely Hausa -> keep
+            return m.group(0)
+        if any(w.lower().strip(".,") in _HAUSA_PAREN_KEEP for w in words):
+            return m.group(0)                     # known Hausa word -> keep
+        if _ASCII_GLOSS_RE.match(inner):          # short ASCII gloss -> drop
+            return ""
+        return m.group(0)
+    return _PAREN_RE.sub(_repl, text)
+
 
 def prepare_text_for_tts(text: str) -> str:
     """Full text-normalization pipeline for speech synthesis.
@@ -207,6 +245,10 @@ def prepare_text_for_tts(text: str) -> str:
     reason, then numbers, then separator repair, then whitespace collapse.
     """
     text = normalize_hausa_orthography(text)
+
+    # Speak only the Hausa: drop short English-gloss parentheticals before the
+    # rest of the pipeline (the screen still shows them).
+    text = strip_english_glosses_for_speech(text)
 
     # Currency symbols -> Hausa words (also removes '$' before it can be
     # read as the tokenizer's EOS control symbol).

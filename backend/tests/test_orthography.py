@@ -140,3 +140,16 @@ def test_tts_prep_control_symbols_removed():
 def test_tts_prep_combined_hooked_and_numbers():
     # Hooked-consonant normalization still runs inside the pipeline.
     assert prepare_text_for_tts("k'asa 2") == "ƙasa biyu"
+
+
+def test_tts_prep_strips_english_glosses():
+    # English gloss in parentheses is dropped from SPOKEN text (screen keeps it).
+    assert prepare_text_for_tts("ruwa (water) yana da kyau") == "ruwa yana da kyau"
+    out = prepare_text_for_tts("ilimin halittu (Biology) yana da kyau")
+    assert "Biology" not in out and "ilimin halittu" in out
+
+
+def test_tts_prep_keeps_hausa_parentheticals():
+    # Hausa asides must be preserved (hooked letters, common words, or phrases).
+    assert "misali" in prepare_text_for_tts("kalmar (misali) a jimla")
+    assert "Arewa" in prepare_text_for_tts("Kano (birni mafi girma a Arewa) tana nan")
