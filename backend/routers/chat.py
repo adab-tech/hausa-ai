@@ -253,6 +253,10 @@ _DEFINE_RE = re.compile(
     r"meaning of|what does)\s+[\"']?([\wɓɗƙƴ']+)",
     re.IGNORECASE,
 )
+_SOURCE_LABEL = {
+    "robinson_1914_vol2": "Robinson 1914",
+    "wiktionary_ha_ccbysa": "Wiktionary CC-BY-SA",
+}
 _PRAYER_RE = re.compile(
     r"\b(?:sallah?|salla|prayer times?|lokutan? salla|lokacin salla|adhan|"
     r"azahar|azalla|la'?asar|magariba|magrib|isha'?i?|subah?|asuba|fajr|"
@@ -311,7 +315,9 @@ def _tools_context(text: str) -> str | None:
                     f"Isha'i {t['isha']}."
                 )
 
-        # 3. Dictionary — Robinson 1914 definition/translation of a word.
+        # 3. Dictionary — definition/translation of a word. Entries may come
+        # from Robinson (1914, EN->HA) or the open Wiktionary lexicon (HA->EN);
+        # cite the ACTUAL source(s) rather than assuming Robinson.
         if dictionary_service.dictionary_ready():
             m = _DEFINE_RE.search(text)
             if m:
@@ -321,7 +327,11 @@ def _tools_context(text: str) -> str | None:
                     rendered = "; ".join(
                         f"{d['headword']} → {d['translation']}" for d in defs
                     )
-                    blocks.append(f"DICTIONARY (Robinson 1914) '{term}': {rendered}")
+                    sources = ", ".join(sorted({
+                        _SOURCE_LABEL.get(d.get("provenance", ""), d.get("provenance") or "unknown")
+                        for d in defs
+                    }))
+                    blocks.append(f"DICTIONARY '{term}' ({sources}): {rendered}")
     except Exception as err:  # tools must never break the request path
         print(f"[Murya] Local tool error ({type(err).__name__}: {err}); skipping tools.")
         return None
