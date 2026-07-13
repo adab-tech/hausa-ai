@@ -187,6 +187,54 @@ _CURRENCY_WORDS = {
     "£": " fam ",
 }
 
+# English words a Hausa speaker commonly code-switches, respelled in Hausa
+# orthography so Murya's OWN WAXAL voices pronounce them intelligibly in their
+# natural HAUSA ACCENT — this is deliberate: Murya speaks English words the way
+# a Hausa speaker does ('Biology' -> "bayoloji"), NOT with a foreign English
+# voice. This rewrites the SPOKEN text only; the displayed reply keeps the
+# original English spelling. Values use only reliably-trained Hausa graphemes
+# (no bare c/p/q/v/x, which the Hausa-trained voice renders unpredictably:
+# p->f, v->b, x->ks, q->kw, c->k/s). Native-speaker-tunable — extend freely.
+_ENGLISH_TTS_RESPELLINGS = {
+    # Academic subjects
+    "biology": "bayoloji", "chemistry": "kemistiri", "physics": "fisiks",
+    "mathematics": "matimatiks", "maths": "mats", "math": "mat",
+    "geography": "jagirafiya", "economics": "ikwanomiks", "science": "sayans",
+    "history": "histiri", "english": "ingilishi", "biochemistry": "bayokemistiri",
+    "engineering": "injiniyari", "medicine": "medisin", "statistics": "statistiks",
+    # Technology & brands
+    "computer": "kwamfuta", "laptop": "laftof", "internet": "intanet",
+    "website": "websait", "email": "imel", "online": "onlayn", "software": "softuwe",
+    "hardware": "hadwe", "password": "faswod", "account": "akaunt", "google": "gugul",
+    "facebook": "fesbuk", "whatsapp": "watsaf", "youtube": "yutub", "video": "bidiyo",
+    "radio": "rediyo", "phone": "fon", "telephone": "talifon", "app": "af",
+    "download": "dawilod", "upload": "aflod", "message": "mesej", "server": "saba",
+    "network": "netwok", "data": "deta", "file": "fayil", "link": "link",
+    # Common code-switched words
+    "okay": "oke", "sorry": "sori", "please": "filis", "project": "farojek",
+    "office": "ofis", "meeting": "miting", "manager": "manaja", "report": "rifot",
+    "battery": "batir", "market": "maket", "ticket": "tiket", "receipt": "risit",
+}
+# Whole ASCII-letter tokens only (Hausa words with hooked letters ɓɗƙƴ never
+# match, and unlisted words pass through unchanged — no risk to Hausa text).
+_ENGLISH_TOKEN_RE = re.compile(r"[A-Za-z]+")
+
+
+def hausaize_english_for_speech(text: str) -> str:
+    """Respell code-switched English words into Hausa orthography for TTS, so the
+    Hausa voices say them in a natural Hausa accent. Only whole tokens listed in
+    _ENGLISH_TTS_RESPELLINGS are changed (case-insensitive); everything else —
+    all Hausa words included — passes through untouched. Spoken-text only."""
+    def _repl(match: "re.Match[str]") -> str:
+        word = match.group(0)
+        respelled = _ENGLISH_TTS_RESPELLINGS.get(word.lower())
+        if respelled is None:
+            return word
+        # Preserve leading-capital for sentence-start capitalization; the voice
+        # is case-insensitive but this keeps the intermediate text tidy.
+        return respelled.capitalize() if word[:1].isupper() else respelled
+    return _ENGLISH_TOKEN_RE.sub(_repl, text)
+
 
 def prepare_text_for_tts(text: str) -> str:
     """Full text-normalization pipeline for speech synthesis.
@@ -207,6 +255,10 @@ def prepare_text_for_tts(text: str) -> str:
     reason, then numbers, then separator repair, then whitespace collapse.
     """
     text = normalize_hausa_orthography(text)
+
+    # Respell common code-switched English words into Hausa orthography so the
+    # Hausa voices pronounce them in a natural Hausa accent (spoken-text only).
+    text = hausaize_english_for_speech(text)
 
     # Currency symbols -> Hausa words (also removes '$' before it can be
     # read as the tokenizer's EOS control symbol).

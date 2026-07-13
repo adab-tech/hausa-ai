@@ -140,3 +140,30 @@ def test_tts_prep_control_symbols_removed():
 def test_tts_prep_combined_hooked_and_numbers():
     # Hooked-consonant normalization still runs inside the pipeline.
     assert prepare_text_for_tts("k'asa 2") == "ƙasa biyu"
+
+
+def test_tts_prep_english_words_hausaized():
+    # Code-switched English respelled for the Hausa voice's accent (spoken-text
+    # only); the displayed reply keeps the original spelling elsewhere.
+    out = prepare_text_for_tts("Ina son Biology da Chemistry")
+    assert "bayoloji" in out.lower()
+    assert "kemistiri" in out.lower()
+    assert "Biology" not in out and "Chemistry" not in out
+
+
+def test_tts_prep_hausa_words_untouched_by_respelling():
+    # Real Hausa words must never be altered by the English respelling pass.
+    out = prepare_text_for_tts("Ruwa yana da kyau a gida")
+    assert out == "Ruwa yana da kyau a gida"
+
+
+def test_english_respellings_use_only_voice_graphemes():
+    # Every respelling must stay within the trained voice's phoneme inventory.
+    import json, pathlib
+    from orthography import _ENGLISH_TTS_RESPELLINGS
+    cfg_path = pathlib.Path(__file__).resolve().parents[2] / "models" / "piper_hausa_waxal" / "model.onnx.json"
+    if not cfg_path.exists():
+        return  # model not present in this environment; skip silently
+    valid = set(json.loads(cfg_path.read_text(encoding="utf-8"))["phoneme_id_map"].keys())
+    for eng, ha in _ENGLISH_TTS_RESPELLINGS.items():
+        assert all(c in valid for c in ha), f"{eng!r}->{ha!r} uses out-of-voice graphemes"
