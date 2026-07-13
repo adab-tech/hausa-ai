@@ -401,6 +401,42 @@ class LocalService {
     }
   }
 
+  // ── Document translate / summarize (one-shot; streams the result) ─────────
+  async *streamDocument(
+    text: string,
+    action: "translate" | "summarize",
+    target: "ha" | "en"
+  ): AsyncGenerator<{ text: string; isDone: boolean; error?: string }> {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/document`, {
+        method: "POST",
+        headers: withContributor({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ text, action, target }),
+      });
+      if (!res.ok || !res.body) {
+        yield { text: "", isDone: true, error: "An samu kuskure. A sake gwadawa." };
+        return;
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          yield JSON.parse(line.slice(6));
+        }
+      }
+    } catch (err) {
+      console.error("Document task failed:", err);
+      yield { text: "", isDone: true, error: "An samu kuskure wajen haɗawa da uwar garke." };
+    }
+  }
+
   // ── Visitor analytics (privacy-preserving: no IP; geography by browser
   // timezone; uniqueness by the anonymous contributor id) ───────────────────
   async recordVisit(): Promise<void> {

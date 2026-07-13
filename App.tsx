@@ -6,6 +6,7 @@ import { ArewaLogo } from './components/ArewaLogo.tsx';
 import { Waveform } from './components/Waveform.tsx';
 import { NeuralReview } from './components/NeuralReview.tsx';
 import { WhitePaper } from './components/WhitePaper.tsx';
+import { DocumentTool } from './components/DocumentTool.tsx';
 import { Sidebar } from './components/Sidebar.tsx';
 import { LiveCallPanel } from './components/LiveCallPanel.tsx';
 import { InputConsole } from './components/InputConsole.tsx';
@@ -33,6 +34,7 @@ const App: React.FC = () => {
   const [showWhitePaper, setShowWhitePaper] = useState(false);
   // Learning Mode: turns Murya into Malamin Hausa (a patient Hausa tutor).
   const [learningMode, setLearningMode] = useState(false);
+  const [showDocumentTool, setShowDocumentTool] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [volume, setVolume] = useState(0);
   const [currentAxiomIndex, setCurrentAxiomIndex] = useState(0);
@@ -398,6 +400,7 @@ const App: React.FC = () => {
         setShowAddresseeDial={setShowAddresseeDial}
         learningMode={learningMode}
         setLearningMode={setLearningMode}
+        onOpenDocumentTool={() => setShowDocumentTool(true)}
         onOpenReview={() => setShowReview(true)}
         onOpenWhitePaper={() => setShowWhitePaper(true)}
         onClearChat={clearChat}
@@ -505,6 +508,9 @@ const App: React.FC = () => {
         <WhitePaper
           onClose={() => setShowWhitePaper(false)}
         />
+      )}
+      {showDocumentTool && (
+        <DocumentTool onClose={() => setShowDocumentTool(false)} />
       )}
     </div>
   );

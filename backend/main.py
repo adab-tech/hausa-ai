@@ -33,7 +33,7 @@ from slowapi import _rate_limit_exceeded_handler
 
 from auth import verify_api_key, verify_admin_session
 from rate_limit import limiter
-from routers import admin_auth, analytics, audio, chat, feedback, image, waxal
+from routers import admin_auth, analytics, audio, chat, document, feedback, image, waxal
 import admin_store
 import analytics_store
 
@@ -182,6 +182,9 @@ app.include_router(admin_auth.router, prefix="/api")
 # every page load), so it is NOT placed behind the optional API-key _auth
 # dependency; /admin/analytics self-gates via verify_admin_session.
 app.include_router(analytics.router, prefix="/api")
+# document.router: one-shot translate/summarize (public product endpoint,
+# same optional-API-key posture as chat).
+app.include_router(document.router, prefix="/api", dependencies=_auth)
 
 
 @app.get("/health")
