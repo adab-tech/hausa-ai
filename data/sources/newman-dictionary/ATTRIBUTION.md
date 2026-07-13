@@ -25,23 +25,34 @@ _A bibliography of Newman's scholarship is archived at
 
 ## Copyright / use — READ BEFORE INGESTING
 
-Unlike Robinson (1914), which is **public domain**, Newman's dictionaries are
-**in copyright** (Modern Hausa–English Dictionary © 1977; A Hausa–English
-Dictionary © 2007, Yale University Press). **Attribution alone does not grant
-reproduction or derivative-use rights** for a copyrighted work.
+The file `docs/newman_paul_a_hausaenglish_dictionary.pdf` is a **262-page scanned
+image** of *A Hausa–English Dictionary*, **ISBN 978-0-300-12246-6,
+Copyright © 2007 by Yale University**. Its copyright page states, verbatim:
+"All rights reserved. This book may not be reproduced, in whole or in part …
+without written permission from the publishers."
 
-Before this source is ingested into training data or a served product, the
-usage basis must be confirmed by the project owner, e.g.:
-- a licence or written permission from the rights holder (Oxford University
-  Press Nigeria / Yale University Press / the authors), **or**
-- limited, transformative reference use consistent with fair use / fair
-  dealing (e.g. validation and cross-checking rather than wholesale copying),
-  **or**
-- the owner's own lawfully-acquired copy used within permitted bounds.
+Unlike Robinson (1914), which is **public domain**, this is an **all-rights-
+reserved commercial work with an explicit no-reproduction notice**. Owning a
+physical copy does **not** grant the right to digitize the full text (OCR) and
+ingest it into a training corpus or a served product — that is a distinct right
+Yale University Press has expressly reserved. **Attribution does not substitute
+for a licence.**
 
-**Status: PENDING owner confirmation.** Credit is prepared here in advance; the
-usage right is a separate, required step. This mirrors the project's
-[serious-research standard] — credit *and* a clean legal basis.
+Permitted paths (project owner to choose / confirm):
+- **Written permission / licence** from Yale University Press (they license for
+  research and for products) — the clean basis for full ingestion. **[preferred]**
+- **Limited, transformative reference use** — consulting *specific* entries to
+  validate/correct an independently-built lexicon, without bulk-copying or
+  redistributing Newman text. Does **not** extend to OCRing all 262 pages.
+- **Openly-licensed sources instead** for the shipped HA→EN direction (Kamusi,
+  Wiktionary HA CC-BY-SA, PanLex, etc.), with Newman used only as a private
+  reference within the limits above.
+
+**Status: NOT LICENSED for ingestion. Do NOT bulk-OCR / ingest this file into
+training data or the served product until a licence or written permission is on
+record here.** Credit is prepared; the legal basis is the missing, required
+piece. This mirrors the project's [serious-research standard] — credit *and* a
+clean legal basis, both.
 
 ## Suggested citation
 
