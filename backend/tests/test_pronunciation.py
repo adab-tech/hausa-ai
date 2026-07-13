@@ -37,51 +37,58 @@ def test_flag_creates_pending_without_audio():
     assert store.lookup("kwamfuta", 0) is None
 
 
-def test_add_correction_then_exact_lookup():
+def test_recording_lands_pending_until_approved():
+    # Recording is NOT approving — nothing is served until the owner approves.
     rid = store.add_correction("kwamfuta", speaker_id=0, audio_pcm=_PCM, submitted_by="reviewer:adamu")
     assert rid
-    assert store.lookup("kwamfuta", 0) == _PCM
-    # Case/diacritic/whitespace-insensitive, and works for other speakers too
-    # (voice-agnostic entry has speaker_id set here to 0, so a different speaker
-    # only matches if a NULL-speaker or matching entry exists).
+    assert store.list_items(status="pending")[0]["id"] == rid
+    assert store.lookup("kwamfuta", 0) is None            # pending -> not served
+    assert store.set_status(rid, "approved") is True
+    assert store.lookup("kwamfuta", 0) == _PCM            # approved -> served
+    # Case/diacritic/whitespace-insensitive.
     assert store.lookup("  KWAMFUTA ", 0) == _PCM
     assert store.lookup("wani-abu-dabam", 0) is None
 
 
 def test_voice_specific_beats_agnostic():
-    store.add_correction("gida", speaker_id=None, audio_pcm=b"\x02\x00" * 100)   # agnostic
-    store.add_correction("gida", speaker_id=4, audio_pcm=_PCM)                    # voice 4
+    a = store.add_correction("gida", speaker_id=None, audio_pcm=b"\x02\x00" * 100)  # agnostic
+    b = store.add_correction("gida", speaker_id=4, audio_pcm=_PCM)                  # voice 4
+    store.set_status(a, "approved")
+    store.set_status(b, "approved")
     assert store.lookup("gida", 4) == _PCM               # voice-specific wins
     assert store.lookup("gida", 1) == b"\x02\x00" * 100  # falls back to agnostic
 
 
-def test_attach_audio_approves_flag():
+def test_attach_audio_leaves_pending():
     rid = store.flag("sallah", speaker_id=0, submitted_by="dev")
     assert store.lookup("sallah", 0) is None
     assert store.attach_audio(rid, _PCM) is True
+    assert store.lookup("sallah", 0) is None             # recorded but not yet approved
+    assert store.set_status(rid, "approved") is True
     assert store.lookup("sallah", 0) == _PCM
-    assert store.list_items(status="approved")[0]["id"] == rid
 
 
 def test_reject_removes_from_lookup():
     rid = store.add_correction("barka", speaker_id=0, audio_pcm=_PCM)
+    store.set_status(rid, "approved")
     assert store.lookup("barka", 0) == _PCM
     assert store.set_status(rid, "rejected") is True
     assert store.lookup("barka", 0) is None
 
 
 def test_export_approved_only():
-    store.add_correction("one", speaker_id=0, audio_pcm=_PCM)
-    rid2 = store.add_correction("two", speaker_id=0, audio_pcm=_PCM)
-    store.set_status(rid2, "rejected")
-    store.flag("three", speaker_id=0, submitted_by="dev")  # pending, no audio
+    one = store.add_correction("one", speaker_id=0, audio_pcm=_PCM)
+    store.set_status(one, "approved")
+    store.add_correction("two", speaker_id=0, audio_pcm=_PCM)  # pending, never approved
+    store.flag("three", speaker_id=0, submitted_by="dev")      # pending, no audio
     exported = store.export_approved()
     assert [e["text"] for e in exported] == ["one"]
     assert exported[0]["audio"] == _PCM
 
 
 def test_counts_and_delete():
-    store.add_correction("a", speaker_id=0, audio_pcm=_PCM)
+    rid_a = store.add_correction("a", speaker_id=0, audio_pcm=_PCM)
+    store.set_status(rid_a, "approved")
     rid = store.flag("b", speaker_id=0, submitted_by="d")
     c = store.counts()
     assert c["approved"] == 1 and c["pending"] == 1

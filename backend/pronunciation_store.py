@@ -185,9 +185,11 @@ def flag(text: str, speaker_id: int | None, submitted_by: str | None,
 
 def add_correction(text: str, speaker_id: int | None, audio_pcm: bytes,
                    submitted_by: str | None = None, note: str | None = None,
-                   status: str = "approved") -> int | None:
-    """Store a reviewer's correction recording (already 24 kHz PCM) for `text`.
-    Defaults to 'approved' — the reviewer is the authority. Returns row id."""
+                   status: str = "pending") -> int | None:
+    """Store a correction recording (already 24 kHz PCM) for `text`. Lands as
+    'pending' by DESIGN — recording is not approving. The owner must explicitly
+    approve (set_status) before it is ever served; nothing auto-activates.
+    Returns row id."""
     key = fold_key(text)
     display = _cap(text, _MAX_TEXT)
     if not key or not display or not audio_pcm:
@@ -207,15 +209,16 @@ def add_correction(text: str, speaker_id: int | None, audio_pcm: bytes,
 
 
 def attach_audio(row_id: int, audio_pcm: bytes) -> bool:
-    """Attach a recording to an existing (usually flagged) row and approve it.
-    Returns True if a row was updated."""
+    """Attach a recording to an existing (usually flagged) row. Leaves it
+    'pending' — recording is not approving; the owner still approves it
+    explicitly. Returns True if a row was updated."""
     if not audio_pcm:
         return False
     if len(audio_pcm) > _MAX_AUDIO_BYTES:
         raise ValueError("correction audio too large")
     with _get_conn() as conn:
         cur = conn.execute(
-            "UPDATE pronunciations SET audio = ?, status = 'approved', updated_at = ? WHERE id = ?",
+            "UPDATE pronunciations SET audio = ?, status = 'pending', updated_at = ? WHERE id = ?",
             (sqlite3.Binary(audio_pcm), time.time(), row_id),
         )
         return cur.rowcount > 0

@@ -103,7 +103,8 @@ export const PronunciationReview: React.FC = () => {
 
   if (denied) return <p className="text-dyn-text-muted text-sm p-4">An hana shiga. Shiga a matsayin admin. (Admin login required.)</p>;
 
-  const pending = items.filter((i) => i.status === 'pending');
+  const needsRecording = items.filter((i) => i.status === 'pending' && !i.has_audio);
+  const awaitingApproval = items.filter((i) => i.status === 'pending' && i.has_audio);
   const approved = items.filter((i) => i.status === 'approved');
 
   return (
@@ -152,11 +153,11 @@ export const PronunciationReview: React.FC = () => {
         </div>
       </div>
 
-      {/* Pending flags awaiting a recording */}
-      {pending.length > 0 && (
+      {/* Flags that still need a recording */}
+      {needsRecording.length > 0 && (
         <div className="space-y-2">
-          <p className="text-[10px] uppercase tracking-widest text-amber-400/80 font-bold">Waɗanda ake jira · flagged, need a recording ({pending.length})</p>
-          {pending.map((it) => (
+          <p className="text-[10px] uppercase tracking-widest text-amber-400/80 font-bold">Waɗanda ake jira · flagged, need a recording ({needsRecording.length})</p>
+          {needsRecording.map((it) => (
             <div key={it.id} className="flex items-center justify-between gap-3 rounded-xl border border-dyn-border bg-dyn-bg-tertiary/20 px-4 py-3">
               <div className="min-w-0">
                 <p className="text-sm text-dyn-text-primary truncate">{it.text}</p>
@@ -171,6 +172,30 @@ export const PronunciationReview: React.FC = () => {
                   </button>
                 )}
                 <button onClick={() => remove(it.id)} className="p-1.5 rounded-lg text-dyn-text-muted hover:text-red-400" aria-label="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Recorded — awaiting YOUR approval (nothing goes live without this) */}
+      {awaitingApproval.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-[10px] uppercase tracking-widest text-amber-400/80 font-bold">Ana jira amincewarka · awaiting your approval ({awaitingApproval.length})</p>
+          {awaitingApproval.map((it) => (
+            <div key={it.id} className="flex items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/[0.05] px-4 py-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <button onClick={() => play(it.id)} className="p-2 rounded-lg bg-dyn-bg-tertiary/50 text-dyn-accent hover:bg-dyn-bg-tertiary shrink-0" aria-label="Listen before approving"><Play className="w-4 h-4" /></button>
+                <div className="min-w-0">
+                  <p className="text-sm text-dyn-text-primary truncate">{it.text}</p>
+                  <p className="text-[10px] text-dyn-text-muted">{it.speaker_id === null ? 'duk muryoyi' : `voice ${it.speaker_id}`} · listen, then approve</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button onClick={() => setStatus(it.id, 'approved')} disabled={busy === it.id} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-500/50 text-emerald-400 text-[11px] font-bold uppercase hover:bg-emerald-500/30 disabled:opacity-40">
+                  {busy === it.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />} Amince (approve)
+                </button>
+                <button onClick={() => remove(it.id)} className="p-1.5 rounded-lg text-dyn-text-muted hover:text-red-400" aria-label="Reject & delete"><Trash2 className="w-3.5 h-3.5" /></button>
               </div>
             </div>
           ))}
