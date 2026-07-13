@@ -5,6 +5,15 @@ day the change went live in production (Fly.io backend / Vercel `app.murya.ng`).
 
 ## 2026-07-12 (latest)
 
+### Added — Document Translate & Summarize (Fassara & Takaitawa)
+- A **Fassara & Takaitawa** tool (sidebar) for one-shot translate/summarize of
+  pasted text up to ~30,000 chars, on the free Cerebras path (131k context).
+  Four actions: translate → English / → Hausa, summarize in Hausa / English;
+  streamed result + copy. `POST /api/document {text, action, target}`
+  (`routers/document.py`), `DocumentTool` modal, `streamDocument()` service.
+  Live-verified both translation directions + Hausa summarization. Step 2 of
+  the feature roadmap.
+
 ### Added — Hausa Tutor Mode (Malamin Hausa)
 - A **Learning Mode** that turns Murya into a patient Hausa teacher: teaches the
   Hausa language (for diaspora/kids/new speakers) or explains any subject in
