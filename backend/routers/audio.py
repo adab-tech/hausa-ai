@@ -431,6 +431,12 @@ def _synthesize_with_sentence_pauses(vits, text, speaker_id,
         )
         if not pcm:
             continue
+        # Level each sentence to the SAME loudness before joining. Separately
+        # synthesized sentences can come out at different levels; without this
+        # the volume jumps between them, which reads as a jarring "break". The
+        # final whole-utterance normalize (in _synthesize_speech) then scales
+        # them together, preserving this relative consistency.
+        pcm = _normalize_loudness(pcm)
         if segments:
             # The beat reflects how the PREVIOUS sentence ended: a clause break
             # (: or ;) gets a shorter pause than a full stop / question / bang.
