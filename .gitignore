@@ -65,6 +65,9 @@ docs/newman_hausa_bibliography.pdf
 # see data/sources/newman-dictionary/ATTRIBUTION.md
 docs/newman_paul_a_hausaenglish_dictionary.pdf
 docs/Newman-2013-Etymology-of-Hausa-boko.pdf
+docs/Modern Hausa English Dictionary.pdf
+# OpenTran-generated EN-HA dump — uncertain licence/provenance, kept local only
+docs/en-ha.pdf
 data/sources/robinson-dictionary/*.pdf
 data/sources/robinson-dictionary/*djvu*.txt
 

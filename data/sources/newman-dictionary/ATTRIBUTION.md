@@ -16,8 +16,12 @@ engaging his body of work.
 > Newman, Paul. *A Hausa–English Dictionary.* New Haven: Yale University Press,
 > 2007.
 
-_A bibliography of Newman's scholarship is archived at
-`docs/newman_hausa_bibliography.pdf`._
+_Local copies (git-ignored, in copyright — not committed):_
+- _`docs/Modern Hausa English Dictionary.pdf` — the 1977 work above
+  (title page: "Sabon Ƙamus na Hausa zuwa Turanci"; Bayero University College,
+  Centre for the Study of Nigerian Languages). Has a text layer._
+- _`docs/newman_paul_a_hausaenglish_dictionary.pdf` — the 2007 Yale ed. (scanned)._
+- _`docs/newman_hausa_bibliography.pdf` — bibliography of Newman's scholarship._
 
 > ⚠️ **Complete the exact edition details from the physical copy** (ISBN,
 > printing, page count) before publishing derivatives — these should be filled
