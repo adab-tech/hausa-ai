@@ -382,6 +382,20 @@ def _synthesize_speech_raw(
     noise_w: float | None = None,
 ) -> bytes | None:
     """Run VITS/Piper TTS and return raw PCM-16 LE bytes at 24 kHz."""
+    # 0. Human pronunciation corrections have the HIGHEST priority. If a native
+    #    reviewer has recorded and approved the correct way to say this exact
+    #    text, use that recording instead of synthesizing (see
+    #    pronunciation_store.py — the human-in-the-loop TTS loop). Keyed on the
+    #    RAW request text (what the user flagged), before TTS normalization.
+    try:
+        import pronunciation_store
+        correction = pronunciation_store.lookup(text, speaker_id)
+        if correction:
+            logger.info("Speech served from approved pronunciation correction (speaker %s)", speaker_id)
+            return correction
+    except Exception as exc:
+        logger.error("Pronunciation correction lookup failed: %s", exc)
+
     # Full TTS text-normalization pipeline (hooked consonants, numbers,
     # currency ₦/$/€/£, percent, markdown/control symbols, separator
     # repair — see orthography.prepare_text_for_tts for the failure modes

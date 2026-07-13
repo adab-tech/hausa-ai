@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ArewaLogo } from './ArewaLogo.tsx';
 import { gemini } from '../services/localService.ts';
+import { PronunciationReview } from './PronunciationReview.tsx';
 import {
   Activity,
   Layers,
@@ -16,12 +17,13 @@ import {
   ChevronRight,
   Sliders,
   Database,
-  Globe
+  Globe,
+  Mic
 } from 'lucide-react';
 
 export const NeuralReview: React.FC<{ onClose: () => void; onOpenWhitePaper?: () => void }> = ({ onClose, onOpenWhitePaper }) => {
   const [feedbackStats, setFeedbackStats] = useState<{ up: number; down: number; total: number } | null>(null);
-  const [activeTab, setActiveTab] = useState<'telemetry' | 'visitors' | 'matrix' | 'phonology' | 'vision' | 'waxal'>('telemetry');
+  const [activeTab, setActiveTab] = useState<'telemetry' | 'visitors' | 'matrix' | 'phonology' | 'vision' | 'waxal' | 'pronunciation'>('telemetry');
   const [analytics, setAnalytics] = useState<any>(null);
 
   useEffect(() => {
@@ -159,6 +161,7 @@ export const NeuralReview: React.FC<{ onClose: () => void; onOpenWhitePaper?: ()
               { id: 'visitors', label: 'Ziyara', icon: Globe },
               { id: 'matrix', label: 'Matrix', icon: Layers },
               { id: 'phonology', label: 'Phonology', icon: Music },
+              { id: 'pronunciation', label: 'Furuci', icon: Mic },
               { id: 'vision', label: 'Core Vibe', icon: Sparkles },
               { id: 'waxal', label: 'WAXAL Corpus', icon: Database },
             ].map((tab) => {
@@ -183,7 +186,12 @@ export const NeuralReview: React.FC<{ onClose: () => void; onOpenWhitePaper?: ()
 
         {/* Tab Body */}
         <div className="flex-1 overflow-y-auto p-6 sm:p-10 space-y-10 no-scrollbar relative z-10 bg-dyn-bg-secondary/40">
-          
+
+          {/* Pronunciation corrections (human-in-the-loop TTS) */}
+          {activeTab === 'pronunciation' && (
+            <div className="animate-reveal"><PronunciationReview /></div>
+          )}
+
           {/* Telemetry Tab */}
           {activeTab === 'telemetry' && (
             <div className="space-y-8 animate-reveal">

@@ -543,6 +543,110 @@ class LocalService {
       return null;
     }
   }
+
+  // ── Pronunciation corrections (human-in-the-loop TTS) ─────────────────────
+  /** PUBLIC: a user reports a mispronunciation for a reviewer to fix. */
+  async flagPronunciation(text: string, speakerId: number | null = null, note?: string): Promise<boolean> {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/pronunciation/flag`, {
+        method: "POST",
+        headers: withContributor({ "Content-Type": "application/json" }),
+        credentials: "include",
+        body: JSON.stringify({ text, speaker_id: speakerId, note }),
+      });
+      return res.ok;
+    } catch (err) {
+      console.error("Failed to flag pronunciation:", err);
+      return false;
+    }
+  }
+
+  /** ADMIN: list correction items (+ counts) for the review dashboard. */
+  async getPronunciations(status?: "pending" | "approved" | "rejected"): Promise<{ items: any[]; counts: any } | null> {
+    try {
+      const q = status ? `?status=${status}` : "";
+      const res = await fetch(`${BACKEND_URL}/api/admin/pronunciation${q}`, { credentials: "include" });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch (err) {
+      console.error("Failed to fetch pronunciations:", err);
+      return null;
+    }
+  }
+
+  /** ADMIN: record a NEW correction (the correct way to say `text`). */
+  async submitPronunciation(text: string, speakerId: number | null, audio: Blob, note?: string): Promise<boolean> {
+    try {
+      const fd = new FormData();
+      fd.append("text", text);
+      if (speakerId !== null && speakerId !== undefined) fd.append("speaker_id", String(speakerId));
+      if (note) fd.append("note", note);
+      fd.append("audio", audio, "correction.webm");
+      const res = await fetch(`${BACKEND_URL}/api/admin/pronunciation`, {
+        method: "POST", credentials: "include", body: fd,
+      });
+      return res.ok;
+    } catch (err) {
+      console.error("Failed to submit pronunciation:", err);
+      return false;
+    }
+  }
+
+  /** ADMIN: attach a recording to an existing flagged item and approve it. */
+  async recordPronunciation(id: number, audio: Blob): Promise<boolean> {
+    try {
+      const fd = new FormData();
+      fd.append("audio", audio, "correction.webm");
+      const res = await fetch(`${BACKEND_URL}/api/admin/pronunciation/${id}/record`, {
+        method: "POST", credentials: "include", body: fd,
+      });
+      return res.ok;
+    } catch (err) {
+      console.error("Failed to record pronunciation:", err);
+      return false;
+    }
+  }
+
+  /** ADMIN: approve / reject. */
+  async setPronunciationStatus(id: number, status: "pending" | "approved" | "rejected"): Promise<boolean> {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/admin/pronunciation/${id}/status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ status }),
+      });
+      return res.ok;
+    } catch (err) {
+      console.error("Failed to set pronunciation status:", err);
+      return false;
+    }
+  }
+
+  /** ADMIN: delete a correction. */
+  async deletePronunciation(id: number): Promise<boolean> {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/admin/pronunciation/${id}`, {
+        method: "DELETE", credentials: "include",
+      });
+      return res.ok;
+    } catch (err) {
+      console.error("Failed to delete pronunciation:", err);
+      return false;
+    }
+  }
+
+  /** ADMIN: fetch a correction's audio (with the session cookie) as a playable object URL. */
+  async pronunciationAudioUrl(id: number): Promise<string | null> {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/admin/pronunciation/${id}/audio`, { credentials: "include" });
+      if (!res.ok) return null;
+      return URL.createObjectURL(await res.blob());
+    } catch (err) {
+      console.error("Failed to fetch correction audio:", err);
+      return null;
+    }
+  }
 }
 
 export const gemini = new LocalService();
