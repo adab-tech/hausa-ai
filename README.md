@@ -69,6 +69,8 @@ python utils/prepare_robinson_ml.py
 
 Always cite Robinson and the Archive item when publishing derivatives (see `data/sources/robinson-dictionary/ATTRIBUTION.md`).
 
+Robinson (1914) is public-domain and clean in the **English→Hausa** direction; its reverse (HA→EN) lookup is rougher. For the **Hausa→English** direction we credit the foundational lexicography of **Paul Newman & Roxana Ma Newman** — the widely-used *Modern Hausa–English Dictionary* (Oxford University Press, Ibadan, 1977) and Paul Newman's later *A Hausa–English Dictionary* (Yale University Press, 2007). Unlike Robinson, these works are **in copyright**: attribution is prepared in `data/sources/newman-dictionary/ATTRIBUTION.md`, and a usage basis (licence / permission / owner's copy / limited fair-use reference) must be confirmed before ingestion — credit and a clean legal basis, both.
+
 ---
 
 ## 🎯 Core Linguistic sovereign features

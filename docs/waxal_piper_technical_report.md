@@ -380,6 +380,12 @@ Effect: 9 failed launches on day 1 shrank to zero-failure runs on day 2
 - Resulting models: releasable under **MIT** — commercial use permitted.
 - Robinson 1914 lexicon (separate SFT track): public domain; cite Robinson +
   Internet Archive (see `data/sources/robinson-dictionary/ATTRIBUTION.md`).
+- Newman Hausa–English lexicography (planned HA→EN track): **Paul Newman &
+  Roxana Ma Newman**, *Modern Hausa–English Dictionary* (OUP Ibadan, 1977), and
+  Paul Newman, *A Hausa–English Dictionary* (Yale UP, 2007). These are **in
+  copyright** — credit is necessary but not sufficient; a usage basis
+  (licence / permission / owner's copy / limited fair-use reference) must be
+  confirmed before ingestion (see `data/sources/newman-dictionary/ATTRIBUTION.md`).
 
 ## 7. Artifacts
 
