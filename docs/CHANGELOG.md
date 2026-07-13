@@ -3,6 +3,19 @@
 All notable changes to the backend and frontend. Newest first. Dates are the
 day the change went live in production (Fly.io backend / Vercel `app.murya.ng`).
 
+## 2026-07-12 (latest)
+
+### Added — Hausa Tutor Mode (Malamin Hausa)
+- A **Learning Mode** that turns Murya into a patient Hausa teacher: teaches the
+  Hausa language (for diaspora/kids/new speakers) or explains any subject in
+  simple Hausa. Method: one idea at a time, example + practice question, each
+  word given with English gloss + example sentence (hooked letters intact),
+  encouragement, and a nudge to tap **Saurara** to hear pronunciation. It
+  inherits every existing capability (dictionary, calculator, gendered address,
+  TTS) automatically. `mode` field on `POST /api/chat` (`assistant`|`tutor`);
+  **Yanayin Koyo / Learning** switch in the sidebar. Cache key includes `mode`.
+  First of the planned feature roadmap (see below). Live-verified.
+
 ## 2026-07-12 (later)
 
 ### Added — Admin visitor analytics (Ziyara)
