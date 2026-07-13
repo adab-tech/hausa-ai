@@ -392,6 +392,22 @@ def _silence_pcm(ms: int) -> bytes:
     return b"\x00\x00" * int(_TTS_SAMPLE_RATE * ms / 1000)
 
 
+def _edge_fade(pcm: bytes, ms: int = 8) -> bytes:
+    """Apply a short linear fade-in/out to the edges of a PCM-16 segment so it
+    begins and ends exactly at zero amplitude. Guarantees no click/pop where a
+    sentence segment butts against the inserted silence — clean joins even if
+    the model's utterance edges aren't already at zero. ~8 ms is inaudible as a
+    trim but eliminates any boundary discontinuity."""
+    a = np.frombuffer(pcm, dtype=np.int16).astype(np.float32)
+    n = int(_TTS_SAMPLE_RATE * ms / 1000)
+    if n == 0 or a.size < 2 * n:
+        return pcm
+    ramp = np.linspace(0.0, 1.0, n, dtype=np.float32)
+    a[:n] *= ramp
+    a[-n:] *= ramp[::-1]
+    return a.astype(np.int16).tobytes()
+
+
 def _synthesize_with_sentence_pauses(vits, text, speaker_id,
                                      length_scale, noise_scale, noise_w) -> bytes | None:
     """Synthesize `text` sentence-by-sentence and concatenate with a short
@@ -419,7 +435,7 @@ def _synthesize_with_sentence_pauses(vits, text, speaker_id,
             # The beat reflects how the PREVIOUS sentence ended: a clause break
             # (: or ;) gets a shorter pause than a full stop / question / bang.
             segments.append(short_gap if prev_end in ";:" else gap)
-        segments.append(pcm)
+        segments.append(_edge_fade(pcm))
         prev_end = part.strip()[-1:]
     return b"".join(segments) if segments else None
 
