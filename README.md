@@ -71,7 +71,7 @@ Always cite Robinson and the Archive item when publishing derivatives (see `data
 
 Robinson (1914) is public-domain and clean in the **English→Hausa** direction; its reverse (HA→EN) lookup is rougher. For a clean **Hausa→English** direction we add an openly-licensed lexicon — **Hausa Wiktionary** entries (CC-BY-SA 4.0), extracted via [Kaikki.org](https://kaikki.org/dictionary/Hausa/) and archived in `data/sources/wiktionary-hausa/`. Both sources load together and each result is ranked so every source answers in the direction it is authoritative for (e.g. Hausa `ruwa` → *water* from Wiktionary, not Robinson's garbled reverse). Build: `python utils/build_hausa_en_open.py`.
 
-We also credit the foundational lexicography of **Paul Newman & Roxana Ma Newman** — the *Modern Hausa–English Dictionary* (OUP Ibadan, 1977) and Paul Newman's *A Hausa–English Dictionary* (Yale University Press, 2007). Unlike the sources above, these are **in copyright and not ingested**: attribution and status are recorded in `data/sources/newman-dictionary/ATTRIBUTION.md`, and a usage basis (a licence — see `docs/newman_yale_permission_request.md`) must be secured before any ingestion. Credit and a clean legal basis, both.
+We also credit the foundational lexicography of **Paul Newman & Roxana Ma Newman** — the *Modern Hausa–English Dictionary* (OUP Ibadan, 1977) and Paul Newman's *A Hausa–English Dictionary* (Yale University Press, 2007). Unlike the sources above, these are **in copyright and not ingested**: attribution and status are recorded in `data/sources/newman-dictionary/ATTRIBUTION.md`, and a usage basis (a licence — see `docs/newman_permission_requests.md`) must be secured before any ingestion. Credit and a clean legal basis, both.
 
 ---
 

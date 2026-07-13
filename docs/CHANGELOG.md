@@ -19,7 +19,7 @@ day the change went live in production (Fly.io backend / Vercel `app.murya.ng`).
   Yale 2007). These are **in copyright and deliberately NOT ingested** — a full
   attribution + not-licensed status is recorded in
   `data/sources/newman-dictionary/ATTRIBUTION.md`, with a ready-to-send licensing
-  request in `docs/newman_yale_permission_request.md`. Credit is given; ingestion
+  request in `docs/newman_permission_requests.md`. Credit is given; ingestion
   waits on a licence.
 
 ## 2026-07-12 (earlier)

@@ -52,9 +52,22 @@ Permitted paths (project owner to choose / confirm):
   Wiktionary HA CC-BY-SA, PanLex, etc.), with Newman used only as a private
   reference within the limits above.
 
-**Status: NOT LICENSED for ingestion. Do NOT bulk-OCR / ingest this file into
-training data or the served product until a licence or written permission is on
-record here.** Credit is prepared; the legal basis is the missing, required
+**Open-license check (2026-07-13, done):** searched for a genuinely open edition.
+Result — **none exists.** The dictionaries on the Internet Archive
+(`hausaenglishdict0000newm`, etc.) are **access-restricted / controlled digital
+lending / in-copyright** ("borrow" only, printdisabled) — free to *read*, not to
+reuse. The only openly-licensed Newman work is his *Comprehensive Bibliography of
+Chadic and Hausa Linguistics* (CC BY-NC-SA 3.0) — a bibliography, not a
+dictionary, and NonCommercial. The 1977 edition's own copyright page reads
+"© Oxford University Press 1977 / © University Press Limited, 1979"; the 2007
+edition "© 2007 Yale University, all rights reserved." Rights holders to approach:
+**University Press PLC, Ibadan** (+ OUP) for 1977; **Yale University Press** for
+2007; Paul Newman himself may help (open-access advocate). See
+`docs/newman_permission_requests.md`.
+
+**Status: NOT LICENSED for ingestion. Do NOT bulk-OCR / ingest either edition
+into training data or the served product until a licence or written permission is
+on record here.** Credit is prepared; the legal basis is the missing, required
 piece. This mirrors the project's [serious-research standard] — credit *and* a
 clean legal basis, both.
 
