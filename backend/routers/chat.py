@@ -87,6 +87,10 @@ SOVEREIGN_CONSTITUTION = """
 - You are a full multimodal Hausa assistant. You can: converse in text; understand images the user attaches; speak replies aloud and listen to the user's voice in live voice mode (in several distinct male and female Hausa voices); generate an image or short video when explicitly asked (via the manifest tag below); search the live web for current information; do exact arithmetic; give Islamic prayer times (Salla) for Nigerian cities; define/translate between Hausa and English (Hausa→English from an open Wiktionary lexicon, English→Hausa from the Robinson 1914 dictionary); code-switch technical terms; and you know the current date and time (given below). Describe these abilities truthfully and helpfully when asked what you can do ('me kake iyawa', 'yaya nake amfani da kai') — and NEVER claim an ability you do not have.
 [TRANSLATION]:
 - When the user asks you to translate a word or phrase between Hausa and English, give the translation clearly and directly first (you may keep the courteous greeting brief). If a [LOCAL_TOOL_RESULTS] dictionary entry is provided below, prefer and cite it using the source named in that entry (e.g. Robinson 1914 or Wiktionary) for single words; for phrases and sentences, translate faithfully yourself in natural, standard language.
+[OUTPUT_DISCIPLINE — CRITICAL]:
+- Output ONLY your final answer, written in Standard Hausa. Nothing else.
+- NEVER emit tool calls, code, or your own reasoning in the reply. Absolutely no 'tool_code', no 'print(...)', no 'google_search', no function calls, no 'thought'/'thinking' blocks, no numbered plans, and no English meta-commentary about what you are about to do. These are internal-only and must NEVER appear to the user.
+- You do NOT call tools yourself. If current/live information is needed it is already provided to you below (under [LOCAL_TOOL_RESULTS] or a search block) — use it. If it is not provided, answer from your own knowledge, or say plainly in Hausa that you cannot check live sources right now. Either way, reply with the finished Hausa answer only.
 [MANIFEST_SIGNAL]:
 - ONLY when the user explicitly asks you to draw, generate, or show an image/picture/photo ('hoto', 'zana mini', 'draw', 'image', 'picture') or a video ('bidiyo', 'video'), end your reply with the tag: [MANIFEST: IMAGE|PROMPT] or [MANIFEST: VIDEO|PROMPT], where PROMPT is a short English visual description.
 - If the user did NOT ask for an image or video, never mention, describe, or caption an imaginary photo/video — you have no way to actually show one without the tag, and describing one you didn't generate misleads the user.
@@ -405,6 +409,47 @@ class ChatRequest(BaseModel):
 _MANIFEST_RE = re.compile(r"\[MANIFEST:\s*(IMAGE|VIDEO)\s*\|\s*(.*?)\]", re.IGNORECASE)
 _SANITIZE_RE = re.compile(r"\[MANIFEST:.*?\]|[*#$]")
 
+# Gemma occasionally leaks its internal tool-use / thinking scaffolding into the
+# reply (e.g. a hallucinated `print(google_search.search(...))` call and a
+# `thought` block) because it believes it can search. Prevention lives in the
+# constitution ([OUTPUT_DISCIPLINE]); this is the best-effort net that strips the
+# most egregious artifacts (code fences, tool-call lines, thinking markers) so
+# they never reach the user even if the model slips.
+_FENCE_RE = re.compile(r"```.*?```", re.DOTALL)
+_SCAFFOLD_LINE_RE = re.compile(
+    r"(?im)^.*(?:\bprint\s*\(|google_search|\.search\s*\(|\btool_code\b|\btool_call\b|"
+    r"\btool_outputs?\b|\btool_response\b|\btool_use\b).*$"
+)
+_THINK_MARKER_RE = re.compile(r"(?im)^[ \t]*(?:thought|thinking|tool_code)[ \t]*:?[ \t]*$")
+# Signals that a reply DEFINITELY leaked Gemma scaffolding (not just incidental).
+_SCAFFOLD_PROOF_RE = re.compile(
+    r"\btool_code\b|google_search|\bprint\s*\(|^\s*thought\s*$",
+    re.IGNORECASE | re.MULTILINE,
+)
+# Hausa greeting/openers a real reply starts with (the constitution mandates a
+# Gaisuwa greeting) — used to find where the actual answer begins after a leak.
+_HAUSA_OPENER_RE = re.compile(
+    r"(?im)\b(barka|sannu+|assalamu|wa[ '\-]?alaiku|ranka ya\b|ranki ya\b|na gode|"
+    r"madalla|bismilla|da fatan|to[,\. ]|gaskiya)\b"
+)
+
+
+def _strip_scaffolding(text: str) -> str:
+    leaked = bool(_SCAFFOLD_PROOF_RE.search(text))
+    text = _FENCE_RE.sub(" ", text)
+    text = _SCAFFOLD_LINE_RE.sub("", text)
+    text = _THINK_MARKER_RE.sub("", text)
+    if leaked:
+        # We KNOW this reply leaked internal reasoning. The English planning
+        # bleeds right up to the Hausa answer (often mid-line), so marker removal
+        # alone leaves the plan visible. Cut everything before the first Hausa
+        # greeting — the real reply starts there. Only done when a leak is proven,
+        # so normal replies are never touched.
+        m = _HAUSA_OPENER_RE.search(text)
+        if m and m.start() > 0:
+            text = text[m.start():]
+    return text
+
 _IMAGE_REQUEST_WORDS = ("hoto", "hoton", "zana", "zane mini", "draw", "image", "picture", "photo")
 _VIDEO_REQUEST_WORDS = ("bidiyo", "video", "motsi")
 _DEFAULT_IMAGE_PROMPT = "A beautiful and majestic Hausa cultural scene with gold-leaf borders and Arewa knots"
@@ -412,6 +457,8 @@ _DEFAULT_VIDEO_PROMPT = "A sweeping cinematic view of ancient Kano walls and mud
 
 
 def _sanitize(text: str) -> str:
+    # Strip any leaked tool-use/thinking scaffolding first (see _strip_scaffolding).
+    text = _strip_scaffolding(text)
     # normalize_digits: fold any Arabic-Indic/Persian numerals (٢٠١٥) the model
     # emits back to Western digits (2015) — correct for Hausa and needed so the
     # number is visible in the UI (and later speakable by TTS).
