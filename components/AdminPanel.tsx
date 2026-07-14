@@ -3,11 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { gemini } from '../services/localService.ts';
 import { ArewaLogo } from './ArewaLogo.tsx';
 import { CorrectionsReview } from './CorrectionsReview.tsx';
-import { LogOut } from 'lucide-react';
+import { PronunciationReview } from './PronunciationReview.tsx';
+import { LogOut, FileText, Mic } from 'lucide-react';
 
 export const AdminPanel: React.FC = () => {
   const navigate = useNavigate();
   const [username, setUsername] = useState<string | null | 'loading'>('loading');
+  const [tab, setTab] = useState<'corrections' | 'pronunciation'>('corrections');
 
   useEffect(() => {
     let cancelled = false;
@@ -42,7 +44,7 @@ export const AdminPanel: React.FC = () => {
           <ArewaLogo size={36} active />
           <div>
             <h1 className="font-serif italic text-xl text-dyn-accent tracking-tighter leading-none">Murya Admin</h1>
-            <p className="text-[9px] uppercase tracking-[0.3em] text-dyn-text-muted mt-0.5">Corrections Review</p>
+            <p className="text-[9px] uppercase tracking-[0.3em] text-dyn-text-muted mt-0.5">Review &amp; Corrections</p>
           </div>
         </div>
         <div className="flex items-center gap-4">
@@ -55,8 +57,34 @@ export const AdminPanel: React.FC = () => {
           </button>
         </div>
       </header>
+
+      {/* Tabs: text corrections vs pronunciation (voice) corrections */}
+      <div className="px-6 sm:px-10 pt-5">
+        <div className="flex gap-1 bg-dyn-bg-tertiary/60 p-1 rounded-full w-full sm:w-auto sm:inline-flex border border-dyn-border">
+          {([
+            { id: 'corrections', label: 'Gyaran Rubutu', sub: 'Text', icon: FileText },
+            { id: 'pronunciation', label: 'Gyaran Furuci', sub: 'Voice', icon: Mic },
+          ] as const).map((t) => {
+            const Icon = t.icon;
+            return (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${
+                  tab === t.id
+                    ? 'bg-dyn-accent text-dyn-bg-primary shadow-lg'
+                    : 'text-dyn-text-secondary hover:text-dyn-text-primary hover:bg-white/5'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" /> {t.label} <span className="opacity-50">· {t.sub}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <main className="flex-1 overflow-y-auto p-6 sm:p-10 max-w-4xl w-full mx-auto">
-        <CorrectionsReview />
+        {tab === 'corrections' ? <CorrectionsReview /> : <PronunciationReview />}
       </main>
     </div>
   );

@@ -151,7 +151,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins,
     allow_credentials=_allow_credentials,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "DELETE"],
     # X-Contributor-Id carries the anonymous per-device token (see
     # contributor.py). It MUST be listed here or the browser's CORS preflight
     # blocks every cross-origin chat/feedback request from app.murya.ng.
