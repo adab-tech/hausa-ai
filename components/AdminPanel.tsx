@@ -4,12 +4,13 @@ import { gemini } from '../services/localService.ts';
 import { ArewaLogo } from './ArewaLogo.tsx';
 import { CorrectionsReview } from './CorrectionsReview.tsx';
 import { PronunciationReview } from './PronunciationReview.tsx';
-import { LogOut, FileText, Mic } from 'lucide-react';
+import { VisitorAnalytics } from './VisitorAnalytics.tsx';
+import { LogOut, FileText, Mic, Globe } from 'lucide-react';
 
 export const AdminPanel: React.FC = () => {
   const navigate = useNavigate();
   const [username, setUsername] = useState<string | null | 'loading'>('loading');
-  const [tab, setTab] = useState<'corrections' | 'pronunciation'>('corrections');
+  const [tab, setTab] = useState<'corrections' | 'pronunciation' | 'visitors'>('corrections');
 
   useEffect(() => {
     let cancelled = false;
@@ -64,6 +65,7 @@ export const AdminPanel: React.FC = () => {
           {([
             { id: 'corrections', label: 'Gyaran Rubutu', sub: 'Text', icon: FileText },
             { id: 'pronunciation', label: 'Gyaran Furuci', sub: 'Voice', icon: Mic },
+            { id: 'visitors', label: 'Ziyara', sub: 'Visitors', icon: Globe },
           ] as const).map((t) => {
             const Icon = t.icon;
             return (
@@ -84,7 +86,9 @@ export const AdminPanel: React.FC = () => {
       </div>
 
       <main className="flex-1 overflow-y-auto p-6 sm:p-10 max-w-4xl w-full mx-auto">
-        {tab === 'corrections' ? <CorrectionsReview /> : <PronunciationReview />}
+        {tab === 'corrections' && <CorrectionsReview />}
+        {tab === 'pronunciation' && <PronunciationReview />}
+        {tab === 'visitors' && <VisitorAnalytics />}
       </main>
     </div>
   );
