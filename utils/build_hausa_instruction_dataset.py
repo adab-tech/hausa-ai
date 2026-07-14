@@ -112,6 +112,25 @@ def build() -> int:
                   "wiktionary_ha_ccbysa", "CC-BY-SA-4.0")
             stats["wiktionary_ha_en"] += 1
 
+    # Community Q&A (native-written, owner-approved) — the highest-value source.
+    # Drop the admin "Fitar da Koyo" export here as community_qa.jsonl to include it.
+    community = _OUT_DIR / "community_qa.jsonl"
+    if community.is_file():
+        for line in community.open(encoding="utf-8"):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                r = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            instr, out = _clean(r.get("instruction", "")), _clean(r.get("output", ""))
+            if instr and out:
+                rows.append({"instruction": instr, "input": _clean(r.get("input", "")),
+                             "output": out, "source": "community_qa",
+                             "license": r.get("license", "owner-approved-contribution")})
+        stats["community_qa"] = sum(1 for x in rows if x["source"] == "community_qa")
+
     if not rows:
         print("[error] no source lexicons found — run the dictionary builders first.")
         return 1

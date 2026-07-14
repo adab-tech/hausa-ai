@@ -4,6 +4,7 @@ import { ArewaLogo } from './ArewaLogo.tsx';
 import {
   Sliders, Volume2, ChevronRight, Activity, BookOpen, Cpu, X, Trash2, UserCircle2,
   Gem, Crown, Zap, GraduationCap, Mic2, Mars, Venus, CircleDashed, CircleCheck, Languages,
+  MessageSquarePlus,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -27,6 +28,7 @@ interface SidebarProps {
   setLearningMode: (v: boolean) => void;
   onOpenDocumentTool: () => void;
   onOpenContribute: () => void;
+  onOpenContributeQA: () => void;
   onOpenReview: () => void;
   onOpenWhitePaper: () => void;
   onClearChat: () => void;
@@ -135,6 +137,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setLearningMode,
   onOpenDocumentTool,
   onOpenContribute,
+  onOpenContributeQA,
   onOpenReview,
   onOpenWhitePaper,
   onClearChat,
@@ -348,6 +351,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <Mic2 className="w-4 h-4 text-dyn-accent" />
               <span>Gyara Furuci</span>
+            </button>
+            <button
+              onClick={() => { onOpenContributeQA(); setSidebarOpen(false); }}
+              className="w-full py-3 px-4 bg-white/5 hover:bg-white/10 text-dyn-text-primary border border-dyn-border rounded-2xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-3 shadow-sm"
+            >
+              <MessageSquarePlus className="w-4 h-4 text-dyn-accent" />
+              <span>Ba da Tambaya</span>
             </button>
             <button
               onClick={() => { onOpenReview(); setSidebarOpen(false); }}

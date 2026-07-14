@@ -34,10 +34,11 @@ from slowapi import _rate_limit_exceeded_handler
 from auth import verify_api_key, verify_admin_session
 from rate_limit import limiter
 from routers import (admin_auth, analytics, audio, chat, document, feedback,
-                     image, pronunciation, waxal)
+                     image, pronunciation, qa, waxal)
 import admin_store
 import analytics_store
 import pronunciation_store
+import qa_store
 
 
 def _validate_runtime_config() -> None:
@@ -110,6 +111,10 @@ async def lifespan(app: FastAPI):
     # Startup: create the pronunciation-corrections DB (human-in-the-loop TTS
     # loop — see pronunciation_store.py)
     pronunciation_store.init_db()
+
+    # Startup: create the community Q&A DB (native-written instruction data for
+    # the LLM training mix — see qa_store.py / docs/murya_roadmap.md)
+    qa_store.init_db()
 
     # Startup: Pre-load STT and TTS models to avoid cold-start latency
     import logging
@@ -192,6 +197,9 @@ app.include_router(analytics.router, prefix="/api")
 # contributor-id); the /admin/pronunciation/* endpoints self-gate via
 # verify_admin_session. Same public/admin split as analytics, so no global _auth.
 app.include_router(pronunciation.router, prefix="/api")
+# qa.router: /qa/submit is a public native-speaker contribution (rate-limited);
+# /admin/qa/* self-gate via verify_admin_session. Same split as pronunciation.
+app.include_router(qa.router, prefix="/api")
 # document.router: one-shot translate/summarize (public product endpoint,
 # same optional-API-key posture as chat).
 app.include_router(document.router, prefix="/api", dependencies=_auth)

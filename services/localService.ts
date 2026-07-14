@@ -561,6 +561,63 @@ class LocalService {
     }
   }
 
+  // ── Community Hausa Q&A (native-written instruction data) ─────────────────
+  /** PUBLIC: contribute a Hausa question + answer. Lands pending for owner approval. */
+  async submitQA(question: string, answer: string, topic?: string): Promise<boolean> {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/qa/submit`, {
+        method: "POST",
+        headers: withContributor({ "Content-Type": "application/json" }),
+        credentials: "include",
+        body: JSON.stringify({ question, answer, topic }),
+      });
+      return res.ok;
+    } catch (err) { console.error("Failed to submit Q&A:", err); return false; }
+  }
+
+  /** ADMIN: list Q&A items (+ counts). */
+  async getQA(status?: "pending" | "approved" | "rejected"): Promise<{ items: any[]; counts: any } | null> {
+    try {
+      const q = status ? `?status=${status}` : "";
+      const res = await fetch(`${BACKEND_URL}/api/admin/qa${q}`, { credentials: "include" });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch (err) { console.error("Failed to fetch Q&A:", err); return null; }
+  }
+
+  /** ADMIN: approve / reject a Q&A item. */
+  async setQAStatus(id: number, status: "pending" | "approved" | "rejected"): Promise<boolean> {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/admin/qa/${id}/status`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        credentials: "include", body: JSON.stringify({ status }),
+      });
+      return res.ok;
+    } catch (err) { console.error("Failed to set Q&A status:", err); return false; }
+  }
+
+  /** ADMIN: delete a Q&A item. */
+  async deleteQA(id: number): Promise<boolean> {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/admin/qa/${id}`, { method: "DELETE", credentials: "include" });
+      return res.ok;
+    } catch (err) { console.error("Failed to delete Q&A:", err); return false; }
+  }
+
+  /** ADMIN: download approved Q&A as instruction JSONL for the training mix. */
+  async exportQA(): Promise<boolean> {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/admin/qa/export`, { credentials: "include" });
+      if (!res.ok) return false;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = "murya_community_qa.jsonl";
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+      return true;
+    } catch (err) { console.error("Failed to export Q&A:", err); return false; }
+  }
+
   /** PUBLIC: a user records the correct pronunciation of a word/phrase (+ optional
    * note). Lands pending for the owner to approve — never served without approval. */
   async submitUserPronunciation(text: string, speakerId: number | null, audio: Blob, note?: string): Promise<boolean> {
