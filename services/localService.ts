@@ -561,6 +561,25 @@ class LocalService {
     }
   }
 
+  /** PUBLIC: a user records the correct pronunciation of a word/phrase (+ optional
+   * note). Lands pending for the owner to approve — never served without approval. */
+  async submitUserPronunciation(text: string, speakerId: number | null, audio: Blob, note?: string): Promise<boolean> {
+    try {
+      const fd = new FormData();
+      fd.append("text", text);
+      if (speakerId !== null && speakerId !== undefined) fd.append("speaker_id", String(speakerId));
+      if (note) fd.append("note", note);
+      fd.append("audio", audio, "correction.webm");
+      const res = await fetch(`${BACKEND_URL}/api/pronunciation/submit`, {
+        method: "POST", headers: withContributor({}), credentials: "include", body: fd,
+      });
+      return res.ok;
+    } catch (err) {
+      console.error("Failed to submit user pronunciation:", err);
+      return false;
+    }
+  }
+
   /** ADMIN: list correction items (+ counts) for the review dashboard. */
   async getPronunciations(status?: "pending" | "approved" | "rejected"): Promise<{ items: any[]; counts: any } | null> {
     try {

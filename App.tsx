@@ -7,6 +7,7 @@ import { Waveform } from './components/Waveform.tsx';
 import { NeuralReview } from './components/NeuralReview.tsx';
 import { WhitePaper } from './components/WhitePaper.tsx';
 import { DocumentTool } from './components/DocumentTool.tsx';
+import { ContributePronunciation } from './components/ContributePronunciation.tsx';
 import { Sidebar } from './components/Sidebar.tsx';
 import { LiveCallPanel } from './components/LiveCallPanel.tsx';
 import { InputConsole } from './components/InputConsole.tsx';
@@ -35,6 +36,7 @@ const App: React.FC = () => {
   // Learning Mode: turns Murya into Malamin Hausa (a patient Hausa tutor).
   const [learningMode, setLearningMode] = useState(false);
   const [showDocumentTool, setShowDocumentTool] = useState(false);
+  const [showContribute, setShowContribute] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [volume, setVolume] = useState(0);
   const [currentAxiomIndex, setCurrentAxiomIndex] = useState(0);
@@ -401,6 +403,7 @@ const App: React.FC = () => {
         learningMode={learningMode}
         setLearningMode={setLearningMode}
         onOpenDocumentTool={() => setShowDocumentTool(true)}
+        onOpenContribute={() => setShowContribute(true)}
         onOpenReview={() => setShowReview(true)}
         onOpenWhitePaper={() => setShowWhitePaper(true)}
         onClearChat={clearChat}
@@ -511,6 +514,9 @@ const App: React.FC = () => {
       )}
       {showDocumentTool && (
         <DocumentTool onClose={() => setShowDocumentTool(false)} />
+      )}
+      {showContribute && (
+        <ContributePronunciation onClose={() => setShowContribute(false)} />
       )}
     </div>
   );

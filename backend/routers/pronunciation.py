@@ -81,6 +81,32 @@ async def flag_mispronunciation(request: Request, body: FlagBody):
     return {"ok": True, "id": row_id}
 
 
+@router.post("/pronunciation/submit")
+@limiter.limit("6/minute")
+async def submit_pronunciation(
+    request: Request,
+    text: str = Form(...),
+    audio: UploadFile = File(...),
+    speaker_id: str | None = Form(None),
+    note: str | None = Form(None),
+):
+    """PUBLIC: a user records the correct pronunciation of a word/phrase (and may
+    add a text note). Lands 'pending' — like every correction, it is NEVER served
+    until the owner explicitly approves it in the admin panel. Rate-limited and
+    size-capped; the audio must decode or it is rejected."""
+    pcm = await _read_audio(audio)
+    try:
+        row_id = store.add_correction(
+            text=text, speaker_id=_clean_speaker(speaker_id), audio_pcm=pcm,
+            submitted_by=get_contributor_id(request), note=note, status="pending",
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=413, detail=str(e))
+    if row_id is None:
+        raise HTTPException(status_code=400, detail="Missing text or audio")
+    return {"ok": True, "id": row_id}
+
+
 # ---------------------------------------------------------------------------
 # Admin: review + record corrections
 # ---------------------------------------------------------------------------
