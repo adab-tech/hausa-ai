@@ -1,0 +1,21 @@
+{
+  "total_examples": 44936,
+  "unique_source_entries": {
+    "robinson_en_ha": 19902,
+    "wiktionary_ha_en": 2566
+  },
+  "sources": [
+    {
+      "name": "Robinson 1914 Vol.II (EN->HA)",
+      "license": "public-domain",
+      "tag": "robinson_1914_vol2"
+    },
+    {
+      "name": "Wiktionary Hausa via Kaikki (HA->EN)",
+      "license": "CC-BY-SA-4.0",
+      "tag": "wiktionary_ha_ccbysa"
+    }
+  ],
+  "format": "alpaca: {instruction, input, output, source, license}",
+  "note": "Instruction-tuning seed for the native Hausa LLM (Milestone #1). Licence-clean only; no copyrighted (e.g. Newman) text. Extend with licence-checked open Hausa corpora before training."
+}
