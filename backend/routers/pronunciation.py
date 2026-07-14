@@ -17,6 +17,10 @@ Approved recordings are used at synthesis time (see audio.py, highest priority)
 and exported for the next voice retrain (utils/export_pronunciation_corpus.py).
 """
 
+import csv
+import io
+import zipfile
+
 from fastapi import (APIRouter, Depends, File, Form, HTTPException, Request,
                      Response, UploadFile)
 from pydantic import BaseModel, Field
@@ -119,6 +123,32 @@ async def admin_list(status: str | None = None,
 @router.get("/admin/pronunciation/counts")
 async def admin_counts(_admin: str = Depends(verify_admin_session)):
     return store.counts()
+
+
+@router.get("/admin/pronunciation/export")
+async def admin_export(_admin: str = Depends(verify_admin_session)):
+    """Download all APPROVED corrections as a training-ready ZIP:
+      wavs/<id>.wav   (24 kHz mono PCM-16)
+      metadata.csv    (<id>|<text>|<speaker_id>, LJSpeech-style)
+    Fold this into the WAXAL/VITS training set for the next retrain — the batch
+    step that turns runtime overrides into permanent model skill."""
+    from routers.audio import _add_wav_header
+    rows = store.export_approved()
+    if not rows:
+        raise HTTPException(status_code=404, detail="No approved corrections to export yet")
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        meta = io.StringIO()
+        writer = csv.writer(meta, delimiter="|")
+        for r in rows:
+            z.writestr(f"wavs/{r['id']}.wav", _add_wav_header(r["audio"], sample_rate=24000))
+            writer.writerow([r["id"], r["text"], r["speaker_id"] if r["speaker_id"] is not None else ""])
+        z.writestr("metadata.csv", meta.getvalue())
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=murya_pronunciation_corpus.zip"},
+    )
 
 
 @router.post("/admin/pronunciation")

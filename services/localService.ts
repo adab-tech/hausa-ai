@@ -655,6 +655,24 @@ class LocalService {
     }
   }
 
+  /** ADMIN: download all approved corrections as a training-ready ZIP. */
+  async exportPronunciationCorpus(): Promise<boolean> {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/admin/pronunciation/export`, { credentials: "include" });
+      if (!res.ok) return false;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = "murya_pronunciation_corpus.zip";
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      return true;
+    } catch (err) {
+      console.error("Failed to export corpus:", err);
+      return false;
+    }
+  }
+
   /** ADMIN: fetch a correction's audio (with the session cookie) as a playable object URL. */
   async pronunciationAudioUrl(id: number): Promise<string | null> {
     try {

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { gemini } from '../services/localService.ts';
 import { WavRecorder } from '../utils/wavRecorder.ts';
-import { Mic, Square, Play, Check, X, Trash2, Plus, Loader2, RefreshCw } from 'lucide-react';
+import { Mic, Square, Play, Check, X, Trash2, Plus, Loader2, RefreshCw, Download } from 'lucide-react';
 
 type Item = {
   id: number; text: string; speaker_id: number | null; status: string;
@@ -55,6 +55,7 @@ export const PronunciationReview: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [denied, setDenied] = useState(false);
   const [busy, setBusy] = useState<number | 'new' | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   // New-correction form
   const [newText, setNewText] = useState('');
@@ -121,11 +122,21 @@ export const PronunciationReview: React.FC = () => {
           <h3 className="font-serif italic text-xl text-dyn-text-primary">Gyaran Furuci</h3>
           <p className="text-[10px] uppercase tracking-widest text-dyn-text-muted">Pronunciation corrections · human-in-the-loop</p>
         </div>
-        <div className="flex items-center gap-4 text-xs">
+        <div className="flex items-center gap-3 text-xs">
           {counts && <>
             <span className="text-amber-400">{counts.pending} pending</span>
             <span className="text-emerald-400">{counts.approved} approved</span>
           </>}
+          {counts && counts.approved > 0 && (
+            <button
+              onClick={async () => { setExporting(true); const ok = await gemini.exportPronunciationCorpus(); setExporting(false); if (!ok) alert('Fitarwa ya kāsa. (Export failed.)'); }}
+              disabled={exporting}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-dyn-accent/40 text-dyn-accent text-[10px] font-bold uppercase tracking-wider hover:bg-dyn-accent/10 disabled:opacity-40"
+              title="Download approved corrections as a training corpus (ZIP)"
+            >
+              {exporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} Fitar da Koyo
+            </button>
+          )}
           <button onClick={load} className="p-2 rounded-lg text-dyn-text-secondary hover:text-dyn-text-primary hover:bg-white/5" aria-label="Refresh"><RefreshCw className="w-4 h-4" /></button>
         </div>
       </div>
