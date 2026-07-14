@@ -31,6 +31,11 @@ primary_region = "jnb"
   # (0.667, so this override is omitted); noise_w 0.3 only trims duration jitter
   # for steady, professional rhythm. Chasing melody at 0.85 introduced tremble.
   VITS_NOISE_W = "0.3"
+  # TTS loudness: the landing samples sit at ~-13.6 dBFS RMS. Match them (was
+  # -14) and nudge slightly louder so the VITS synthesis, which reads thinner
+  # than the human landing recordings at equal RMS, is perceptually on par in
+  # conversation. Peak stays limited at -0.5 dBFS (no clipping).
+  TTS_TARGET_RMS_DBFS = "-13.0"
   # Counterweight to the low noise_w above: flattening duration variance
   # also quickened delivery ("talking faster than normal" per founder's
   # ear). length_scale > 1 stretches phoneme durations back to a natural

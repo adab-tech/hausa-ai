@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { gemini } from '../services/localService.ts';
+import { WavRecorder } from '../utils/wavRecorder.ts';
 import { Mic, Square, Play, Check, X, Trash2, Plus, Loader2, RefreshCw } from 'lucide-react';
 
 type Item = {
@@ -14,37 +15,19 @@ const VOICES = [
   { v: '5', label: 'F2' }, { v: '6', label: 'F3' }, { v: '7', label: 'F4' },
 ];
 
-/** Reusable mic recorder — calls onRecorded with a webm Blob. */
+/** Reusable mic recorder (WAV output; works on iOS/Safari) — calls onDone with
+ * a WAV Blob when stopped. */
 function useRecorder() {
   const [recording, setRecording] = useState(false);
-  const mrRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
+  const recRef = useRef<WavRecorder | null>(null);
+  const onDoneRef = useRef<((b: Blob) => void) | null>(null);
 
   const start = async (onDone: (b: Blob) => void) => {
-    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
-      alert("Wannan browser ba ya goyon bayan yin rikodi ba. Gwada Chrome ko Safari na zamani. (This browser can't record audio.)");
-      return;
-    }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true },
-      });
-      // Pick a container this browser actually supports — Safari/iOS needs
-      // audio/mp4, Chrome/Firefox use audio/webm. Forcing webm silently broke
-      // recording on iOS. Fall back to the browser default if none report support.
-      let mimeType = '';
-      for (const t of ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/aac']) {
-        if (MediaRecorder.isTypeSupported?.(t)) { mimeType = t; break; }
-      }
-      const mr = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
-      chunksRef.current = [];
-      mr.ondataavailable = (e) => e.data.size && chunksRef.current.push(e.data);
-      mr.onstop = () => {
-        onDone(new Blob(chunksRef.current, { type: mr.mimeType || 'audio/webm' }));
-        stream.getTracks().forEach((t) => t.stop());
-      };
-      mr.start();
-      mrRef.current = mr;
+      const rec = new WavRecorder();
+      await rec.start();
+      recRef.current = rec;
+      onDoneRef.current = onDone;
       setRecording(true);
     } catch (err: any) {
       const name = err?.name || '';
@@ -52,11 +35,17 @@ function useRecorder() {
         alert('An ƙi izinin makurufo. Ba da izini a saitunan browser sannan ka sāke gwadawa. (Microphone permission denied — allow it in your browser settings.)');
       else if (name === 'NotFoundError' || name === 'OverconstrainedError')
         alert('Ba a sami makurufo ba. (No microphone found on this device.)');
+      else if (name === 'NotSupportedError')
+        alert("Wannan browser ba ya goyon bayan yin rikodi ba. (This browser can't record audio.)");
       else
         alert('Rikodi ya kāsa: ' + (name || 'error') + (err?.message ? ' — ' + err.message : ''));
     }
   };
-  const stop = () => { mrRef.current?.stop(); setRecording(false); };
+  const stop = () => {
+    try { const wav = recRef.current?.stop(); if (wav) onDoneRef.current?.(wav); } catch { /* ignore */ }
+    recRef.current = null;
+    setRecording(false);
+  };
   return { recording, start, stop };
 }
 

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { gemini } from '../services/localService.ts';
+import { WavRecorder } from '../utils/wavRecorder.ts';
 import { Mic, Square, Play, X, Check, Loader2, Send } from 'lucide-react';
 
 const VOICES = [
@@ -19,8 +20,7 @@ export const ContributePronunciation: React.FC<{ onClose: () => void }> = ({ onC
   const [recording, setRecording] = useState(false);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
-  const mrRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
+  const recRef = useRef<WavRecorder | null>(null);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -29,29 +29,25 @@ export const ContributePronunciation: React.FC<{ onClose: () => void }> = ({ onC
   }, [onClose]);
 
   const startRec = async () => {
-    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
-      alert("Wannan browser ba ya goyon bayan yin rikodi ba. (This browser can't record audio.)");
-      return;
-    }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
-      let mimeType = '';
-      for (const t of ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/aac']) {
-        if (MediaRecorder.isTypeSupported?.(t)) { mimeType = t; break; }
-      }
-      const mr = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
-      chunksRef.current = [];
-      mr.ondataavailable = (e) => e.data.size && chunksRef.current.push(e.data);
-      mr.onstop = () => { setBlob(new Blob(chunksRef.current, { type: mr.mimeType || 'audio/webm' })); stream.getTracks().forEach((t) => t.stop()); };
-      mr.start(); mrRef.current = mr; setRecording(true);
+      const rec = new WavRecorder();
+      await rec.start();
+      recRef.current = rec;
+      setBlob(null);
+      setRecording(true);
     } catch (err: any) {
       const name = err?.name || '';
-      if (name === 'NotAllowedError' || name === 'SecurityError') alert('An ƙi izinin makurufo. Ba da izini a saitunan browser. (Microphone permission denied.)');
-      else if (name === 'NotFoundError') alert('Ba a sami makurufo ba. (No microphone found.)');
+      if (name === 'NotAllowedError' || name === 'SecurityError') alert('An ƙi izinin makurufo. Ba da izini a saitunan browser. (Microphone permission denied — allow it in browser settings.)');
+      else if (name === 'NotFoundError' || name === 'OverconstrainedError') alert('Ba a sami makurufo ba. (No microphone found.)');
+      else if (name === 'NotSupportedError') alert("Wannan browser ba ya goyon bayan yin rikodi ba. (This browser can't record audio.)");
       else alert('Rikodi ya kāsa: ' + (name || 'error') + (err?.message ? ' — ' + err.message : ''));
     }
   };
-  const stopRec = () => { mrRef.current?.stop(); setRecording(false); };
+  const stopRec = () => {
+    try { const wav = recRef.current?.stop(); if (wav) setBlob(wav); } catch { /* ignore */ }
+    recRef.current = null;
+    setRecording(false);
+  };
 
   const submit = async () => {
     if (!text.trim() || !blob) return;
