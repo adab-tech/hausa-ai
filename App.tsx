@@ -277,8 +277,21 @@ const App: React.FC = () => {
               // plus a short tail for speaker-to-mic latency, do NOT stream mic
               // frames — otherwise the model hears and answers itself even
               // with echoCancellation on (speakerphones/low-end devices leak).
+              //
+              // CRITICAL: only gate when the output context is actually RUNNING
+              // and some TTS has been scheduled (nextStartTime > 0). iOS Safari
+              // routinely leaves the output context 'suspended', which FREEZES
+              // out.currentTime at 0 — without these guards the gate would then
+              // read "still playing" forever and mute the mic for the whole call
+              // (the model never hears you: "connects but silent"). When the
+              // context isn't running there is no TTS coming out anyway, so it
+              // is safe to send the mic.
               const out = audioContextsRef.current.out;
-              if (out && out.currentTime < audioContextsRef.current.nextStartTime + 0.4) return;
+              if (
+                out && out.state === 'running' &&
+                audioContextsRef.current.nextStartTime > 0 &&
+                out.currentTime < audioContextsRef.current.nextStartTime + 0.4
+              ) return;
               // The server expects 16 kHz mono PCM-16. If the context runs at
               // the hardware rate (hint ignored), downsample this frame first —
               // otherwise 48 kHz audio gets interpreted as 16 kHz and the
