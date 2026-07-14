@@ -21,22 +21,39 @@ function useRecorder() {
   const chunksRef = useRef<Blob[]>([]);
 
   const start = async (onDone: (b: Blob) => void) => {
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      alert("Wannan browser ba ya goyon bayan yin rikodi ba. Gwada Chrome ko Safari na zamani. (This browser can't record audio.)");
+      return;
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true },
       });
-      const mr = new MediaRecorder(stream);
+      // Pick a container this browser actually supports — Safari/iOS needs
+      // audio/mp4, Chrome/Firefox use audio/webm. Forcing webm silently broke
+      // recording on iOS. Fall back to the browser default if none report support.
+      let mimeType = '';
+      for (const t of ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/aac']) {
+        if (MediaRecorder.isTypeSupported?.(t)) { mimeType = t; break; }
+      }
+      const mr = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
       chunksRef.current = [];
       mr.ondataavailable = (e) => e.data.size && chunksRef.current.push(e.data);
       mr.onstop = () => {
-        onDone(new Blob(chunksRef.current, { type: 'audio/webm' }));
+        onDone(new Blob(chunksRef.current, { type: mr.mimeType || 'audio/webm' }));
         stream.getTracks().forEach((t) => t.stop());
       };
       mr.start();
       mrRef.current = mr;
       setRecording(true);
-    } catch {
-      alert('Ba a sami izinin makurufo ba (microphone permission denied).');
+    } catch (err: any) {
+      const name = err?.name || '';
+      if (name === 'NotAllowedError' || name === 'SecurityError')
+        alert('An ƙi izinin makurufo. Ba da izini a saitunan browser sannan ka sāke gwadawa. (Microphone permission denied — allow it in your browser settings.)');
+      else if (name === 'NotFoundError' || name === 'OverconstrainedError')
+        alert('Ba a sami makurufo ba. (No microphone found on this device.)');
+      else
+        alert('Rikodi ya kāsa: ' + (name || 'error') + (err?.message ? ' — ' + err.message : ''));
     }
   };
   const stop = () => { mrRef.current?.stop(); setRecording(false); };
