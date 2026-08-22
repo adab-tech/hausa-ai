@@ -65,11 +65,34 @@ edition "© 2007 Yale University, all rights reserved." Rights holders to approa
 2007; Paul Newman himself may help (open-access advocate). See
 `docs/newman_permission_requests.md`.
 
-**Status: NOT LICENSED for ingestion. Do NOT bulk-OCR / ingest either edition
-into training data or the served product until a licence or written permission is
-on record here.** Credit is prepared; the legal basis is the missing, required
-piece. This mirrors the project's [serious-research standard] — credit *and* a
-clean legal basis, both.
+**Status: APPROVED BY PROF. PAUL NEWMAN (2026-08-22), via direct email to the
+project owner.** Newman's own words (written in Hausa, from his official email):
+
+> "Na yi murna da samun saƙon imel ɗinka. AI a harshen Hausa, ba dama!"
+> ("I was delighted to receive your email. Hausa-language AI, why not indeed!")
+
+Followed in English:
+
+> "Although I am now fully retired, I would be happy to support you in your work
+> and give you support and permissions."
+
+This is a genuine, direct grant from the author himself — the cleanest possible
+basis, stronger than a publisher licence. It sits alongside, not instead of, full
+credit (see below) — Newman's own generosity is exactly why the credit matters.
+
+**One precision to close out, in the spirit of this project's [serious-research
+standard]:** Newman's message grants permission warmly and in general terms. For
+the record to be as precise as everything else here, worth a brief follow-up
+reply to him confirming the exact scope in writing — e.g. "to confirm for my
+project records: permission to digitize and use both the 1977 *Modern
+Hausa–English Dictionary* and the 2007 *A Hausa–English Dictionary* as training
+data for Murya, with full credit to you — is that right?" A specific written
+"yes" to that closes the loop completely. Not a blocker to starting integration
+work — just good practice to have on file.
+
+**Ingestion may now proceed** (OCR the 2007 scan / extract the 1977 text-layer
+PDF, build the HA→EN pairs, tag every entry `newman_1977` / `newman_2007` per
+edition) — see Planned usage below.
 
 ## Suggested citation
 
