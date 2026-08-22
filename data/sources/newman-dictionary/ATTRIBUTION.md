@@ -94,6 +94,40 @@ work — just good practice to have on file.
 PDF, build the HA→EN pairs, tag every entry `newman_1977` / `newman_2007` per
 edition) — see Planned usage below.
 
+## A better-fit source, flagged by Newman himself (2026-08-22)
+
+In the same email exchange, Prof. Newman pointed to a newer, better-suited work:
+
+> Newman, Paul, and Roxana Ma Newman. *Hausa Dictionary (Hausa–English •
+> English–Hausa) / Ƙamusun Hausa (Hausa–Ingilishi • Ingilishi–Hausa).* Kano:
+> Bayero University Press, 2020 (revised 2nd printing and e-book, Oxford:
+> African Books Collective, 2022).
+
+**Why this is the better source, in his own words and ours:**
+- **Bidirectional** — Hausa→English *and* English→Hausa in one work, unlike
+  Robinson (EN→HA only) or the earlier Newman editions (HA→EN-oriented).
+  Could eventually stand in for both directions at once.
+- **Nigerian-published (Bayero University Kano)** — easier and less expensive
+  to obtain than the Yale editions; also, fittingly, published by the same
+  institution (BUK, successor context to the 1977 Centre for the Study of
+  Nigerian Languages) rooted in Northern Nigeria.
+- **E-book edition exists** (African Books Collective, Oxford, 2022) — likely a
+  much cleaner acquisition path than OCRing an old library scan.
+- **Drawback, in Newman's own words:** "the entries are not tone marked" —
+  he guessed this is "probably irrelevant for your purposes." **Mostly true,
+  worth one honest caveat:** irrelevant for the *dictionary/instruction-data*
+  use here, but tone marking would matter for the project's separate
+  **tone-channel TTS retrain** milestone (real intonation, see
+  `docs/murya_roadmap.md` §4.2) — a future concern, not a reason to hold off
+  on this dictionary now.
+
+**Status: not yet acquired.** This falls under Newman's general permission
+above, but the project does not have the file — Adamsy needs to obtain the
+2022 e-book (African Books Collective) or a physical copy himself; a purchase
+like this isn't something to do on his behalf. Once acquired, this should
+likely become the PRIMARY Newman source (bidirectional, cleaner digital
+format), with the 1977/2007 editions kept as secondary/cross-reference.
+
 ## Suggested citation
 
 > Newman, Paul, and Roxana Ma Newman. *Modern Hausa–English Dictionary
