@@ -1,0 +1,49 @@
+name: Uptime Monitor
+
+# Free, zero-payment-commitment external uptime check for the three live Murya
+# surfaces. Runs on GitHub's free Actions minutes (no new account, no third-
+# party billing). A failing run triggers GitHub's built-in failure-notification
+# email — that's the alert. Interval is 30 min to stay comfortably inside the
+# free-tier Actions minutes budget alongside the repo's other CI workflows.
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Ping production surfaces
+    runs-on: ubuntu-latest
+    steps:
+      - name: Backend (hausa-ai-backend.fly.dev)
+        run: |
+          curl -fsS --retry 3 --retry-delay 5 --max-time 20 \
+            -o /dev/null -w "backend: HTTP %{http_code} in %{time_total}s\n" \
+            https://hausa-ai-backend.fly.dev/
+
+      - name: App (app.murya.ng)
+        run: |
+          curl -fsS --retry 3 --retry-delay 5 --max-time 20 \
+            -o /dev/null -w "app: HTTP %{http_code} in %{time_total}s\n" \
+            https://app.murya.ng/
+
+      - name: Landing (murya.ng)
+        run: |
+          curl -fsS --retry 3 --retry-delay 5 --max-time 20 \
+            -o /dev/null -w "landing: HTTP %{http_code} in %{time_total}s\n" \
+            https://murya.ng/
+
+      - name: TTS smoke check (confirms the voice pipeline, not just the process)
+        run: |
+          SIZE=$(curl -fsS --max-time 30 -G "https://hausa-ai-backend.fly.dev/api/tts" \
+            --data-urlencode "text=Gwaji" --data-urlencode "speaker_id=0" \
+            -o /tmp/tts.wav -w "%{size_download}")
+          echo "tts: ${SIZE} bytes"
+          if [ "$SIZE" -lt 1000 ]; then
+            echo "::error::TTS response suspiciously small (${SIZE} bytes) — voice pipeline may be broken"
+            exit 1
+          fi
