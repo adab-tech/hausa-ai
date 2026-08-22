@@ -9,7 +9,6 @@ import { WhitePaper } from './components/WhitePaper.tsx';
 import { DocumentTool } from './components/DocumentTool.tsx';
 import { ContributePronunciation } from './components/ContributePronunciation.tsx';
 import { ContributeQA } from './components/ContributeQA.tsx';
-import { DeepResearch } from './components/DeepResearch.tsx';
 import { Sidebar } from './components/Sidebar.tsx';
 import { LiveCallPanel } from './components/LiveCallPanel.tsx';
 import { InputConsole } from './components/InputConsole.tsx';
@@ -40,7 +39,6 @@ const App: React.FC = () => {
   const [showDocumentTool, setShowDocumentTool] = useState(false);
   const [showContribute, setShowContribute] = useState(false);
   const [showContributeQA, setShowContributeQA] = useState(false);
-  const [showDeepResearch, setShowDeepResearch] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [volume, setVolume] = useState(0);
   const [currentAxiomIndex, setCurrentAxiomIndex] = useState(0);
@@ -422,7 +420,6 @@ const App: React.FC = () => {
         onOpenDocumentTool={() => setShowDocumentTool(true)}
         onOpenContribute={() => setShowContribute(true)}
         onOpenContributeQA={() => setShowContributeQA(true)}
-        onOpenDeepResearch={() => setShowDeepResearch(true)}
         onOpenReview={() => setShowReview(true)}
         onOpenWhitePaper={() => setShowWhitePaper(true)}
         onClearChat={clearChat}
@@ -539,9 +536,6 @@ const App: React.FC = () => {
       )}
       {showContributeQA && (
         <ContributeQA onClose={() => setShowContributeQA(false)} />
-      )}
-      {showDeepResearch && (
-        <DeepResearch onClose={() => setShowDeepResearch(false)} />
       )}
     </div>
   );

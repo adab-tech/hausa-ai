@@ -34,7 +34,7 @@ from slowapi import _rate_limit_exceeded_handler
 from auth import verify_api_key, verify_admin_session
 from rate_limit import limiter
 from routers import (admin_auth, analytics, audio, chat, document, feedback,
-                     image, pronunciation, qa, research, waxal)
+                     image, pronunciation, qa, waxal)
 import admin_store
 import analytics_store
 import pronunciation_store
@@ -203,9 +203,9 @@ app.include_router(qa.router, prefix="/api")
 # document.router: one-shot translate/summarize (public product endpoint,
 # same optional-API-key posture as chat).
 app.include_router(document.router, prefix="/api", dependencies=_auth)
-# research.router: deep-research start/poll (Tavily Research) — same optional-
-# API-key posture as chat/document.
-app.include_router(research.router, prefix="/api", dependencies=_auth)
+# research.router (deep-research start/poll via Tavily Research) is DISCONTINUED
+# for now (2026-08-22) — routers/research.py and tavily_service.py's research
+# helpers are left in place, unregistered, for an easy future re-enable.
 
 
 @app.get("/health")

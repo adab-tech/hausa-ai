@@ -742,39 +742,6 @@ class LocalService {
     }
   }
 
-  // ── Deep research (Tavily Research — multi-step, cited answers) ───────────
-  /** Start a deep-research task. Returns the request_id to poll, or null on
-   * failure (unconfigured server, rate limit, etc). */
-  async startResearch(query: string, model: "mini" | "pro" | "auto" = "auto"): Promise<string | null> {
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/research/start`, {
-        method: "POST",
-        headers: withContributor({ "Content-Type": "application/json" }),
-        body: JSON.stringify({ query, model }),
-      });
-      if (!res.ok) return null;
-      const data = await res.json();
-      return data.request_id ?? null;
-    } catch (err) {
-      console.error("Failed to start research:", err);
-      return null;
-    }
-  }
-
-  /** Poll a research task once. Returns Tavily's raw status dict, or null on
-   * failure (unknown id, network error). */
-  async getResearchStatus(requestId: string): Promise<any | null> {
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/research/${requestId}`, {
-        headers: withContributor({}),
-      });
-      if (!res.ok) return null;
-      return await res.json();
-    } catch (err) {
-      console.error("Failed to poll research:", err);
-      return null;
-    }
-  }
 }
 
 export const gemini = new LocalService();

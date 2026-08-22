@@ -90,9 +90,22 @@ data for Murya, with full credit to you — is that right?" A specific written
 "yes" to that closes the loop completely. Not a blocker to starting integration
 work — just good practice to have on file.
 
-**Ingestion may now proceed** (OCR the 2007 scan / extract the 1977 text-layer
-PDF, build the HA→EN pairs, tag every entry `newman_1977` / `newman_2007` per
-edition) — see Planned usage below.
+**Ingestion STARTED (2026-08-22).** Discovered the 1977 PDF's embedded "text
+layer" is low-quality legacy OCR (font literally named "InvisibleOCR") that
+garbles hooked consonants (ɓ ɗ ƙ) and drops tone marks inconsistently — e.g.
+real "bụlà" extracts as "byl&". Verified this by rendering pages to images and
+reading them directly: the underlying scan is fully legible, so real ingestion
+uses page-image transcription, not the broken text layer. Proof-of-concept done
+on page 16 (39 clean entries, `data/processed/newman_1977/ha_en_pairs.jsonl`).
+Remaining 143 pages (17-159) of the dictionary body dispatched to 4 parallel
+background transcription passes, writing to
+`data/processed/newman_1977/ha_en_pairs_chunk{1..4}.jsonl` with per-page
+progress logs — merge + dedupe + wire into `dictionary_service.py` once all
+chunks land, with a human spot-check before it ships (this project's standard
+for new corpora). The 2007 scan (no text layer at all — needs the same
+page-image approach across all 262 pages) is not yet started; likely superseded
+by the newer 2020/2022 BUK bidirectional edition once acquired (see below), so
+deprioritized until that's resolved.
 
 ## A better-fit source, flagged by Newman himself (2026-08-22)
 

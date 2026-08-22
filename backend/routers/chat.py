@@ -388,12 +388,22 @@ _OLLAMA_NUM_THREAD = int(os.getenv("OLLAMA_INFERENCE_THREADS", "2"))
 _OLLAMA_OPTIONS = {"num_thread": _OLLAMA_NUM_THREAD}
 
 # How long to wait for Ollama's FIRST token before giving up on it and
-# switching to Cerebras. A merely-slow (not erroring) Ollama never trips the
+# switching to Gemini. A merely-slow (not erroring) Ollama never trips the
 # except-based fallback below on its own, so a request can otherwise hang
 # for as long as the client is willing to wait. Once Ollama does start
 # producing tokens we let it finish rather than abandoning mid-stream, which
 # would interleave two different replies.
-_OLLAMA_FIRST_TOKEN_TIMEOUT = float(os.getenv("OLLAMA_FIRST_TOKEN_TIMEOUT", "12"))
+#
+# Lowered from 12s to 4s (2026-08-22): on this box's current 2-vCPU/8GB
+# footprint (shared with Whisper + VITS), Ollama consistently needs a full
+# cold reload of the 8B model on every request (~4.8GB CPU buffer) and
+# reliably never produces a first token within 12s — confirmed live in
+# production logs, not assumed. Every real chat request was paying the full
+# 12s tax before falling through to Gemini. 4s still gives a genuinely-warm
+# model (e.g. two requests in quick succession) a chance to win, without
+# taxing the common case this heavily. The underlying memory-pressure/
+# cold-reload issue is a separate, larger fix (see docs/capacity_and_cost.md).
+_OLLAMA_FIRST_TOKEN_TIMEOUT = float(os.getenv("OLLAMA_FIRST_TOKEN_TIMEOUT", "4"))
 
 
 # ---------------------------------------------------------------------------
@@ -622,8 +632,9 @@ async def stream_cerebras(messages: list[dict[str, Any]]) -> AsyncGenerator[str,
 
 async def stream_gemini(req: ChatRequest) -> AsyncGenerator[str, None]:
     """
-    Stream responses via google-genai SDK (with google.generativeai async fallback).
-    Uses GEMINI_MODEL (default gemini-2.5-flash).
+    Stream responses via the google-genai SDK. Uses GEMINI_MODEL (default
+    gemini-2.5-flash). Any failure here (missing key, SDK error, quota) is
+    raised to the caller, which falls through to the static fallback.
     """
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
@@ -705,60 +716,11 @@ async def stream_gemini(req: ChatRequest) -> AsyncGenerator[str, None]:
                 yield chunk.text
         return
 
-    except ImportError:
-        pass
+    except ImportError as e:
+        raise RuntimeError("google-genai package not installed") from e
     except Exception as e:
-        print(f"[Murya] google.genai async stream error: {type(e).__name__}: {e}. Falling back...")
-
-    # Fallback to old google.generativeai async chat API
-    import google.generativeai as genai_old
-    genai_old.configure(api_key=api_key)
-    model = genai_old.GenerativeModel(
-        model_name=GEMINI_MODEL,
-        system_instruction=system_content,
-        generation_config={
-            "temperature": 0.4,
-            "max_output_tokens": 2048,
-        }
-    )
-    old_history = []
-    for h in history:
-        old_history.append({"role": h["role"], "parts": [{"text": h["parts"][0]["text"]}]})
-
-    chat = model.start_chat(history=old_history)
-
-    user_parts_list = [req.text]
-    for att in req.attachments:
-        if att.data and "base64," in att.data and att.mimeType.startswith("image/"):
-            import base64 as b64lib
-            raw_bytes = b64lib.b64decode(att.data.split("base64,")[1])
-            user_parts_list.append({
-                "mime_type": att.mimeType,
-                "data": raw_bytes
-            })
-
-    try:
-        response = await chat.send_message_async(
-            user_parts_list if len(user_parts_list) > 1 else req.text,
-            stream=True
-        )
-        async for chunk in response:
-            if hasattr(chunk, 'text') and chunk.text:
-                yield chunk.text
-        return
-    except Exception as e:
-        print(f"[Murya] google.generativeai async chat error: {type(e).__name__}: {e}")
-        # Final synchronous thread fallback
-        loop = asyncio.get_event_loop()
-        def _sync_stream():
-            return chat.send_message(
-                user_parts_list if len(user_parts_list) > 1 else req.text,
-                stream=True
-            )
-        response = await loop.run_in_executor(None, _sync_stream)
-        for chunk in response:
-            if hasattr(chunk, 'text') and chunk.text:
-                yield chunk.text
+        print(f"[Murya] google.genai async stream error: {type(e).__name__}: {e}")
+        raise
 
 
 # ---------------------------------------------------------------------------
