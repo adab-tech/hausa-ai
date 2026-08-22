@@ -135,11 +135,20 @@ def _clean(markdown: str) -> str:
     return (heading + "\n\n" + "\n".join(body_lines)).strip()
 
 
+# Substrings that indicate a non-article page regardless of WHERE they appear
+# in the title — Wikipedia has compound namespaces like "Tattaunawar user:..."
+# ("talk of user:...") that don't start with any single excluded prefix above.
+_EXCLUDED_SUBSTRINGS = ("user:", "tattaunawar",)
+
+
 def _is_article_url(url: str) -> bool:
     if "/wiki/" not in url:
         return False
-    title = url.split("/wiki/", 1)[1]
-    return not any(title.startswith(p) for p in _EXCLUDED_PREFIXES)
+    title = unquote(url.split("/wiki/", 1)[1])
+    if any(title.startswith(p) for p in _EXCLUDED_PREFIXES):
+        return False
+    low = title.lower()
+    return not any(s in low for s in _EXCLUDED_SUBSTRINGS)
 
 
 async def build(limit: int) -> int:
