@@ -47,8 +47,14 @@ logger = logging.getLogger("murya.dictionary")
 # Environment override for the lexicon path (highest priority).
 _ENV_VAR = "DICTIONARY_PATH"
 
-# Fixed container location (the image bakes the lexicon here).
-_CONTAINER_PATH = Path("/app/data/robinson/en_ha_pairs.jsonl")
+# Fixed container location (the image bakes the lexicon here). Deliberately
+# OUTSIDE /app/data: that path is the Fly persistent volume's mount point (see
+# fly.toml [mounts]), which shadows anything baked into it at build time —
+# confirmed live in production (2026-08-22) that dictionary_ready() was False
+# because /app/data/robinson/... never existed at runtime, silently replaced
+# by the empty/unrelated volume contents. Moved here so the baked-in lexicon
+# actually survives past container start.
+_CONTAINER_PATH = Path("/app/dictionaries/robinson/en_ha_pairs.jsonl")
 
 # Repo-root fallback, resolved relative to THIS file so it works from any cwd.
 # services/dictionary_service.py -> backend/ -> <repo-root>
@@ -60,13 +66,13 @@ _REPO_PATH = _REPO_ROOT / "data" / "processed" / "robinson" / "en_ha_pairs.jsonl
 # HA->EN direction that Robinson (EN->HA, 1914) lacks. Loaded IN ADDITION to
 # Robinson when present; both feed the same indexes, each entry keeping its own
 # provenance.
-_HA_EN_CONTAINER_PATH = Path("/app/data/hausa_en_open/ha_en_pairs.jsonl")
+_HA_EN_CONTAINER_PATH = Path("/app/dictionaries/hausa_en_open/ha_en_pairs.jsonl")
 _HA_EN_REPO_PATH = _REPO_ROOT / "data" / "processed" / "hausa_en_open" / "ha_en_pairs.jsonl"
 
 # Tertiary HAUSA->ENGLISH lexicon: Newman & Newman (1977), APPROVED directly by
 # Prof. Paul Newman (see data/sources/newman-dictionary/ATTRIBUTION.md). Also
 # additive — merged into the same indexes alongside Robinson and Wiktionary.
-_NEWMAN_1977_CONTAINER_PATH = Path("/app/data/newman_1977/ha_en_pairs_merged.jsonl")
+_NEWMAN_1977_CONTAINER_PATH = Path("/app/dictionaries/newman_1977/ha_en_pairs_merged.jsonl")
 _NEWMAN_1977_REPO_PATH = _REPO_ROOT / "data" / "processed" / "newman_1977" / "ha_en_pairs_merged.jsonl"
 
 # Diacritic folding: Hausa hooked letters -> plain ASCII, so "ƙasa" and "kasa"

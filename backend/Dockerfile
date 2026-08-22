@@ -65,9 +65,16 @@ ENV VITS_MODEL_DIR=/app/models/piper_hausa_waxal
 # clean HA->EN. We do NOT set DICTIONARY_PATH here — that env var is an
 # authoritative single-file override that would suppress the secondary/
 # tertiary sources; the auto-detected paths load all three.
-COPY data/processed/robinson/en_ha_pairs.jsonl /app/data/robinson/en_ha_pairs.jsonl
-COPY data/processed/hausa_en_open/ha_en_pairs.jsonl /app/data/hausa_en_open/ha_en_pairs.jsonl
-COPY data/processed/newman_1977/ha_en_pairs_merged.jsonl /app/data/newman_1977/ha_en_pairs_merged.jsonl
+#
+# Deliberately under /app/dictionaries, NOT /app/data: the Fly persistent
+# volume mounts at /app/data (see fly.toml [mounts]) and silently shadows
+# anything baked into that path at build time. Confirmed live in production
+# (2026-08-22) that all three sources were failing to load for exactly this
+# reason — dictionary_ready() was False, /app/data/robinson/... never existed
+# at runtime. Keep this path out of the volume's mount point.
+COPY data/processed/robinson/en_ha_pairs.jsonl /app/dictionaries/robinson/en_ha_pairs.jsonl
+COPY data/processed/hausa_en_open/ha_en_pairs.jsonl /app/dictionaries/hausa_en_open/ha_en_pairs.jsonl
+COPY data/processed/newman_1977/ha_en_pairs_merged.jsonl /app/dictionaries/newman_1977/ha_en_pairs_merged.jsonl
 
 # Copy compiled frontend from Stage 1 into the backend container
 COPY --from=frontend-builder /build/dist ./dist
