@@ -630,6 +630,76 @@ async def stream_cerebras(messages: list[dict[str, Any]]) -> AsyncGenerator[str,
             yield delta
 
 
+async def stream_ollama(messages: list[dict[str, Any]]) -> AsyncGenerator[str, None]:
+    """
+    Stream responses via local Ollama, bounded by a first-token timeout so a
+    slow (not just erroring) response still moves on to the next fallback
+    step. Shared by /api/chat and /api/document — same model, same timeout,
+    same failure semantics, extracted here so both call sites use exactly the
+    tested logic rather than two copies that could drift.
+    """
+    client = ollama.AsyncClient(host=OLLAMA_HOST)
+    stream = await client.chat(
+        model=DEFAULT_MODEL,
+        messages=messages,
+        stream=True,
+        options=_OLLAMA_OPTIONS,
+    )
+    aiter = stream.__aiter__()
+    try:
+        first_part = await asyncio.wait_for(
+            aiter.__anext__(), timeout=_OLLAMA_FIRST_TOKEN_TIMEOUT
+        )
+    except StopAsyncIteration:
+        return
+    except asyncio.TimeoutError as timeout_err:
+        if hasattr(aiter, "aclose"):
+            await aiter.aclose()
+        raise RuntimeError(
+            f"Ollama exceeded {_OLLAMA_FIRST_TOKEN_TIMEOUT}s time-to-first-token"
+        ) from timeout_err
+
+    yield first_part["message"]["content"]
+    async for part in aiter:
+        yield part["message"]["content"]
+
+
+async def stream_gemini_raw(messages: list[dict[str, Any]]) -> AsyncGenerator[str, None]:
+    """
+    Stream responses via the google-genai SDK for a plain system+user message
+    list — NO chat persona, history, search grounding, or attachments. Used by
+    /api/document (translate/summarize), which wants the model to just do the
+    one task in its own system prompt, not adopt Murya's chat persona.
+    """
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError("GEMINI_API_KEY not set in environment.")
+
+    from google import genai
+    from google.genai import types
+
+    client = genai.Client(api_key=api_key)
+    system_content = "\n".join(m["content"] for m in messages if m["role"] == "system")
+    contents = [
+        types.Content(role="user", parts=[types.Part.from_text(text=m["content"])])
+        for m in messages if m["role"] == "user"
+    ]
+
+    config = types.GenerateContentConfig(
+        system_instruction=system_content,
+        temperature=0.3,
+        max_output_tokens=4096,
+    )
+    response = await client.aio.models.generate_content_stream(
+        model=GEMINI_MODEL,
+        contents=contents,
+        config=config,
+    )
+    async for chunk in response:
+        if chunk.text:
+            yield chunk.text
+
+
 async def stream_gemini(req: ChatRequest) -> AsyncGenerator[str, None]:
     """
     Stream responses via the google-genai SDK. Uses GEMINI_MODEL (default
@@ -788,11 +858,10 @@ async def chat_endpoint(request: Request, req: ChatRequest):
         # Heartbeat: emit a keepalive comment immediately
         yield ": keepalive\n\n"
         full_text = ""
-        client = ollama.AsyncClient(host=OLLAMA_HOST)
-        
+
         # We fetch chunks in a background task and feed them into a queue
         queue = asyncio.Queue()
-        
+
         async def fetch_stream():
             try:
                 # Step A: Cerebras is the fast, hosted primary. Local Ollama
@@ -805,30 +874,8 @@ async def chat_endpoint(request: Request, req: ChatRequest):
                 try:
                     # Step B: Local Ollama, bounded by a first-token timeout
                     # so a slow (not just erroring) response still moves on.
-                    stream = await client.chat(
-                        model=DEFAULT_MODEL,
-                        messages=messages,
-                        stream=True,
-                        options=_OLLAMA_OPTIONS,
-                    )
-                    aiter = stream.__aiter__()
-                    try:
-                        first_part = await asyncio.wait_for(
-                            aiter.__anext__(), timeout=_OLLAMA_FIRST_TOKEN_TIMEOUT
-                        )
-                    except StopAsyncIteration:
-                        first_part = None
-                    except asyncio.TimeoutError as timeout_err:
-                        if hasattr(aiter, "aclose"):
-                            await aiter.aclose()
-                        raise RuntimeError(
-                            f"Ollama exceeded {_OLLAMA_FIRST_TOKEN_TIMEOUT}s time-to-first-token"
-                        ) from timeout_err
-
-                    if first_part is not None:
-                        await queue.put(first_part["message"]["content"])
-                        async for part in aiter:
-                            await queue.put(part["message"]["content"])
+                    async for delta in stream_ollama(messages):
+                        await queue.put(delta)
                 except Exception as ollama_err:
                     # Step C: Fallback to Gemini via google-genai SDK
                     print(f"[Murya] Ollama failed ({type(ollama_err).__name__}: {ollama_err}), switching to Gemini...")

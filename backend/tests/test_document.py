@@ -79,10 +79,16 @@ async def test_document_translate_streams_result(client):
 @pytest.mark.anyio
 async def test_document_reports_error_gracefully(client):
     async def _boom(*_a, **_k):
-        raise RuntimeError("cerebras down")
+        raise RuntimeError("provider down")
         yield  # make it an async generator
 
-    with patch("routers.chat.stream_cerebras", _boom):
+    # document_endpoint now falls through Cerebras -> Ollama -> Gemini (same
+    # chain as /api/chat); all three must fail to reach the final error path.
+    with (
+        patch("routers.chat.stream_cerebras", _boom),
+        patch("routers.chat.stream_ollama", _boom),
+        patch("routers.chat.stream_gemini_raw", _boom),
+    ):
         resp = await client.post(
             "/api/document",
             json={"text": "wani rubutu", "action": "summarize", "target": "ha"},
@@ -91,3 +97,27 @@ async def test_document_reports_error_gracefully(client):
     final = _iter_sse(resp.content)[-1]
     assert final["isDone"] is True
     assert "error" in final
+
+
+async def test_document_falls_back_to_ollama_when_cerebras_fails(client):
+    async def _boom(*_a, **_k):
+        raise RuntimeError("cerebras down")
+        yield  # make it an async generator
+
+    async def _ollama_ok(*_a, **_k):
+        for chunk in ("Taƙaice: ", "wannan labari ne."):
+            yield chunk
+
+    with (
+        patch("routers.chat.stream_cerebras", _boom),
+        patch("routers.chat.stream_ollama", _ollama_ok),
+    ):
+        resp = await client.post(
+            "/api/document",
+            json={"text": "wani rubutu", "action": "summarize", "target": "ha"},
+        )
+    assert resp.status_code == 200
+    final = _iter_sse(resp.content)[-1]
+    assert final["isDone"] is True
+    assert "error" not in final
+    assert "wannan labari ne" in final["text"]
