@@ -5,6 +5,7 @@ import {
   Sliders, Volume2, ChevronRight, Activity, BookOpen, Cpu, X, Trash2, UserCircle2,
   Gem, Crown, Zap, GraduationCap, Mic2, Mars, Venus, CircleDashed, CircleCheck, Languages,
   MessageSquarePlus,
+  Search,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -29,6 +30,7 @@ interface SidebarProps {
   onOpenDocumentTool: () => void;
   onOpenContribute: () => void;
   onOpenContributeQA: () => void;
+  onOpenDeepResearch: () => void;
   onOpenReview: () => void;
   onOpenWhitePaper: () => void;
   onClearChat: () => void;
@@ -138,6 +140,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenDocumentTool,
   onOpenContribute,
   onOpenContributeQA,
+  onOpenDeepResearch,
   onOpenReview,
   onOpenWhitePaper,
   onClearChat,
@@ -358,6 +361,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <MessageSquarePlus className="w-4 h-4 text-dyn-accent" />
               <span>Ba da Tambaya</span>
+            </button>
+            <button
+              onClick={() => { onOpenDeepResearch(); setSidebarOpen(false); }}
+              className="w-full py-3 px-4 bg-white/5 hover:bg-white/10 text-dyn-text-primary border border-dyn-border rounded-2xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-3 shadow-sm"
+            >
+              <Search className="w-4 h-4 text-dyn-accent" />
+              <span>Zurfin Bincike</span>
             </button>
             <button
               onClick={() => { onOpenReview(); setSidebarOpen(false); }}
