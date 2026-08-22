@@ -1,0 +1,37 @@
+page 17: 53 entries
+page 18: 50 entries
+page 19: 49 entries (allura sense 2 continues on page 20)
+page 20: 65 entries (anini continues on page 21)
+page 21: 56 entries (ashe continues on page 22)
+page 22: 61 entries
+page 23: 49 entries
+page 24: 54 entries (2nd baƙi 'letter' entry continues on page 25)
+page 25: 50 entries
+page 26: 50 entries
+page 27: 56 entries
+page 28: 54 entries
+page 29: 57 entries (bukata continues on page 30)
+page 30: 66 entries (bukata entry from page 29 added retroactively, tagged page 29)
+page 31: 38 entries (buzu-buzuzu plain-b tail + baba-barawo hooked-ɓ section start; barbashi continues on page 32)
+page 32: 51 entries (completes barbashi; full ɓ section: bare-buya)
+page 33: 44 entries (letter C begins: ca-caf)
+page 34: 62 entries (cara-cikin; cikin continues on page 35)
+page 35: 56 entries (cikin example sentence from p.34 completed here, no new entry; ¹cuna homograph begins, ²cuna likely follows on page 36)
+page 36: 29 entries (letter C ends with cwai; letter D begins; 4da 'required before d.o. of verbs of...' continues on page 37)
+page 37: 46 entries (incl. 4da completion tagged page 36; daɗai 'ever, always (with neg.)' continues on page 38)
+page 38: 45 entries (daɗai example completed, no new entry; dainà 'stop doing, cease' continues on page 39)
+page 39: 51 entries (dainà example completed, no new entry; note: recurring ambiguous subscript-hook mark under vowels before k/g throughout D section treated as unclear diacritic and omitted per quality-bar ambiguity rule, base vowel kept)
+page 40: 52 entries (dàmana cross-ref skipped; confirmed hooked ƙ glyph = top-left flag on k distinct from plain k, e.g. damƙa/dandaƙa/dandaƙe/danƙa/dankà vs plain dankali/danki; dankà 'hand over, entrust' continues on page 41; note: recurring subscript serif under bold headword vowels reassessed as bold-font stylistic artifact, not a real diacritic, confirmed by cross-checking dankà vs plain k words)
+page 41: 59 entries (dankà example completed no new row; dànni/daudàwa cross-refs skipped; dàwaki pl.-of-doki skipped; dawwàma 'entrust' sense 2 continues on page 42)
+page 42: 61 entries (dawwama example completed no new row; dazuzzuka/dena/dila-cross-ref skipped; confirmed dokà/dukà plain k vs doɗè hooked ɗ by zoom)
+page 43: 60 entries (du/dukka cross-refs skipped; confirmed duka 'all/every/punch' plain k vs duƙa/duƙufa/duƙunƙune/duƙus/duƙushi cluster hooked ƙ by zoom)
+page 44: 55 entries (letter D (plain) ends at dutse; new section 'D (hooked ɗ, header shown as "'D") begins with ɗa; dundumi cross-ref skipped; ɗafà 'stick onto' sense 1 continues on page 45)
+page 45: 42 entries (ɗafà accusation sense completed no new row beyond sense2; 1ɗan gen.-of-ɗa cross-ref skipped; ɗan'uwa 'brother/sister, relative' begins, continues on page 46)
+page 46: 52 entries (ɗan'uwa completed with 2 senses; ɗau 'alt form of ɗauka' grammatical note skipped; ɗibbù cross-ref skipped)
+page 47: 48 entries (ɗiya see 'ya and ɗumàma see ɗimàma cross-refs skipped; ɗ section (letter 'D) ends at ɗuwàwu/ɗuwàiwai; next page expected to start letter E)
+page 48: 45 entries (short letter E section complete: e through eriya; letter F begins: fa through fafara; ehò/facè/fadàwa/faɗe/faɗì(alt.form) cross-refs skipped; page has no visible page number printed, unnumbered section-start page between pages 47 and 49)
+page 49: 60 entries (fahàri see àlfahàri cross-ref skipped; printed page number 34)
+page 50: 73 entries (fàràli see fàrìlla cross-ref skipped; confirmed fàrɗa hooked ɗ by zoom)
+page 51: 59 entries (fatàke/fatanyà/fàyàfayai/faucè cross-refs skipped)
+page 52: 68 entries (fiɗ dà/fikàfikai/fikò/fikè/fisshe cross-refs skipped; confirmed feɗè/fiɗà hooked ɗ by zoom; fitar dà 'take out, remove' sense 1 continues on page 53)
+page 53: 51 entries (letter F completes at fyaucè; letter G begins with gà senses 1-3; gà sense 4 'in the possession of' continues on page 54, out of assigned range 35-53, left for next agent)

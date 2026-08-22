@@ -1,15 +1,20 @@
 """
-Hausa <-> English dictionary lookup backed by two openly-usable lexicons.
+Hausa <-> English dictionary lookup backed by three openly-usable/licensed
+lexicons.
 
-Sources (both auto-detected and merged into one index; each entry keeps its own
+Sources (all auto-detected and merged into one index; each entry keeps its own
 provenance):
   * Robinson (1914) — public domain — clean ENGLISH->Hausa direction.
     provenance "robinson_1914_vol2".
   * Wiktionary/Kaikki — CC-BY-SA — clean HAUSA->English direction.
     provenance "wiktionary_ha_ccbysa". See
     data/sources/wiktionary-hausa/ATTRIBUTION.md and utils/build_hausa_en_open.py.
-Copyrighted dictionaries (e.g. Newman 2007) are deliberately NOT ingested here —
-see data/sources/newman-dictionary/ATTRIBUTION.md.
+  * Newman & Newman (1977) — in copyright, ingestion APPROVED directly by
+    Prof. Paul Newman via email — clean HAUSA->English direction (natively
+    HA-headword). provenance "newman_1977". Transcribed by page-image reading
+    (the PDF's embedded OCR text layer is unreliable — see
+    data/sources/newman-dictionary/ATTRIBUTION.md) and merged via
+    utils/merge_newman_1977.py. The 2007 Newman edition is not yet ingested.
 
 Purpose — let Murya define/translate words with a CITED source instead of
 guessing. Every returned entry carries its provenance so the chat path can say
@@ -54,10 +59,15 @@ _REPO_PATH = _REPO_ROOT / "data" / "processed" / "robinson" / "en_ha_pairs.jsonl
 # CC-BY-SA — see data/sources/wiktionary-hausa/ATTRIBUTION.md). It gives a clean
 # HA->EN direction that Robinson (EN->HA, 1914) lacks. Loaded IN ADDITION to
 # Robinson when present; both feed the same indexes, each entry keeping its own
-# provenance. Newman and other copyrighted dictionaries are deliberately NOT a
-# source here (see data/sources/newman-dictionary/ATTRIBUTION.md).
+# provenance.
 _HA_EN_CONTAINER_PATH = Path("/app/data/hausa_en_open/ha_en_pairs.jsonl")
 _HA_EN_REPO_PATH = _REPO_ROOT / "data" / "processed" / "hausa_en_open" / "ha_en_pairs.jsonl"
+
+# Tertiary HAUSA->ENGLISH lexicon: Newman & Newman (1977), APPROVED directly by
+# Prof. Paul Newman (see data/sources/newman-dictionary/ATTRIBUTION.md). Also
+# additive — merged into the same indexes alongside Robinson and Wiktionary.
+_NEWMAN_1977_CONTAINER_PATH = Path("/app/data/newman_1977/ha_en_pairs_merged.jsonl")
+_NEWMAN_1977_REPO_PATH = _REPO_ROOT / "data" / "processed" / "newman_1977" / "ha_en_pairs_merged.jsonl"
 
 # Diacritic folding: Hausa hooked letters -> plain ASCII, so "ƙasa" and "kasa"
 # resolve to the same index key. The ORIGINAL spelling is always preserved in
@@ -162,6 +172,19 @@ def _resolve_ha_en_path() -> Path | None:
     return None
 
 
+def _resolve_newman_1977_path() -> Path | None:
+    """Resolve the optional Newman 1977 HA->EN lexicon (container path, then
+    repo copy). Returns None if neither exists — additive source, absence
+    never disables the dictionary."""
+    for candidate in (_NEWMAN_1977_CONTAINER_PATH, _NEWMAN_1977_REPO_PATH):
+        try:
+            if candidate.is_file():
+                return candidate
+        except OSError:
+            continue
+    return None
+
+
 def _load_file(path: Path) -> int:
     """Read one JSONL lexicon file into the shared indexes; return the number of
     entries indexed. Raises OSError on read failure (caller handles). Malformed
@@ -246,6 +269,18 @@ def _load() -> None:
             except OSError as exc:
                 logger.warning("Failed to read HA->EN lexicon %s: %s", ha_en, exc)
 
+    # Tertiary Newman 1977 HA->EN source — additive, same override-skip rule.
+    if not override:
+        newman = _resolve_newman_1977_path()
+        if newman is not None:
+            try:
+                n = _load_file(newman)
+                total += n
+                loaded_any = True
+                logger.info("Dictionary source loaded: %d entries from %s.", n, newman)
+            except OSError as exc:
+                logger.warning("Failed to read Newman 1977 lexicon %s: %s", newman, exc)
+
     _READY = loaded_any
     if loaded_any:
         logger.info(
@@ -273,27 +308,37 @@ def dictionary_ready() -> bool:
 
 # Each source is trustworthy in the direction it was compiled for; the reverse
 # lookup is noisier. Robinson (1914) is an English->Hausa dictionary, so its
-# EN->HA direction is clean and its HA->EN reverse is rough. The open Wiktionary
-# lexicon is natively Hausa-headword, so its HA->EN direction is clean. Ranking
-# results by "am I being used in my native direction?" floats the clean answer
-# to the top (e.g. Hausa "ruwa" -> "water" from Wiktionary before Robinson's
+# EN->HA direction is clean and its HA->EN reverse is rough. Wiktionary and
+# Newman (1977) are both natively Hausa-headword, so their HA->EN direction is
+# clean. Ranking results by "am I being used in my native direction?" floats
+# the clean answer to the top (e.g. Hausa "ruwa" -> "water" before Robinson's
 # garbled reverse entries).
 _NATIVE_DIRECTION = {
     "robinson": "en->ha",
     "wiktionary": "ha->en",
+    "newman": "ha->en",
 }
+
+# Tiebreak among sources that are equally "in their native direction": prefer
+# Newman (1977) first, then Wiktionary — Newman is the more authoritative,
+# scholarly source (see data/sources/newman-dictionary/ATTRIBUTION.md), but
+# both are clean HA->EN and either beats an unranked/noisy provenance.
+_TIEBREAK_ORDER = ("newman", "wiktionary")
 
 
 def _quality_rank(result: dict) -> tuple[int, int]:
     """Sort key (lower = better). Primary: is the source queried in its
     authoritative direction? 0 = yes (cleanest), 1 = unknown provenance,
-    2 = noisier reverse direction. Secondary tiebreak: prefer the natively
-    clean HA->EN source (Wiktionary) so a Hausa headword that also appears as a
-    garbled Robinson "English" entry still resolves to the clean gloss
-    (e.g. "ruwa" -> "water", not Robinson's reverse noise)."""
+    2 = noisier reverse direction. Secondary tiebreak: among clean HA->EN
+    sources, prefer Newman then Wiktionary, so a Hausa headword that also
+    appears as a garbled Robinson "English" entry still resolves to the
+    clean, most-authoritative gloss."""
     provenance = result.get("provenance", "")
     direction = result.get("direction", "")
-    tiebreak = 0 if "wiktionary" in provenance else 1
+    tiebreak = next(
+        (i for i, marker in enumerate(_TIEBREAK_ORDER) if marker in provenance),
+        len(_TIEBREAK_ORDER),
+    )
     for marker, native in _NATIVE_DIRECTION.items():
         if marker in provenance:
             return (0 if direction == native else 2, tiebreak)

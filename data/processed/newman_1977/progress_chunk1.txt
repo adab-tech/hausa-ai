@@ -1,0 +1,31 @@
+page 127: 66 entries
+page 128: 58 entries (note: page uses distinct r-tilde glyph 'r̃' for a rolled/trilled r phoneme, contrasting with plain r -- preserved as combining tilde)
+page 129: 49 entries (start of letter T; tafarki entry sense1 only, continues onto p130)
+page 130: 59 entries
+page 131: 59 entries (talifi entry begins at bottom, continues onto p132)
+page 132: 57 entries
+page 133: 56 entries
+page 134: 55 entries
+page 135: 73 entries
+page 136: 61 entries
+page 137: 62 entries
+page 138: 52 entries
+page 139: 72 entries
+page 140: 64 entries
+page 141: 69 entries
+page 142: 61 entries
+page 143: 56 entries
+page 144: 53 entries
+page 145: 47 entries
+page 146: 54 entries
+page 147: 70 entries
+page 148: 58 entries
+page 149: 55 entries
+page 150: 74 entries
+page 151: 60 entries
+page 152: 35 entries
+page 153: 61 entries
+page 154: 63 entries
+page 155: 70 entries
+page 156: 59 entries
+pages 157-159: SKIPPED - verified these are Appendix 1 (grammar tables of Hausa pronouns), not dictionary body. Dictionary body actually ends at page 156 (0-indexed) with the final entry zuwa-zuwa (end of Z section). Task brief estimated the appendix started at page 160; direct inspection shows it starts at page 157. Transcription for pages 135-159 is complete as of page 156; no dictionary content was skipped.

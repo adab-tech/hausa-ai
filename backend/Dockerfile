@@ -57,14 +57,17 @@ COPY backend/ ./
 COPY models/piper_hausa_waxal/model.onnx models/piper_hausa_waxal/model.onnx.json /app/models/piper_hausa_waxal/
 ENV VITS_MODEL_DIR=/app/models/piper_hausa_waxal
 
-# Bake in BOTH dictionary sources so the dictionary/translation tool works in
-# the container. dictionary_service auto-detects these container paths and loads
-# them together: Robinson (1914, public domain) for clean EN->HA, and the open
-# Wiktionary/Kaikki lexicon (CC-BY-SA) for clean HA->EN. We do NOT set
-# DICTIONARY_PATH here — that env var is an authoritative single-file override
-# that would suppress the secondary source; the auto-detected paths load both.
+# Bake in all THREE dictionary sources so the dictionary/translation tool works
+# in the container. dictionary_service auto-detects these container paths and
+# loads them together: Robinson (1914, public domain) for clean EN->HA, the
+# open Wiktionary/Kaikki lexicon (CC-BY-SA) for clean HA->EN, and Newman &
+# Newman (1977, ingestion approved directly by Prof. Paul Newman) also for
+# clean HA->EN. We do NOT set DICTIONARY_PATH here — that env var is an
+# authoritative single-file override that would suppress the secondary/
+# tertiary sources; the auto-detected paths load all three.
 COPY data/processed/robinson/en_ha_pairs.jsonl /app/data/robinson/en_ha_pairs.jsonl
 COPY data/processed/hausa_en_open/ha_en_pairs.jsonl /app/data/hausa_en_open/ha_en_pairs.jsonl
+COPY data/processed/newman_1977/ha_en_pairs_merged.jsonl /app/data/newman_1977/ha_en_pairs_merged.jsonl
 
 # Copy compiled frontend from Stage 1 into the backend container
 COPY --from=frontend-builder /build/dist ./dist
