@@ -72,12 +72,20 @@ def merge() -> int:
                     dupes += 1
                     continue
                 seen.add(key)
-                rows.append({
+                out_row = {
                     "source_en": source_en,
                     "target_ha": target_ha,
                     "context": rec.get("context", ""),
                     "provenance": "newman_1977",
-                })
+                }
+                # Optional audit-trail field: carries forward a reviewer's note
+                # (e.g. "printed as X but semantically questionable") without
+                # altering the transcribed value itself. Not read by
+                # dictionary_service — bookkeeping only.
+                note = rec.get("note")
+                if note:
+                    out_row["note"] = note
+                rows.append(out_row)
 
     pages = sorted({r for r in (json.loads(l).get("page") for l in
                                  (line for fname in _SOURCES
