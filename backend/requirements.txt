@@ -57,3 +57,9 @@ requests>=2.32.4,<3  # floor raised: CVE-2024-35195 (verify bypass) + CVE-2024-4
 # Cerebras Cloud SDK (hosted low-latency inference — sits between Ollama and
 # Gemini in the chat/voice fallback chain in routers/chat.py / routers/audio.py)
 cerebras-cloud-sdk>=1.0,<2
+
+# Tavily official SDK — search (already used), plus extract/crawl/map (corpus
+# gathering for the native Hausa LLM, see docs/murya_roadmap.md Milestone #1)
+# and research (deep-research chat mode). Replaces the hand-rolled httpx calls
+# in search_service.py's basic search with the full, correctly-maintained client.
+tavily-python>=0.7,<0.8

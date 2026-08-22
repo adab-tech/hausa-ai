@@ -1,0 +1,8 @@
+{
+  "total_articles": 20,
+  "total_chars": 247561,
+  "source": "Hausa Wikipedia (ha.wikipedia.org)",
+  "license": "CC-BY-SA-4.0",
+  "extraction_tool": "Tavily Map + Extract (advanced)",
+  "note": "Raw article text for pretraining-style continued training, distinct from the instruction-pair datasets. Attribution required on any redistribution (CC-BY-SA share-alike). HONEST QUALITY NOTE: cleaning is automated and heuristic (strips nav/interwiki/edit-UI chrome and known theme-toggle phrases); most output is genuine prose, but occasional residual noise remains (short image-caption fragments, rare artifact characters). Recommend a human spot-check pass before large-scale training use; a dedicated tool like wikiextractor would clean more thoroughly if needed."
+}
