@@ -53,8 +53,17 @@ async def web_search(query: str, max_results: int = 4) -> list[dict]:
         "api_key": api_key,
         "query": query,
         "max_results": max_results,
-        "search_depth": "basic",
-        "include_answer": True,
+        # "advanced" (2 credits vs 1 for "basic") — verified live that "basic"
+        # can rank a stale cached page above fresher sources that directly
+        # contradict it (e.g. an outdated Wikipedia snapshot still naming a
+        # former head of state above BBC/VOA articles reporting the actual
+        # inauguration), and Tavily's own synthesized answer inherited that
+        # mistake. "advanced" search + advanced answer synthesis resolved the
+        # same real query correctly. Worth the extra credit specifically here
+        # — this path only fires for queries _needs_live_search already
+        # flagged as time-sensitive, exactly where getting it right matters.
+        "search_depth": "advanced",
+        "include_answer": "advanced",
     }
 
     try:
