@@ -37,6 +37,7 @@ from pydantic import BaseModel, Field
 from routers.fallback import generate_fallback_response
 from orthography import normalize_hausa_orthography, apply_tonal_heuristics, normalize_digits
 from services.search_service import web_search, search_enabled
+from services.you_service import web_search_you, you_enabled
 from services import calc_service, prayer_service, dictionary_service
 import corrections_store
 
@@ -225,14 +226,31 @@ def _format_search_context(results: list[dict]) -> str:
 async def _maybe_search_context(req: "ChatRequest") -> str | None:
     """If live search is enabled and the query is time-sensitive, run it and
     return a formatted grounding block. Returns None to preserve default
-    (no-live-access) behavior — never raises into the request path."""
-    if not (search_enabled() and _needs_live_search(req.text)):
+    (no-live-access) behavior — never raises into the request path.
+
+    Tavily is the primary provider; You.com is a FALLBACK tried only when
+    Tavily is unconfigured or returns nothing (an outage, an exhausted key, a
+    query it simply has no results for) — the same resilience pattern as the
+    Cerebras -> Ollama -> Gemini chat fallback chain, so one search provider
+    having a bad day doesn't silently take down live search grounding."""
+    if not _needs_live_search(req.text):
         return None
-    try:
-        results = await web_search(req.text, max_results=_SEARCH_MAX_RESULTS)
-    except Exception as err:  # web_search already swallows, this is belt-and-braces
-        print(f"[Murya] Live search errored ({type(err).__name__}: {err}); continuing without grounding.")
+    if not (search_enabled() or you_enabled()):
         return None
+
+    results: list[dict] = []
+    if search_enabled():
+        try:
+            results = await web_search(req.text, max_results=_SEARCH_MAX_RESULTS)
+        except Exception as err:  # web_search already swallows, this is belt-and-braces
+            print(f"[Murya] Tavily search errored ({type(err).__name__}: {err}); trying fallback.")
+
+    if not results and you_enabled():
+        try:
+            results = await web_search_you(req.text, max_results=_SEARCH_MAX_RESULTS)
+        except Exception as err:  # web_search_you already swallows, belt-and-braces
+            print(f"[Murya] You.com fallback search errored ({type(err).__name__}: {err}); continuing without grounding.")
+
     context = _format_search_context(results)
     return context or None
 
