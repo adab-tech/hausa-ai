@@ -154,7 +154,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   return (
     <>
-      <aside className={`fixed md:relative top-0 bottom-0 left-0 z-50 w-[290px] bg-dyn-bg-secondary/90 md:bg-dyn-bg-secondary/40 border-r border-dyn-border backdrop-blur-xl md:backdrop-blur-md flex flex-col justify-between p-6 transition-all duration-500 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+      <aside className={`fixed md:relative top-0 bottom-0 left-0 z-50 w-[290px] bg-dyn-bg-secondary/90 md:bg-dyn-bg-secondary/40 border-r border-dyn-border backdrop-blur-xl md:backdrop-blur-md flex flex-col justify-between gap-6 p-6 overflow-y-auto no-scrollbar transition-all duration-500 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         <div className="space-y-8">
 
           {/* Brand Logo & Header */}
