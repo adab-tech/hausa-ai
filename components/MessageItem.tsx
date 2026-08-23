@@ -1,7 +1,7 @@
 import React, { memo, useState } from 'react';
 import { Message, Role } from '../types.ts';
 import { GroundingNode } from './GroundingNode.tsx';
-import { CheckCircle2, ChevronRight, Volume2, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { CheckCircle2, ChevronRight, Play, Square, ThumbsUp, ThumbsDown } from 'lucide-react';
 
 export const AXIOM_PHRASES = [
   "Ana nazarin harshe da al'adu (Linguistic Analysis)...",
@@ -21,7 +21,8 @@ export const MessageItem = memo(({
   onFeedback,
   feedback,
   onPlaySpeech,
-  playingSpeechId
+  playingSpeechId,
+  allowTrace = false,
 }: {
   m: Message;
   currentAxiomIndex: number;
@@ -29,6 +30,9 @@ export const MessageItem = memo(({
   feedback?: 'up' | 'down';
   onPlaySpeech?: (text: string, id: string, normalized?: string) => void;
   playingSpeechId?: string | null;
+  /** Global "Advanced" setting (off by default) — most users never need to
+   *  see the normalization/tone breakdown on every message. */
+  allowTrace?: boolean;
 }) => {
   const [showTrace, setShowTrace] = useState(false);
 
@@ -86,19 +90,11 @@ export const MessageItem = memo(({
             </div>
           )}
 
-          {/* Expandable Axiom Trace Widget */}
-          {m.role === Role.assistant && !m.isThinking && (m.normalized || m.toneMapped) && (
+          {/* Saurara (listen) + optional Advanced trace toggle */}
+          {m.role === Role.assistant && !m.isThinking && (
             <div className="mt-6 border-t border-dyn-border/40 pt-5 text-left flex flex-col gap-4">
               <div className="flex items-center justify-between w-full flex-wrap gap-2">
                 <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => setShowTrace(!showTrace)}
-                    className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-dyn-accent/80 hover:text-dyn-accent transition-colors focus:outline-none"
-                  >
-                    <ChevronRight className={`w-3.5 h-3.5 transform transition-transform duration-300 ${showTrace ? 'rotate-90' : 'rotate-0'}`} />
-                    <span>Hanya / Linguistic Trace (Axiom Trace)</span>
-                  </button>
-
                   {onPlaySpeech && (
                     <button
                       onClick={() => onPlaySpeech(m.text, m.id, m.normalized)}
@@ -107,10 +103,22 @@ export const MessageItem = memo(({
                           ? 'bg-dyn-accent text-dyn-bg-primary border-dyn-accent shadow-[0_0_12px_rgba(var(--accent-gold-rgb),0.3)] animate-pulse'
                           : 'bg-dyn-accent/10 border-dyn-accent/20 text-dyn-accent hover:bg-dyn-accent/20 hover:scale-105 active:scale-95'
                       }`}
-                      title="Saurara da muryar AI (Listen with AI voice)"
+                      title={playingSpeechId === m.id ? 'Dakata (Stop)' : 'Saurara da muryar AI (Listen with AI voice)'}
                     >
-                      <Volume2 className="w-3.5 h-3.5" />
+                      {playingSpeechId === m.id
+                        ? <Square className="w-3 h-3 fill-current" />
+                        : <Play className="w-3.5 h-3.5 fill-current" />}
                       <span>{playingSpeechId === m.id ? 'Dakata' : 'Saurara'}</span>
+                    </button>
+                  )}
+
+                  {allowTrace && (m.normalized || m.toneMapped) && (
+                    <button
+                      onClick={() => setShowTrace(!showTrace)}
+                      className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-dyn-accent/80 hover:text-dyn-accent transition-colors focus:outline-none"
+                    >
+                      <ChevronRight className={`w-3.5 h-3.5 transform transition-transform duration-300 ${showTrace ? 'rotate-90' : 'rotate-0'}`} />
+                      <span>Hanya / Linguistic Trace (Axiom Trace)</span>
                     </button>
                   )}
                 </div>

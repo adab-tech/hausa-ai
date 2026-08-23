@@ -575,6 +575,24 @@ class LocalService {
     } catch (err) { console.error("Failed to submit Q&A:", err); return false; }
   }
 
+  /** PUBLIC: search the dictionary (Robinson 1914 + Wiktionary + Newman 1977,
+   * ~30,700 entries), same lexicon chat's hidden tool trigger already uses. */
+  async searchDictionary(query: string): Promise<{
+    ready: boolean;
+    results: { headword: string; translation: string; context: string; direction: string; source: string }[];
+  }> {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/dictionary?q=${encodeURIComponent(query)}`, {
+        headers: withContributor({}),
+      });
+      if (!res.ok) return { ready: false, results: [] };
+      return await res.json();
+    } catch (err) {
+      console.error("Failed to search dictionary:", err);
+      return { ready: false, results: [] };
+    }
+  }
+
   /** ADMIN: list Q&A items (+ counts). */
   async getQA(status?: "pending" | "approved" | "rejected"): Promise<{ items: any[]; counts: any } | null> {
     try {

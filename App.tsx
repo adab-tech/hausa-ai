@@ -9,6 +9,7 @@ import { WhitePaper } from './components/WhitePaper.tsx';
 import { DocumentTool } from './components/DocumentTool.tsx';
 import { ContributePronunciation } from './components/ContributePronunciation.tsx';
 import { ContributeQA } from './components/ContributeQA.tsx';
+import { DictionarySearch } from './components/DictionarySearch.tsx';
 import { Sidebar } from './components/Sidebar.tsx';
 import { LiveCallPanel } from './components/LiveCallPanel.tsx';
 import { InputConsole } from './components/InputConsole.tsx';
@@ -36,9 +37,17 @@ const App: React.FC = () => {
   const [showWhitePaper, setShowWhitePaper] = useState(false);
   // Learning Mode: turns Murya into Malamin Hausa (a patient Hausa tutor).
   const [learningMode, setLearningMode] = useState(false);
+  // Advanced/trace view: off by default — most users don't need the
+  // normalization/tone breakdown surfaced on every single message.
+  const [showTraces, setShowTracesState] = useState<boolean>(() => localStorage.getItem('hausa_ai_show_traces') === '1');
+  const setShowTraces = (v: boolean) => {
+    setShowTracesState(v);
+    localStorage.setItem('hausa_ai_show_traces', v ? '1' : '0');
+  };
   const [showDocumentTool, setShowDocumentTool] = useState(false);
   const [showContribute, setShowContribute] = useState(false);
   const [showContributeQA, setShowContributeQA] = useState(false);
+  const [showDictionary, setShowDictionary] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [volume, setVolume] = useState(0);
   const [currentAxiomIndex, setCurrentAxiomIndex] = useState(0);
@@ -418,9 +427,12 @@ const App: React.FC = () => {
         setShowAddresseeDial={setShowAddresseeDial}
         learningMode={learningMode}
         setLearningMode={setLearningMode}
+        showTraces={showTraces}
+        setShowTraces={setShowTraces}
         onOpenDocumentTool={() => setShowDocumentTool(true)}
         onOpenContribute={() => setShowContribute(true)}
         onOpenContributeQA={() => setShowContributeQA(true)}
+        onOpenDictionary={() => setShowDictionary(true)}
         onOpenReview={() => setShowReview(true)}
         onOpenWhitePaper={() => setShowWhitePaper(true)}
         onClearChat={clearChat}
@@ -493,6 +505,7 @@ const App: React.FC = () => {
                 feedback={feedbacks[m.id]}
                 onPlaySpeech={handlePlaySpeech}
                 playingSpeechId={playingSpeechId}
+                allowTrace={showTraces}
               />
             ))}
           </div>
@@ -537,6 +550,9 @@ const App: React.FC = () => {
       )}
       {showContributeQA && (
         <ContributeQA onClose={() => setShowContributeQA(false)} />
+      )}
+      {showDictionary && (
+        <DictionarySearch onClose={() => setShowDictionary(false)} />
       )}
     </div>
   );

@@ -4,7 +4,7 @@ import { ArewaLogo } from './ArewaLogo.tsx';
 import {
   Sliders, Volume2, ChevronRight, Activity, BookOpen, Cpu, X, Trash2, UserCircle2,
   Gem, Crown, Zap, GraduationCap, Mic2, Mars, Venus, CircleDashed, CircleCheck, Languages,
-  MessageSquarePlus,
+  MessageSquarePlus, Braces,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -26,9 +26,12 @@ interface SidebarProps {
   setShowAddresseeDial: (v: boolean) => void;
   learningMode: boolean;
   setLearningMode: (v: boolean) => void;
+  showTraces: boolean;
+  setShowTraces: (v: boolean) => void;
   onOpenDocumentTool: () => void;
   onOpenContribute: () => void;
   onOpenContributeQA: () => void;
+  onOpenDictionary: () => void;
   onOpenReview: () => void;
   onOpenWhitePaper: () => void;
   onClearChat: () => void;
@@ -138,9 +141,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setShowAddresseeDial,
   learningMode,
   setLearningMode,
+  showTraces,
+  setShowTraces,
   onOpenDocumentTool,
   onOpenContribute,
   onOpenContributeQA,
+  onOpenDictionary,
   onOpenReview,
   onOpenWhitePaper,
   onClearChat,
@@ -308,10 +314,43 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <p className="text-[9px] text-dyn-text-muted/80 italic px-1">Murya na koya maka Hausa da sauran darussa cikin haƙuri. (Tutor mode on.)</p>
               )}
             </div>
+
+            {/* Advanced: per-message linguistic trace toggle (off by default) */}
+            <div className="space-y-2">
+              <label className="text-[9px] uppercase tracking-wider text-dyn-text-muted font-bold flex items-center gap-1.5">
+                <Braces className="w-3 h-3 text-dyn-accent" /> Ci-gaba / Advanced
+              </label>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={showTraces}
+                onClick={() => setShowTraces(!showTraces)}
+                className={`w-full min-h-[48px] px-4 py-3 border rounded-2xl text-xs font-bold uppercase tracking-wider transition-all duration-300 ease-out flex items-center justify-between gap-2 ${
+                  showTraces
+                    ? 'bg-dyn-accent/15 border-dyn-accent/50 text-dyn-accent shadow-[0_0_20px_var(--glow-color)]'
+                    : 'bg-dyn-bg-tertiary/60 border-dyn-border text-dyn-text-secondary hover:text-dyn-text-primary hover:bg-dyn-bg-tertiary'
+                }`}
+              >
+                <span className="flex items-center gap-2.5 min-w-0">
+                  <Braces className="w-4 h-4 shrink-0" />
+                  <span className="truncate">Nuna Linguistic Trace</span>
+                </span>
+                <span className={`relative w-9 h-5 rounded-full shrink-0 transition-colors ${showTraces ? 'bg-dyn-accent' : 'bg-white/10'}`}>
+                  <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${showTraces ? 'left-[18px]' : 'left-0.5'}`}></span>
+                </span>
+              </button>
+            </div>
           </div>
 
           {/* Action Links */}
           <div className="space-y-3 pt-6 border-t border-dyn-border/40">
+            <button
+              onClick={() => { onOpenDictionary(); setSidebarOpen(false); }}
+              className="w-full py-3 px-4 bg-white/5 hover:bg-white/10 text-dyn-text-primary border border-dyn-border rounded-2xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-3 shadow-sm"
+            >
+              <BookOpen className="w-4 h-4 text-dyn-accent" />
+              <span>Ƙamus</span>
+            </button>
             <button
               onClick={() => { onOpenDocumentTool(); setSidebarOpen(false); }}
               className="w-full py-3 px-4 bg-white/5 hover:bg-white/10 text-dyn-text-primary border border-dyn-border rounded-2xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-3 shadow-sm"
