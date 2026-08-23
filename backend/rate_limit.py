@@ -33,3 +33,19 @@ def _rate_limit_key(request) -> str:
 
 
 limiter = Limiter(key_func=_rate_limit_key)
+
+# The hardening step this module's own docstring above already named as the
+# right next move (found unaddressed in a 2026-08-23 security review): a
+# genuine per-IP ceiling, stacked ALONGSIDE the per-device limiter above on
+# specific high-risk endpoints -- not replacing it everywhere, which would
+# actively hurt real users sharing a carrier-NAT IP. Two call sites, two very
+# different appropriate ceilings:
+#   - /api/admin/login: exactly one legitimate caller exists (the founder),
+#     so there is zero CGNAT-fairness tradeoff here -- a strict per-IP cap
+#     closes the token-rotation brute-force bypass with no downside.
+#   - /api/generate-image, /api/generate-video: real end users DO share IPs
+#     under CGNAT, so this ceiling is deliberately generous (several
+#     multiples of the per-device limit) -- it exists purely to cap a
+#     runaway rotating-token abuser burning paid Gemini quota, not to
+#     constrain ordinary shared-IP traffic.
+ip_limiter = Limiter(key_func=get_remote_address)

@@ -234,6 +234,83 @@ async def test_chat_falls_back_to_ollama_when_cerebras_and_groq_down(client, mon
     mock_client.chat.assert_called()
 
 
+@pytest.mark.anyio
+async def test_chat_does_not_concatenate_providers_on_mid_stream_failure(client, monkeypatch):
+    """Regression test for a real bug found in a 2026-08-23 review: if a
+    provider yields some real content and THEN fails partway through (a
+    network blip, quota cutoff mid-generation), the old code fell through
+    to the next provider and glued its entirely separate, fresh answer onto
+    the first provider's partial text -- producing an incoherent reply,
+    then caching that garbled result and replaying it to a different user
+    later. Once a provider has produced ANY content, a later failure must
+    end the stream with just that partial content -- never switch providers
+    mid-answer."""
+    monkeypatch.delenv("CEREBRAS_API_KEY", raising=False)
+
+    async def _fake_stream_cerebras(*_args, **_kwargs):
+        yield "Barka "
+        yield "da zuwa"
+        raise RuntimeError("connection dropped mid-generation")
+
+    groq_call_count = 0
+
+    async def _fake_stream_groq(*_args, **_kwargs):
+        # Must NEVER be reached -- Cerebras already produced real content.
+        nonlocal groq_call_count
+        groq_call_count += 1
+        yield "an entirely different Groq answer"
+
+    mock_client = AsyncMock()
+    mock_client.chat = AsyncMock(side_effect=Exception("ollama should not be called"))
+
+    with patch("routers.chat.ollama.AsyncClient", return_value=mock_client), \
+         patch("routers.chat.stream_cerebras", _fake_stream_cerebras), \
+         patch("routers.chat.stream_groq", _fake_stream_groq):
+        response = await client.post("/api/chat", json={"text": "concatenation regression test"})
+
+    assert response.status_code == 200
+    events = _iter_sse(response.content)
+    final = events[-1]
+    assert final["isDone"] is True
+    assert final["text"] == "Barka da zuwa"
+    assert "Groq" not in final["text"]
+    assert groq_call_count == 0
+    mock_client.chat.assert_not_called()
+
+
+@pytest.mark.anyio
+async def test_chat_falls_through_when_provider_yields_nothing(client, monkeypatch):
+    """Regression test for the related empty-success gap: a provider whose
+    stream completes with ZERO chunks and no exception (e.g. Ollama hitting
+    StopAsyncIteration on the very first chunk, or any provider returning a
+    genuinely empty completion) used to look exactly like a successful,
+    complete reply and skip the rest of the fallback chain. Must be treated
+    the same as a failure and continue to the next provider."""
+    monkeypatch.delenv("CEREBRAS_API_KEY", raising=False)
+
+    async def _empty_stream_cerebras(*_args, **_kwargs):
+        return
+        yield  # pragma: no cover -- makes this an async generator, never reached
+
+    async def _fake_stream_groq(*_args, **_kwargs):
+        yield "Sannu daga Groq"
+
+    mock_client = AsyncMock()
+    mock_client.chat = AsyncMock(side_effect=Exception("ollama should not be called"))
+
+    with patch("routers.chat.ollama.AsyncClient", return_value=mock_client), \
+         patch("routers.chat.stream_cerebras", _empty_stream_cerebras), \
+         patch("routers.chat.stream_groq", _fake_stream_groq):
+        response = await client.post("/api/chat", json={"text": "empty-success regression test"})
+
+    assert response.status_code == 200
+    events = _iter_sse(response.content)
+    final = events[-1]
+    assert final["isDone"] is True
+    assert "Sannu daga Groq" in final["text"]
+    mock_client.chat.assert_not_called()
+
+
 # ---------------------------------------------------------------------------
 # Auth tests
 # ---------------------------------------------------------------------------

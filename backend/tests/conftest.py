@@ -35,12 +35,16 @@ def _disable_rate_limiting():
     same fake client IP within one session-scoped `client` — without this,
     the rate limiter itself (not test logic) would start failing unrelated
     tests. test_rate_limiting.py re-enables it deliberately to verify the
-    limiter actually works."""
+    limiter actually works. ip_limiter (the per-IP ceiling added alongside
+    the per-device limiter, see rate_limit.py) needs the same treatment for
+    the same reason — every test request shares one fake client IP too."""
     import rate_limit
 
     rate_limit.limiter.enabled = False
+    rate_limit.ip_limiter.enabled = False
     yield
     rate_limit.limiter.enabled = True
+    rate_limit.ip_limiter.enabled = True
 
 
 @pytest.fixture(scope="session")

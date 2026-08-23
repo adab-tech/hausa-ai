@@ -14,7 +14,7 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
 import admin_store
-from rate_limit import limiter
+from rate_limit import ip_limiter, limiter
 
 router = APIRouter()
 
@@ -46,6 +46,13 @@ def _set_session_cookie(response: Response, token: str) -> None:
 
 @router.post("/admin/login")
 @limiter.limit("10/minute")
+# Second, genuine per-IP ceiling -- the limiter above keys on a
+# self-asserted, freely-rotatable X-Contributor-Id, so on its own it does
+# NOT actually stop a scripted brute-force (a fresh random device id per
+# attempt gets a fresh bucket every time). There's exactly one legitimate
+# caller for this endpoint, so a strict IP-based cap has no fairness
+# downside. See rate_limit.py's ip_limiter docstring.
+@ip_limiter.limit("10/minute")
 async def admin_login(request: Request, req: LoginRequest, response: Response):
     admin_id = admin_store.verify_login(req.username, req.password)
     if admin_id is None:

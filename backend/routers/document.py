@@ -79,8 +79,10 @@ async def document_endpoint(request: Request, req: DocumentRequest):
         full = ""
 
         async def try_provider(stream_fn):
-            nonlocal full
+            nonlocal full, produced_any
             async for delta in stream_fn:
+                if delta:
+                    produced_any = True
                 full += delta
                 yield f"data: {json.dumps({'text': normalize_digits(full), 'isDone': False})}\n\n"
 
@@ -91,14 +93,24 @@ async def document_endpoint(request: Request, req: DocumentRequest):
             (stream_gemini_raw(messages), "Gemini"),
         ):
             full = ""
+            produced_any = False
             try:
                 async for event in try_provider(stream_fn):
                     yield event
-                break
             except Exception as exc:
                 print(f"[Murya] document {req.action}: {label} failed ({type(exc).__name__}: {exc}), trying next provider...")
                 full = ""
                 continue
+            if produced_any:
+                break
+            # A stream that completes with zero chunks and no exception (a
+            # provider effectively returning nothing) used to look exactly
+            # like a successful, complete translation/summary -- the
+            # request finished with isDone:true and an empty body instead
+            # of continuing to the next provider. Treat empty-but-clean the
+            # same as a failure.
+            print(f"[Murya] document {req.action}: {label} produced no content, trying next provider...")
+            full = ""
         else:
             # All three providers failed.
             yield f"data: {json.dumps({'text': '', 'isDone': True, 'error': 'An kasa aiwatarwa a yanzu. A sake gwadawa. (Could not complete right now.)'})}\n\n"

@@ -802,6 +802,14 @@ async def stream_gemini(req: ChatRequest) -> AsyncGenerator[str, None]:
         # ("meye labari a Kaduna a yau?") get grounded answers instead of an
         # honest "I can't access live news". If the model/key doesn't support the
         # tool, retry once without it rather than failing the whole request.
+        # Same concatenation bug as fetch_stream's provider fallback, nested
+        # one level deeper: if the grounded attempt yields some chunks and
+        # THEN fails, retrying without search would start a second, fresh
+        # generation whose output the caller can't distinguish from more of
+        # this same stream -- gluing two different Gemini answers together.
+        # Only retry ungrounded if grounding failed before producing
+        # anything at all.
+        grounded_produced_any = False
         try:
             grounded_config = types.GenerateContentConfig(
                 system_instruction=system_content,
@@ -816,9 +824,14 @@ async def stream_gemini(req: ChatRequest) -> AsyncGenerator[str, None]:
             )
             async for chunk in response:
                 if chunk.text:
+                    grounded_produced_any = True
                     yield chunk.text
             return
         except Exception as ground_err:
+            if grounded_produced_any:
+                print(f"[Murya] Grounded generation failed mid-reply ({type(ground_err).__name__}: {ground_err}) "
+                      "after already producing output -- ending here rather than retrying ungrounded.")
+                return
             print(f"[Murya] Grounded generation failed ({type(ground_err).__name__}: {ground_err}); retrying without search tool...")
 
         config = types.GenerateContentConfig(
@@ -915,39 +928,61 @@ async def chat_endpoint(request: Request, req: ChatRequest):
         queue = asyncio.Queue()
 
         async def fetch_stream():
-            try:
-                # Step A: Cerebras is the fast, hosted primary.
-                async for delta in stream_cerebras(messages):
-                    await queue.put(delta)
-            except Exception as cerebras_err:
-                print(f"[Murya] Cerebras unavailable ({type(cerebras_err).__name__}: {cerebras_err}), switching to Groq...")
+            # A step only falls through to the NEXT provider if it failed
+            # (or produced literally nothing) BEFORE yielding any real
+            # content. Once a provider has already contributed text to this
+            # response, a later failure ends the stream with whatever was
+            # generated so far rather than gluing a fresh, unrelated answer
+            # from a different provider onto it -- concatenating two
+            # providers' output mid-stream was a real bug (2026-08-23
+            # security/correctness review): it produces an incoherent reply
+            # to the user asking right now, AND -- worse -- that garbled
+            # text was still non-empty, so it got written into _CHAT_CACHE
+            # below and replayed verbatim to a different user asking the
+            # same cacheable question later.
+            #
+            # This same "did this step actually produce anything" check also
+            # closes a second, related gap: a provider whose stream
+            # completes with ZERO chunks and no exception (e.g. Ollama's
+            # stream_ollama catching StopAsyncIteration on the very first
+            # chunk and returning cleanly) used to look exactly like a
+            # successful, complete reply -- the empty/near-empty "success"
+            # skipped the rest of the fallback chain entirely instead of
+            # continuing to Gemini/static.
+            steps = (
+                ("Cerebras", stream_cerebras(messages)),
+                # Groq is tried before Ollama because local Ollama on this
+                # box has never once succeeded in production under current
+                # RAM pressure (see stream_ollama's docstring); trying it
+                # first would just waste its first-token timeout on every
+                # request.
+                ("Groq", stream_groq(messages)),
+                ("Ollama", stream_ollama(messages)),
+                ("Gemini", stream_gemini(req)),
+            )
+            for name, stream in steps:
+                produced_any = False
                 try:
-                    # Step B: Groq — fast, real free tier. Tried before Ollama
-                    # because local Ollama on this box has never once
-                    # succeeded in production under current RAM pressure
-                    # (see stream_ollama's docstring); trying it first would
-                    # just waste its first-token timeout on every request.
-                    async for delta in stream_groq(messages):
-                        await queue.put(delta)
-                except Exception as groq_err:
-                    print(f"[Murya] Groq unavailable ({type(groq_err).__name__}: {groq_err}), switching to Ollama...")
-                    try:
-                        # Step C: Local Ollama, bounded by a first-token
-                        # timeout so a slow (not just erroring) response
-                        # still moves on.
-                        async for delta in stream_ollama(messages):
+                    async for delta in stream:
+                        if delta:
+                            produced_any = True
                             await queue.put(delta)
-                    except Exception as ollama_err:
-                        # Step D: Fallback to Gemini via google-genai SDK
-                        print(f"[Murya] Ollama failed ({type(ollama_err).__name__}: {ollama_err}), switching to Gemini...")
-                        try:
-                            async for delta in stream_gemini(req):
-                                await queue.put(delta)
-                        except Exception as gemini_err:
-                            # Step E: Fallback to static rule-based generator
-                            print(f"[Murya] Gemini failed ({type(gemini_err).__name__}: {gemini_err}), using static fallback.")
-                            fallback_text = generate_fallback_response(req.text, req.vibe, req.addresseeGender)
-                            await queue.put(fallback_text)
+                except Exception as err:
+                    if produced_any:
+                        print(f"[Murya] {name} failed mid-reply ({type(err).__name__}: {err}) "
+                              "after already producing output -- ending here rather than "
+                              "switching providers mid-answer.")
+                        break
+                    print(f"[Murya] {name} unavailable ({type(err).__name__}: {err}), trying the next provider...")
+                    continue
+                if produced_any:
+                    break
+                print(f"[Murya] {name} produced no content, trying the next provider...")
+            else:
+                # Every provider failed (or produced nothing) with zero
+                # content ever reaching the client.
+                fallback_text = generate_fallback_response(req.text, req.vibe, req.addresseeGender)
+                await queue.put(fallback_text)
             # Signal the end of stream
             await queue.put(None)
             

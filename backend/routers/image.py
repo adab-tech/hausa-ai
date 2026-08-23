@@ -21,7 +21,7 @@ from contextlib import suppress
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
-from rate_limit import limiter
+from rate_limit import ip_limiter, limiter
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -84,12 +84,19 @@ async def _generate_image_impl(req: ImageRequest) -> dict:
 
 @router.post("/generate-image")
 @limiter.limit("5/minute")
+# Genuine per-IP ceiling alongside the spoofable per-device limit above --
+# see rate_limit.py's ip_limiter docstring. Generous (6x the per-device
+# rate) since real users do share IPs under carrier NAT; this exists to cap
+# a rotating-token abuser burning paid Gemini Imagen quota, not to
+# constrain ordinary shared-IP traffic.
+@ip_limiter.limit("30/minute")
 async def generate_image(request: Request, req: ImageRequest):
     return await _generate_image_impl(req)
 
 
 @router.post("/generate-video")
 @limiter.limit("5/minute")
+@ip_limiter.limit("30/minute")
 async def generate_video(request: Request, req: VideoRequest):
     """
     Video generation using the Imagen static output + Ken Burns pan/zoom animation.
