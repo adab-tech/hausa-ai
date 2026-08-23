@@ -10,7 +10,7 @@
 # CSP is 'none' because this domain is a pure JSON/WebSocket API with no
 # HTML of its own to render -- it never needs to load a script, style, or
 # frame from anywhere.
-api.murya.ng, api-backup.murya.ng {
+api.murya.ng {
 	header {
 		Strict-Transport-Security "max-age=63072000; includeSubDomains"
 		Content-Security-Policy "default-src 'none'; frame-ancestors 'none'"
