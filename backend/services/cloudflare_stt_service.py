@@ -93,6 +93,13 @@ async def transcribe_via_cloudflare(
         logger.warning("Cloudflare STT failed (%s: %s)", type(err).__name__, err)
         return None
 
+    if not isinstance(data, dict):
+        # A non-dict JSON body (bare null, an array) would otherwise raise
+        # AttributeError on data.get(...) below, straight into the request
+        # path -- violating this module's documented "never raises" contract.
+        logger.warning("Cloudflare STT returned non-object JSON (%s)", type(data).__name__)
+        return None
+
     if not data.get("success"):
         logger.warning("Cloudflare STT returned success=false: %s", data.get("errors"))
         return None

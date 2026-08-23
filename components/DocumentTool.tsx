@@ -18,6 +18,7 @@ export const DocumentTool: React.FC<{ onClose: () => void }> = ({ onClose }) => 
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
   const runId = useRef(0);
 
   useEffect(() => {
@@ -39,7 +40,18 @@ export const DocumentTool: React.FC<{ onClose: () => void }> = ({ onClose }) => 
   };
 
   const copy = async () => {
-    try { await navigator.clipboard.writeText(result); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* ignore */ }
+    try {
+      await navigator.clipboard.writeText(result);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch (err) {
+      // Clipboard access can fail (permissions, insecure context, etc.) --
+      // silently swallowing it left the user clicking "Copy" with no
+      // indication anything went wrong. Surface it, even minimally.
+      console.error("Failed to copy result to clipboard:", err);
+      setCopyFailed(true);
+      setTimeout(() => setCopyFailed(false), 1500);
+    }
   };
 
   return (
@@ -97,9 +109,12 @@ export const DocumentTool: React.FC<{ onClose: () => void }> = ({ onClose }) => 
           <div className="flex items-center justify-between">
             <label className="text-[10px] uppercase tracking-widest text-dyn-text-muted font-bold">Sakamako (Result)</label>
             {result && !busy && (
-              <button onClick={copy} className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-dyn-accent hover:text-dyn-accent/80 font-bold">
+              <button
+                onClick={copy}
+                className={`flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold ${copyFailed ? 'text-red-400' : 'text-dyn-accent hover:text-dyn-accent/80'}`}
+              >
                 {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                {copied ? 'An kwafa' : 'Kwafa (Copy)'}
+                {copyFailed ? 'Kwafi ya kasa (Copy failed)' : copied ? 'An kwafa' : 'Kwafa (Copy)'}
               </button>
             )}
           </div>

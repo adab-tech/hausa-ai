@@ -51,6 +51,54 @@ _CACHE_MAX_ENTRIES = 500  # bound memory use; evict oldest entries past this
 router = APIRouter()
 
 # ---------------------------------------------------------------------------
+# SDK client reuse
+# ---------------------------------------------------------------------------
+# Each provider's SDK client used to be instantiated fresh on EVERY streaming
+# call (stream_cerebras/stream_groq/stream_ollama/stream_gemini_raw/
+# stream_gemini) — under sustained traffic that's a new HTTP connection pool
+# per request that's never torn down, a slow leak. These clients are safe to
+# share across requests/coroutines (that's exactly what each SDK's async
+# client is designed for), so cache one instance per provider at module
+# level and reuse it. Lazily created on first use rather than at import
+# time, since import time may not have the relevant API key set yet (e.g.
+# tests that set it via monkeypatch per-test).
+_cerebras_client = None
+_groq_client = None
+_ollama_client: ollama.AsyncClient | None = None
+_gemini_client = None  # shared by both stream_gemini_raw and stream_gemini
+
+
+def _get_cerebras_client(api_key: str):
+    global _cerebras_client
+    if _cerebras_client is None:
+        from cerebras.cloud.sdk import AsyncCerebras
+        _cerebras_client = AsyncCerebras(api_key=api_key)
+    return _cerebras_client
+
+
+def _get_groq_client(api_key: str):
+    global _groq_client
+    if _groq_client is None:
+        from groq import AsyncGroq
+        _groq_client = AsyncGroq(api_key=api_key)
+    return _groq_client
+
+
+def _get_ollama_client() -> ollama.AsyncClient:
+    global _ollama_client
+    if _ollama_client is None:
+        _ollama_client = ollama.AsyncClient(host=OLLAMA_HOST)
+    return _ollama_client
+
+
+def _get_gemini_client(api_key: str):
+    global _gemini_client
+    if _gemini_client is None:
+        from google import genai
+        _gemini_client = genai.Client(api_key=api_key)
+    return _gemini_client
+
+# ---------------------------------------------------------------------------
 # Sovereign Constitution — identical to the original geminiService.ts prompt
 # ---------------------------------------------------------------------------
 SOVEREIGN_CONSTITUTION = """
@@ -622,9 +670,7 @@ async def stream_cerebras(messages: list[dict[str, Any]]) -> AsyncGenerator[str,
     if not api_key:
         raise RuntimeError("CEREBRAS_API_KEY not set in environment.")
 
-    from cerebras.cloud.sdk import AsyncCerebras
-
-    client = AsyncCerebras(api_key=api_key)
+    client = _get_cerebras_client(api_key)
     model = os.getenv("CEREBRAS_MODEL", "gemma-4-31b")
 
     # Cerebras' chat.completions endpoint is OpenAI-shaped and doesn't know
@@ -659,9 +705,7 @@ async def stream_groq(messages: list[dict[str, Any]]) -> AsyncGenerator[str, Non
     if not api_key:
         raise RuntimeError("GROQ_API_KEY not set in environment.")
 
-    from groq import AsyncGroq
-
-    client = AsyncGroq(api_key=api_key)
+    client = _get_groq_client(api_key)
     # Verified live against GET /v1/models on this account (2026-08-23) --
     # llama-3.3-70b-versatile no longer exists on Groq (404). gpt-oss-120b is
     # a strong general-purpose MoE model, ~500 tok/s.
@@ -690,7 +734,7 @@ async def stream_ollama(messages: list[dict[str, Any]]) -> AsyncGenerator[str, N
     same failure semantics, extracted here so both call sites use exactly the
     tested logic rather than two copies that could drift.
     """
-    client = ollama.AsyncClient(host=OLLAMA_HOST)
+    client = _get_ollama_client()
     stream = await client.chat(
         model=DEFAULT_MODEL,
         messages=messages,
@@ -727,10 +771,9 @@ async def stream_gemini_raw(messages: list[dict[str, Any]]) -> AsyncGenerator[st
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY not set in environment.")
 
-    from google import genai
     from google.genai import types
 
-    client = genai.Client(api_key=api_key)
+    client = _get_gemini_client(api_key)
     system_content = "\n".join(m["content"] for m in messages if m["role"] == "system")
     contents = [
         types.Content(role="user", parts=[types.Part.from_text(text=m["content"])])
@@ -777,11 +820,10 @@ async def stream_gemini(req: ChatRequest) -> AsyncGenerator[str, None]:
 
     # Try new google.genai SDK
     try:
-        from google import genai
         from google.genai import types
 
-        client = genai.Client(api_key=api_key)
-        
+        client = _get_gemini_client(api_key)
+
         contents = []
         for h in history:
             contents.append(types.Content(

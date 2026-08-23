@@ -92,3 +92,28 @@ async def test_waxal_tts_fallback(client: AsyncClient, admin_session):
     assert "similarity" in data
     assert "audio_url" in data
 
+
+@pytest.mark.anyio
+async def test_waxal_tts_unmatched_speaker_id_errors_instead_of_widening_search(
+    client: AsyncClient, admin_session
+):
+    """Regression: an unmatched speaker_id used to silently fall back to
+    searching the ENTIRE unfiltered (mixed-gender) dataset instead of
+    erroring, risking a wrong-gender voice match. It must now 404 rather
+    than ever return a sample from a speaker that wasn't asked for."""
+    response = await client.get("/api/waxal/tts?text=kwallo&speaker_id=999")
+    assert response.status_code == 404
+
+
+@pytest.mark.anyio
+async def test_waxal_samples_unmatched_speaker_id_returns_empty_not_all(
+    client: AsyncClient, admin_session
+):
+    """/waxal/samples's own speaker_id filter (line ~146) already returns an
+    empty result set rather than falling back -- lock that behavior in too."""
+    response = await client.get("/api/waxal/samples?speaker_id=999")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["samples"] == []
+    assert data["total_count"] == 0
+

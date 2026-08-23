@@ -73,32 +73,29 @@ def normalize_hausa_orthography(text: str) -> str:
             return upper if m.group(0).isupper() else lower
         return repl
 
-    normalized = re.sub(r"\bb\'", _hooked("ɓ", "Ɓ"), normalized, flags=re.IGNORECASE)
-    normalized = re.sub(r"\bd\'", _hooked("ɗ", "Ɗ"), normalized, flags=re.IGNORECASE)
-    normalized = re.sub(r"\bk\'", _hooked("ƙ", "Ƙ"), normalized, flags=re.IGNORECASE)
-    normalized = re.sub(r"\by\'|\'y", _hooked("ƴ", "Ƴ"), normalized, flags=re.IGNORECASE)
+    # All hooked-letter targets come from HOOKED_MAP so there is exactly one
+    # source of truth for the mapping (previously this function re-implemented
+    # the same letter mapping by hand, which could silently drift from
+    # HOOKED_MAP over time).
+    normalized = re.sub(r"\bb\'", _hooked(HOOKED_MAP["b'"], HOOKED_MAP["B'"]), normalized, flags=re.IGNORECASE)
+    normalized = re.sub(r"\bd\'", _hooked(HOOKED_MAP["d'"], HOOKED_MAP["D'"]), normalized, flags=re.IGNORECASE)
+    normalized = re.sub(r"\bk\'", _hooked(HOOKED_MAP["k'"], HOOKED_MAP["K'"]), normalized, flags=re.IGNORECASE)
+    normalized = re.sub(r"\by\'|\'y", _hooked(HOOKED_MAP["y'"], HOOKED_MAP["Y'"]), normalized, flags=re.IGNORECASE)
 
     def _ts_repl(m: re.Match) -> str:
         letters = m.group(0)[:2]
         if letters.isupper():
-            return "TS"
+            return HOOKED_MAP["TS'"]
         if letters[0].isupper():
-            return "Ts"
-        return "ts"
+            return HOOKED_MAP["Ts'"]
+        return HOOKED_MAP["ts'"]
 
     normalized = re.sub(r"ts\'", _ts_repl, normalized, flags=re.IGNORECASE)
 
-    # 2. Replace dangling post-consonant quotes
-    normalized = re.sub(r"b'", "ɓ", normalized)
-    normalized = re.sub(r"d'", "ɗ", normalized)
-    normalized = re.sub(r"k'", "ƙ", normalized)
-    normalized = re.sub(r"y'", "ƴ", normalized)
-    normalized = re.sub(r"'y", "ƴ", normalized)
-    normalized = re.sub(r"B'", "Ɓ", normalized)
-    normalized = re.sub(r"D'", "Ɗ", normalized)
-    normalized = re.sub(r"K'", "Ƙ", normalized)
-    normalized = re.sub(r"Y'", "Ƴ", normalized)
-    normalized = re.sub(r"'Y", "Ƴ", normalized)
+    # 2. Replace dangling post-consonant quotes (occurrences not caught above
+    # because they don't sit at a word boundary, e.g. mid-word "gab'a").
+    for key in ("b'", "d'", "k'", "y'", "'y", "B'", "D'", "K'", "Y'", "'Y"):
+        normalized = normalized.replace(key, HOOKED_MAP[key])
 
     return normalized
 
@@ -164,17 +161,35 @@ def hausa_cardinal(n: int) -> str:
     return " da ".join(parts)
 
 
+def _spell_digits(digits: str) -> str:
+    """Spell each digit individually as Hausa words. Used for tokens with a
+    leading zero (phone numbers, codes) where parsing as an integer would
+    silently drop the leading zero(s) or change how the number reads (e.g.
+    '0500' is a code read digit-by-digit, not the cardinal 'five hundred')."""
+    return " ".join(_HA_UNITS[int(d)] if d != "0" else "sifili" for d in digits)
+
+
 def _spell_number_token(token: str) -> str:
     """Convert one matched numeric token (already comma-stripped) to Hausa
     words. Supports an optional decimal part read digit-by-digit after
-    'digo' (point), e.g. '3.5' -> 'uku digo biyar'."""
+    'digo' (point), e.g. '3.5' -> 'uku digo biyar'.
+
+    A token with a leading zero (and more than one digit) is spelled out
+    digit-by-digit rather than parsed with int() -- routing "08012345678"
+    through int() silently drops the leading zero (becomes a 10-digit
+    number, one digit short), and "0500" would be read as the cardinal
+    "five hundred" instead of the intended digit-by-digit "zero five zero
+    zero". Phone numbers and codes are the common real-world case."""
     if "." in token:
         int_part, _, frac_part = token.partition(".")
-        int_words = hausa_cardinal(int(int_part)) if int_part else "sifili"
-        frac_words = " ".join(
-            _HA_UNITS[int(d)] if d != "0" else "sifili" for d in frac_part
-        )
+        if int_part and int_part.startswith("0") and len(int_part) > 1:
+            int_words = _spell_digits(int_part)
+        else:
+            int_words = hausa_cardinal(int(int_part)) if int_part else "sifili"
+        frac_words = _spell_digits(frac_part)
         return f"{int_words} digo {frac_words}".strip()
+    if token.startswith("0") and len(token) > 1:
+        return _spell_digits(token)
     return hausa_cardinal(int(token))
 
 

@@ -17,6 +17,7 @@ before scaling out horizontally.
 
 import os
 import sqlite3
+import threading
 import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -24,6 +25,25 @@ from pathlib import Path
 
 _DATA_DIR = Path(os.getenv("FEEDBACK_DATA_DIR", Path(__file__).resolve().parent / "data"))
 _DB_PATH = _DATA_DIR / "analytics.db"
+
+# Retention: how long a visit row is kept before it's eligible for pruning.
+# Without this the visits table (one row per page load, from a PUBLIC,
+# rate-limit-bypassable beacon -- see rate_limit.py's finding on
+# X-Contributor-Id-keyed limits) grows forever. Configurable via env so an
+# operator can tune it without a redeploy; 90 days is generous enough to
+# cover the "all_time"/"last_7d" dashboard figures while still bounding
+# growth.
+_RETENTION_DAYS = int(os.getenv("ANALYTICS_RETENTION_DAYS", "90"))
+
+# record_visit() is the busiest, most latency-sensitive path here (called on
+# every page load), so pruning is NOT run on every single insert -- that
+# would add a DELETE's cost to the hottest path for no benefit. Instead it's
+# opportunistic and rate-limited to at most once per this interval, so
+# cleanup still happens automatically under normal traffic without needing
+# an admin to open the dashboard (summary() is comparatively rare/manual).
+_PRUNE_INTERVAL_SECONDS = 6 * 3600
+_prune_state_lock = threading.Lock()
+_last_prune_ts = 0.0
 
 # Stored-string caps — bound row size and reject junk/oversized client input.
 _MAX_TZ = 64
@@ -127,6 +147,30 @@ def _utc_day(ts: float) -> str:
     return datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d")
 
 
+def prune_old_visits(retention_days: int | None = None) -> int:
+    """Delete visit rows older than `retention_days` (default
+    ANALYTICS_RETENTION_DAYS / 90). Returns the number of rows deleted.
+    Safe to call anytime; a no-op on an empty/fresh table."""
+    days = _RETENTION_DAYS if retention_days is None else retention_days
+    cutoff_day = _utc_day(time.time() - days * 86400)
+    with _get_conn() as conn:
+        cur = conn.execute("DELETE FROM visits WHERE day < ?", (cutoff_day,))
+        return cur.rowcount
+
+
+def _maybe_prune_old_visits() -> None:
+    """Opportunistically run prune_old_visits(), rate-limited to at most
+    once per _PRUNE_INTERVAL_SECONDS so record_visit (called on every page
+    load) doesn't pay a DELETE's cost on every single insert."""
+    global _last_prune_ts
+    now = time.time()
+    with _prune_state_lock:
+        if now - _last_prune_ts < _PRUNE_INTERVAL_SECONDS:
+            return
+        _last_prune_ts = now
+    prune_old_visits()
+
+
 def record_visit(
     contributor_id: str | None,
     timezone: str | None,
@@ -150,6 +194,9 @@ def record_visit(
                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
                 (ts, _utc_day(ts), cid, tz, country, lang_v, path_v),
             )
+        # Best-effort, rate-limited retention cleanup -- must never break or
+        # slow down the public beacon this function serves.
+        _maybe_prune_old_visits()
     except Exception:
         # Swallow everything — a failed analytics write must not surface to
         # the user or interrupt the request.
@@ -172,6 +219,8 @@ def summary(days: int = 14) -> dict:
     now = time.time()
     today = _utc_day(now)
     day_7_ago = _utc_day(now - 7 * 86400)
+    n = max(1, int(days))
+    window_start_day = _utc_day(now - (n - 1) * 86400)
 
     with _get_conn() as conn:
         total_visits = conn.execute("SELECT COUNT(*) AS c FROM visits").fetchone()["c"]
@@ -191,13 +240,20 @@ def summary(days: int = 14) -> dict:
             "WHERE contributor_id IS NOT NULL"
         ).fetchone()["c"]
 
-        # Per-day visits + uniques for the requested window.
+        # Per-day visits + uniques for the requested window. Filtered by the
+        # window's start day IN THE QUERY (not fetched for the whole table's
+        # history and then sliced down in Python below) -- the old version
+        # scanned and grouped every row ever inserted on every summary()
+        # call regardless of `days`, getting slower over time with no way
+        # to reverse it short of a code change.
         daily_rows = conn.execute(
             """SELECT day,
                       COUNT(*) AS visits,
                       COUNT(DISTINCT contributor_id) AS unique_devices
                FROM visits
+               WHERE day >= ?
                GROUP BY day""",
+            (window_start_day,),
         ).fetchall()
         daily_map = {
             r["day"]: {"visits": r["visits"], "unique": r["unique_devices"]}
@@ -221,8 +277,8 @@ def summary(days: int = 14) -> dict:
                LIMIT 8"""
         ).fetchall()
 
-    # Zero-fill the last `days` days, oldest -> newest.
-    n = max(1, int(days))
+    # Zero-fill the last `days` days, oldest -> newest (n computed above,
+    # shared with the SQL window filter).
     daily = []
     for i in range(n - 1, -1, -1):
         d = _utc_day(now - i * 86400)

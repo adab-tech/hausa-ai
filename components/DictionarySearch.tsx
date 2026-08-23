@@ -16,6 +16,11 @@ export const DictionarySearch: React.FC<{ onClose: () => void }> = ({ onClose })
   const [ready, setReady] = useState(true);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Same stale-response guard as DocumentTool.tsx's runId: without it, an
+  // out-of-order network response (e.g. the query for "a" resolves AFTER
+  // the query for "aboki" that was typed right after it) can overwrite
+  // newer, correct results with older ones.
+  const runId = useRef(0);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -29,8 +34,10 @@ export const DictionarySearch: React.FC<{ onClose: () => void }> = ({ onClose })
     const term = query.trim();
     if (term.length < 1) { setResults(null); return; }
     debounceRef.current = setTimeout(async () => {
+      const id = ++runId.current;
       setBusy(true);
       const res = await gemini.searchDictionary(term);
+      if (id !== runId.current) return; // superseded by a newer query
       setReady(res.ready);
       setResults(res.results);
       setBusy(false);

@@ -27,6 +27,7 @@ import logging
 import os
 import struct
 import tempfile
+import threading
 import time
 from contextlib import suppress
 from pathlib import Path
@@ -247,6 +248,44 @@ SPEAKER_MAP = {
 _MIN_WAXAL_MATCH_SCORE = 0.6
 
 
+# Cache for the parsed WAXAL metadata JSONL, keyed by path + mtime.
+# _find_closest_waxal_sample runs on effectively every TTS request (speaker_id
+# defaults to 0, not None, so the "explicit selection" gate in
+# _synthesize_speech_raw is always true) -- re-reading and re-JSON-parsing the
+# whole metadata file from scratch on every single call was unnecessary I/O
+# and CPU work per request. Invalidated automatically on file mtime change
+# (rather than cached for process lifetime unconditionally) since the dataset
+# browser / ingestion tooling can update this file after deploy.
+_waxal_metadata_cache: dict[str, Any] = {"path": None, "mtime": None, "entries": None}
+_waxal_metadata_lock = threading.Lock()
+
+
+def _load_waxal_metadata_cached(metadata_path: Path) -> list[dict]:
+    """Read+parse `metadata_path` once, reusing the cached parse as long as
+    the path and file mtime haven't changed."""
+    try:
+        mtime = metadata_path.stat().st_mtime
+    except OSError:
+        return []
+    with _waxal_metadata_lock:
+        cached = _waxal_metadata_cache
+        if cached["path"] == metadata_path and cached["mtime"] == mtime:
+            return cached["entries"]
+        entries: list[dict] = []
+        with open(metadata_path, "r", encoding="utf-8") as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                try:
+                    entries.append(json.loads(line))
+                except Exception:
+                    continue
+        cached["path"] = metadata_path
+        cached["mtime"] = mtime
+        cached["entries"] = entries
+        return entries
+
+
 def _find_closest_waxal_sample(text: str, speaker_id_str: str) -> str | None:
     """Find a WAXAL sample whose text closely matches the input for a given
     speaker, or None if nothing meets _MIN_WAXAL_MATCH_SCORE."""
@@ -260,36 +299,31 @@ def _find_closest_waxal_sample(text: str, speaker_id_str: str) -> str | None:
     best_file = None
     best_score = -1.0
 
-    import json
     import re
 
     words_input = set(re.findall(r'\w+', text.lower()))
     if not words_input:
         return None
 
-    with open(metadata_path, "r", encoding="utf-8") as f:
-        for line in f:
-            if not line.strip():
+    for s in _load_waxal_metadata_cached(metadata_path):
+        try:
+            if str(s.get("speaker_id")) != speaker_id_str:
                 continue
-            try:
-                s = json.loads(line)
-                if str(s.get("speaker_id")) != speaker_id_str:
-                    continue
-                s_text = s.get("text_normalized", s.get("text", ""))
-                words_s = set(re.findall(r'\w+', s_text.lower()))
-                if not words_s:
-                    continue
-                # Jaccard similarity
-                score = len(words_input.intersection(words_s)) / len(words_input.union(words_s))
-                if score > best_score:
-                    best_score = score
-                    best_file = s.get("audio_file")
-            except Exception:
+            s_text = s.get("text_normalized", s.get("text", ""))
+            words_s = set(re.findall(r'\w+', s_text.lower()))
+            if not words_s:
                 continue
+            # Jaccard similarity
+            score = len(words_input.intersection(words_s)) / len(words_input.union(words_s))
+            if score > best_score:
+                best_score = score
+                best_file = s.get("audio_file")
+        except Exception:
+            continue
 
     if best_score < _MIN_WAXAL_MATCH_SCORE:
         return None
-                
+
     return best_file
 
 
@@ -347,15 +381,32 @@ def _download_piper_assets(model_path: Path, config_path: Path):
             logger.error("Failed to download baseline model config JSON: %s", e)
 
 
+# Guards the check-and-download-if-missing path in _get_piper(). _get_piper
+# is invoked from worker threads (via run_in_executor), not the event loop
+# directly, so two simultaneous first-TTS-requests right after a fresh
+# deploy can genuinely run this function concurrently on different OS
+# threads -- both would see _piper_voice is None and model_path missing, and
+# both would call urlretrieve() against the SAME destination file path at
+# once, risking a corrupted/truncated model on disk. threading.Lock (not
+# asyncio.Lock) is correct here since this runs off the event loop.
+_piper_load_lock = threading.Lock()
+
+
 def _get_piper():
     global _piper_voice
-    if _piper_voice is None:
+    if _piper_voice is not None:
+        return _piper_voice
+    with _piper_load_lock:
+        # Re-check after acquiring the lock: another thread may have already
+        # finished loading (or downloading) while we were waiting.
+        if _piper_voice is not None:
+            return _piper_voice
         try:
             from piper import PiperVoice
 
             model_path = Path(PIPER_MODELS_DIR) / f"{PIPER_MODEL}.onnx"
             config_path = Path(PIPER_MODELS_DIR) / f"{PIPER_MODEL}.onnx.json"
-            
+
             # Auto-download if files are missing
             _download_piper_assets(model_path, config_path)
 

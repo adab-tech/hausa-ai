@@ -62,6 +62,17 @@ def _validate_runtime_config() -> None:
                 "ALLOWED_ORIGINS='*' is not allowed in production. "
                 "Set explicit trusted origins."
             )
+        if not allowed_origins:
+            # ALLOWED_ORIGINS="" (set but empty-after-strip) previously slipped
+            # past this check silently -- it isn't "*" so the wildcard guard
+            # above didn't catch it, and it went on to configure
+            # allow_origins=[] below, blocking ALL cross-origin traffic while
+            # /health still reported healthy. Fail fast instead.
+            raise RuntimeError(
+                "ALLOWED_ORIGINS is empty in production. Set explicit "
+                "comma-separated trusted origins (or leave the variable "
+                "entirely unset only in non-production environments)."
+            )
         # Corrections review/approval is gated by real admin accounts + server-
         # side sessions now (admin_store.py, routers/admin_auth.py), not a
         # shared bearer key. REVIEWER_API_KEY's role is just to seed the first
@@ -122,29 +133,63 @@ async def lifespan(app: FastAPI):
     # admin_audit_store.py)
     admin_audit_store.init_db()
 
-    # Startup: Pre-load STT and TTS models to avoid cold-start latency
+    # Startup: Pre-load STT and TTS models to avoid cold-start latency.
+    #
+    # This used to swallow ALL exceptions and only log a warning -- a broken
+    # or missing VITS/Whisper/Piper model at boot left the process running
+    # with /health reporting "sovereign" regardless, so the only way to
+    # discover the deployment was actually broken was an end-user's TTS/STT
+    # request failing. Track success/failure on app.state instead so /health
+    # can distinguish degraded from healthy, while still NOT crashing the
+    # process on a preload failure (a transient model-download hiccup at
+    # boot shouldn't take the whole API down -- other endpoints, e.g. text
+    # chat, work fine without these models).
+    app.state.model_preload_ok = True
+    app.state.model_preload_error = None
+    import asyncio
     import logging
+    loop = asyncio.get_event_loop()
     startup_logger = logging.getLogger("uvicorn.error")
     startup_logger.info("[Murya] Pre-loading speech models to prevent live cold-starts...")
     try:
         from routers.audio import _get_whisper, _get_vits, _get_piper
-        import asyncio
-        loop = asyncio.get_event_loop()
-        
+
         # Pre-load Whisper model in executor
         await loop.run_in_executor(None, _get_whisper)
         startup_logger.info("[Murya] Pre-load: Whisper STT model loaded successfully.")
-        
+
         # Pre-load custom VITS ONNX model in executor
         await loop.run_in_executor(None, _get_vits)
         startup_logger.info("[Murya] Pre-load: Custom VITS ONNX model loaded successfully.")
-        
+
         # Pre-load baseline Piper TTS in executor
         await loop.run_in_executor(None, _get_piper)
         startup_logger.info("[Murya] Pre-load: Baseline Piper TTS model loaded successfully.")
     except Exception as startup_err:
         startup_logger.warning("[Murya] Pre-load warning: %s", startup_err)
-        
+        app.state.model_preload_ok = False
+        app.state.model_preload_error = str(startup_err)
+
+    # Startup: pre-load the dictionary lexicon (Robinson 1914 + Wiktionary +
+    # Newman 1977, ~30,700 entries total) off the event loop too. This used
+    # to be lazily parsed in-line on whatever request first triggered it
+    # (chat's "ma'anar kalmar" tool, or GET /api/dictionary) -- that one
+    # unlucky request would block the event loop for the full parse.
+    # dictionary_service already degrades gracefully on its own (
+    # dictionary_ready() False, define() returns []) if this fails, so a
+    # failure here is just logged, not tracked on app.state like the
+    # TTS/STT models above -- text chat works fine without the dictionary.
+    try:
+        import services.dictionary_service as dictionary_service
+
+        await loop.run_in_executor(None, dictionary_service.dictionary_ready)
+        startup_logger.info(
+            "[Murya] Pre-load: dictionary lexicon loaded (ready=%s).",
+            dictionary_service.dictionary_ready(),
+        )
+    except Exception as dict_err:
+        startup_logger.warning("[Murya] Dictionary pre-load warning: %s", dict_err)
+
     yield
 
 app = FastAPI(
@@ -158,17 +203,6 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=_allowed_origins,
-    allow_credentials=_allow_credentials,
-    allow_methods=["GET", "POST", "DELETE"],
-    # X-Contributor-Id carries the anonymous per-device token (see
-    # contributor.py). It MUST be listed here or the browser's CORS preflight
-    # blocks every cross-origin chat/feedback request from app.murya.ng.
-    allow_headers=["Content-Type", "X-API-Key", "X-Reviewer-Key", "X-Contributor-Id"],
-)
-
 
 @app.middleware("http")
 async def _security_headers(request, call_next):
@@ -180,6 +214,30 @@ async def _security_headers(request, call_next):
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     return response
+
+# CORSMiddleware is added LAST, deliberately: Starlette's add_middleware()
+# inserts each new middleware at the front of the stack (see
+# starlette.applications.Starlette.add_middleware), so the middleware added
+# LAST ends up OUTERMOST at request time. It used to be registered before
+# the _security_headers middleware above, which meant _security_headers -- a
+# plain function middleware registered afterward via the decorator, which
+# also calls add_middleware under the hood -- ended up wrapping CORS instead
+# of the other way around. Practically: any response produced by an inner
+# layer (rate-limit rejections, the security-headers middleware itself
+# erroring, etc.) could miss CORS headers, which browsers report as an
+# opaque network failure rather than the real error. Adding CORS after every
+# other app.add_middleware()/@app.middleware() call keeps it the outermost
+# layer, so it wraps everything else in the stack.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_allowed_origins,
+    allow_credentials=_allow_credentials,
+    allow_methods=["GET", "POST", "DELETE"],
+    # X-Contributor-Id carries the anonymous per-device token (see
+    # contributor.py). It MUST be listed here or the browser's CORS preflight
+    # blocks every cross-origin chat/feedback request from app.murya.ng.
+    allow_headers=["Content-Type", "X-API-Key", "X-Reviewer-Key", "X-Contributor-Id"],
+)
 
 # ---------------------------------------------------------------------------
 # Routers — all routes require the optional API key when configured
@@ -231,7 +289,18 @@ app.include_router(dictionary.router, prefix="/api", dependencies=_auth)
 
 @app.get("/health")
 async def health():
-    return {"status": "sovereign", "version": "1.0.0"}
+    # Existing shape ({"status": "sovereign", "version": ...}) is preserved
+    # unconditionally for other callers -- "degraded"/"degraded_reason" are
+    # additive fields, only present when the startup model preload actually
+    # failed (see lifespan() above), so this doesn't change behavior for any
+    # caller that only checks "status"/"version".
+    payload = {"status": "sovereign", "version": "1.0.0"}
+    if not getattr(app.state, "model_preload_ok", True):
+        payload["degraded"] = True
+        payload["degraded_reason"] = getattr(
+            app.state, "model_preload_error", "model preload failed"
+        )
+    return payload
 
 
 # ---------------------------------------------------------------------------

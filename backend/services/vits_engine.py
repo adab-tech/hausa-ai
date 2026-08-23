@@ -61,6 +61,10 @@ class VitsEngine:
         self.phoneme_id_map = {}
         self.speaker_id_map = {}
         self.native_sample_rate = OUTPUT_SAMPLE_RATE
+        # Set once initialize() fails, so synthesize() can fail fast instead
+        # of re-attempting the full (expensive) ONNX session init on every
+        # single request while the model is broken.
+        self._init_failed = False
 
         if self.model_path.exists():
             self.initialize()
@@ -92,9 +96,11 @@ class VitsEngine:
             self.input_names = [i.name for i in self.session.get_inputs()]
             logger.info("Sovereign VITS Engine initialized (%s, %d Hz native, inputs: %s)",
                         self.format, self.native_sample_rate, self.input_names)
+            self._init_failed = False
             return True
         except Exception as e:
             logger.error("Failed to initialize VITS ONNX Engine: %s", e)
+            self._init_failed = True
             return False
 
     def _init_coqui_vocab(self):
@@ -201,6 +207,12 @@ class VitsEngine:
             bytes: Raw PCM-16 audio data at 24 kHz, or None if unavailable.
         """
         if not self.session:
+            # Previously this re-attempted the full ONNX session init (a real
+            # cost -- loading the model file, parsing config) on EVERY call
+            # after the first failure, instead of remembering the model is
+            # broken. Fail fast once initialize() has already failed once.
+            if self._init_failed:
+                return None
             if self.model_path.exists():
                 if not self.initialize():
                     return None
