@@ -37,7 +37,7 @@ from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, Response
 
 from auth import api_key_valid, verify_api_key
 
-from rate_limit import limiter
+from rate_limit import ip_limiter, limiter
 from routers.fallback import generate_fallback_response
 from services.cloudflare_stt_service import cloudflare_stt_enabled, transcribe_via_cloudflare
 from services.vad_service import FRAME_MS, WINDOW_SIZE_SAMPLES, new_vad_stream
@@ -813,6 +813,7 @@ def _add_wav_header(pcm_bytes: bytes, sample_rate: int = 24000) -> bytes:
 
 @router.get("/tts", dependencies=[Depends(verify_api_key)])
 @limiter.limit("20/minute")
+@ip_limiter.limit("100/minute")
 async def tts_endpoint(
     request: Request,
     text: str,
@@ -857,6 +858,17 @@ async def tts_endpoint(
 # of this app's single-machine deployment model (see rate_limit.py).
 _MAX_LIVE_CONNECTIONS_PER_IP = int(os.getenv("MAX_LIVE_CONNECTIONS_PER_IP", "2"))
 _live_connections_by_ip: dict[str, int] = {}
+
+# A per-IP cap alone doesn't stop a DISTRIBUTED attacker -- a small botnet or
+# even a pool of free rotating proxies (trivial to obtain, no CAPTCHA/IP-
+# reputation gate anywhere in front of this route) can open 2 connections
+# from each of many source IPs and sum to an unbounded total, exhausting the
+# single CPU-only VM even though no individual IP ever trips the per-IP
+# limit. Found in the 2026-08-23 follow-up security-architecture review.
+# This process-wide ceiling closes that gap; the default is a generous
+# multiple of realistic legitimate concurrent usage today.
+_MAX_LIVE_CONNECTIONS_TOTAL = int(os.getenv("MAX_LIVE_CONNECTIONS_TOTAL", "40"))
+_live_connections_total = 0
 
 
 class _TurnState:
@@ -912,13 +924,19 @@ async def live_endpoint(
     if addressee_gender not in ("masculine", "feminine", "unspecified"):
         addressee_gender = "unspecified"
 
+    global _live_connections_total
+
     client_ip = ws.client.host if ws.client else "unknown"
     if _live_connections_by_ip.get(client_ip, 0) >= _MAX_LIVE_CONNECTIONS_PER_IP:
         await ws.close(code=1008, reason="Too many concurrent live sessions from this address.")
         return
+    if _live_connections_total >= _MAX_LIVE_CONNECTIONS_TOTAL:
+        await ws.close(code=1008, reason="Server is at capacity for live sessions. Try again shortly.")
+        return
 
     await ws.accept()
     _live_connections_by_ip[client_ip] = _live_connections_by_ip.get(client_ip, 0) + 1
+    _live_connections_total += 1
     conversation_history: list[dict] = []
 
     # Real, variable-length turn detection: each connection gets its own
@@ -1203,3 +1221,4 @@ async def live_endpoint(
             _live_connections_by_ip.pop(client_ip, None)
         else:
             _live_connections_by_ip[client_ip] = remaining
+        _live_connections_total = max(0, _live_connections_total - 1)

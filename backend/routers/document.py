@@ -23,7 +23,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from rate_limit import limiter
+from rate_limit import ip_limiter, limiter
 from orthography import normalize_digits, normalize_hausa_orthography
 
 router = APIRouter()
@@ -60,6 +60,7 @@ def _system_prompt(action: str, target: str) -> str:
 
 @router.post("/document")
 @limiter.limit("10/minute")
+@ip_limiter.limit("50/minute")
 async def document_endpoint(request: Request, req: DocumentRequest):
     # Reuse the exact same tested provider functions the chat router uses.
     from routers.chat import (

@@ -1,0 +1,19 @@
+# Reference copy of the live Caddyfile at /etc/caddy/Caddyfile on murya-vm
+# (Azure). Not auto-deployed -- this exists so the production reverse-proxy
+# config is reviewable in source, not only discoverable by curling
+# production (see docs/security_architecture_review_2026-08-23.md finding
+# #2). After editing this file, apply it manually on the VM:
+#   sudo cp deploy/Caddyfile /etc/caddy/Caddyfile
+#   sudo caddy validate --config /etc/caddy/Caddyfile
+#   sudo systemctl reload caddy
+#
+# CSP is 'none' because this domain is a pure JSON/WebSocket API with no
+# HTML of its own to render -- it never needs to load a script, style, or
+# frame from anywhere.
+api.murya.ng, api-backup.murya.ng {
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains"
+		Content-Security-Policy "default-src 'none'; frame-ancestors 'none'"
+	}
+	reverse_proxy localhost:8080
+}

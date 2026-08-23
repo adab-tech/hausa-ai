@@ -3,6 +3,8 @@ in the decorator source. Disabled globally for the rest of the suite (see
 conftest.py's autouse _disable_rate_limiting) since normal test traffic
 would otherwise trip these same limits."""
 
+from unittest.mock import patch
+
 import pytest
 
 
@@ -80,4 +82,83 @@ async def test_admin_login_ip_ceiling_survives_contributor_id_rotation(
     assert 429 in statuses, (
         f"Expected a 429 among {statuses} — rotating X-Contributor-Id must not "
         "bypass the per-IP ceiling"
+    )
+
+
+async def _fake_stream_cerebras(*_args, **_kwargs):
+    yield "Sannu"
+
+
+@pytest.mark.anyio
+async def test_chat_ip_ceiling_survives_contributor_id_rotation(
+    client, _ip_rate_limiting_enabled
+):
+    """Regression test for a gap the 2026-08-23 follow-up security-
+    architecture review found: the original per-IP-ceiling fix covered
+    /api/admin/login and /api/generate-image/-video, but missed /api/chat --
+    the exact same rotating-X-Contributor-Id bypass left a rotating-token
+    script with unbounded free calls against the paid Cerebras/Groq/Gemini
+    fallback chain on the app's busiest endpoint."""
+    import uuid
+
+    with patch("routers.chat.stream_cerebras", _fake_stream_cerebras):
+        statuses = []
+        for i in range(120):
+            resp = await client.post(
+                "/api/chat",
+                json={"text": f"ip ceiling regression test {i}"},
+                headers={"X-Contributor-Id": str(uuid.uuid4())},
+            )
+            statuses.append(resp.status_code)
+
+    assert 429 in statuses, (
+        f"Expected a 429 among the responses — rotating X-Contributor-Id "
+        "must not bypass /api/chat's per-IP ceiling"
+    )
+
+
+@pytest.mark.anyio
+async def test_document_ip_ceiling_survives_contributor_id_rotation(
+    client, _ip_rate_limiting_enabled
+):
+    """Same gap, /api/document -- see test_chat_ip_ceiling_... above."""
+    import uuid
+
+    with patch("routers.chat.stream_cerebras", _fake_stream_cerebras):
+        statuses = []
+        for i in range(60):
+            resp = await client.post(
+                "/api/document",
+                json={"text": f"regression test {i}", "action": "translate", "target": "ha"},
+                headers={"X-Contributor-Id": str(uuid.uuid4())},
+            )
+            statuses.append(resp.status_code)
+
+    assert 429 in statuses, (
+        f"Expected a 429 among the responses — rotating X-Contributor-Id "
+        "must not bypass /api/document's per-IP ceiling"
+    )
+
+
+@pytest.mark.anyio
+async def test_tts_ip_ceiling_survives_contributor_id_rotation(
+    client, _ip_rate_limiting_enabled
+):
+    """Same gap, /api/tts -- not a paid-API cost like chat/document, but
+    CPU/model-inference cost on the single shared VM."""
+    import uuid
+
+    with patch("routers.audio._synthesize_speech", return_value=b"\x00\x00" * 2400):
+        statuses = []
+        for i in range(120):
+            resp = await client.get(
+                "/api/tts",
+                params={"text": f"regression test {i}"},
+                headers={"X-Contributor-Id": str(uuid.uuid4())},
+            )
+            statuses.append(resp.status_code)
+
+    assert 429 in statuses, (
+        f"Expected a 429 among the responses — rotating X-Contributor-Id "
+        "must not bypass /api/tts's per-IP ceiling"
     )

@@ -641,6 +641,38 @@ def test_live_endpoint_allows_connection_with_correct_api_key(monkeypatch):
             assert msg["type"] == "user_transcript"
 
 
+def test_live_endpoint_rejects_beyond_global_connection_ceiling(monkeypatch):
+    """Regression test for a gap the 2026-08-23 follow-up security-
+    architecture review found: the per-IP connection cap alone doesn't stop
+    a DISTRIBUTED attacker -- opening a couple of connections from each of
+    many source IPs sums to an unbounded total even though no single IP
+    ever trips the per-IP limit. A process-wide ceiling
+    (_MAX_LIVE_CONNECTIONS_TOTAL) must reject a new connection once the
+    total is at capacity, regardless of which IP it comes from."""
+    from unittest.mock import patch
+
+    import routers.audio as audio_module
+    from starlette.testclient import TestClient
+    from starlette.websockets import WebSocketDisconnect as ClientWSDisconnect
+
+    from main import app
+
+    monkeypatch.setattr(audio_module, "_MAX_LIVE_CONNECTIONS_TOTAL", 1)
+    monkeypatch.setattr(audio_module, "_MAX_LIVE_CONNECTIONS_PER_IP", 99)
+    monkeypatch.setattr(audio_module, "_live_connections_by_ip", {})
+    monkeypatch.setattr(audio_module, "_live_connections_total", 0)
+
+    with patch("routers.audio.new_vad_stream", return_value=None):
+        with TestClient(app).websocket_connect("/api/live") as first:
+            # First connection succeeds and holds the one available slot.
+            assert audio_module._live_connections_total == 1
+            with pytest.raises(ClientWSDisconnect):
+                with TestClient(app).websocket_connect("/api/live"):
+                    pass
+        # After the first connection closes, the slot is freed again.
+        assert audio_module._live_connections_total == 0
+
+
 # ---------------------------------------------------------------------------
 # /api/live -- server-side echo backstop ("the app is listening to itself"
 # bug, 2026-08-22). The client's half-duplex mic gate (App.tsx

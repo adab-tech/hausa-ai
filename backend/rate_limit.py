@@ -38,8 +38,8 @@ limiter = Limiter(key_func=_rate_limit_key)
 # right next move (found unaddressed in a 2026-08-23 security review): a
 # genuine per-IP ceiling, stacked ALONGSIDE the per-device limiter above on
 # specific high-risk endpoints -- not replacing it everywhere, which would
-# actively hurt real users sharing a carrier-NAT IP. Two call sites, two very
-# different appropriate ceilings:
+# actively hurt real users sharing a carrier-NAT IP. Call sites, each with an
+# appropriate ceiling:
 #   - /api/admin/login: exactly one legitimate caller exists (the founder),
 #     so there is zero CGNAT-fairness tradeoff here -- a strict per-IP cap
 #     closes the token-rotation brute-force bypass with no downside.
@@ -48,4 +48,13 @@ limiter = Limiter(key_func=_rate_limit_key)
 #     multiples of the per-device limit) -- it exists purely to cap a
 #     runaway rotating-token abuser burning paid Gemini quota, not to
 #     constrain ordinary shared-IP traffic.
+#   - /api/chat, /api/document: a follow-up security-architecture review
+#     (2026-08-23) found these were missed in the original pass -- they hit
+#     the exact same paid Cerebras/Groq/Gemini fallback chain as the routes
+#     above, so a rotating-token script had unbounded free calls against
+#     paid quota on the app's two busiest endpoints. Same generous-multiple
+#     reasoning as image/video: real chatting groups can share one IP.
+#   - /api/tts: same review, same gap -- not a paid-API cost like the above,
+#     but CPU/model-inference cost on the one shared VM, which a rotating-
+#     token script could still burn unbounded.
 ip_limiter = Limiter(key_func=get_remote_address)

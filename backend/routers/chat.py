@@ -31,7 +31,7 @@ import ollama
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 
-from rate_limit import limiter
+from rate_limit import ip_limiter, limiter
 from pydantic import BaseModel, Field
 
 from routers.fallback import generate_fallback_response
@@ -863,6 +863,7 @@ async def stream_gemini(req: ChatRequest) -> AsyncGenerator[str, None]:
 # ---------------------------------------------------------------------------
 @router.post("/chat")
 @limiter.limit("20/minute")
+@ip_limiter.limit("100/minute")
 async def chat_endpoint(request: Request, req: ChatRequest):
     # 1. Normalize orthography on the incoming request text and history
     req.text = normalize_hausa_orthography(req.text)

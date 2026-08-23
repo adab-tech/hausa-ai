@@ -82,18 +82,49 @@ vector. So `backend/main.py::_validate_runtime_config` enforces, in production:
 - **`API_KEY` (optional).** Only for a *private/firewalled* deployment. Do **not**
   rely on it as a secret for the public app — a single-page frontend bundle would
   expose it. Public endpoints (chat/tts/feedback) stay open by design.
-- **HTTPS** is forced by `fly.toml` (`force_https = true`).
+  `/api/live` (a WebSocket) enforces it via a `?api_key=` query param instead
+  of the `X-API-Key` header every other endpoint uses — browsers can't set
+  custom headers on a WebSocket handshake at all, so a query param is the
+  only place it can travel. Known consequence, not yet fixed: unlike the
+  header-based key, this one will appear in plaintext in Caddy's/any
+  upstream proxy's access logs (and potentially browser history) for as
+  long as `API_KEY` is configured. Only live today for operators who
+  explicitly opt into private mode — the public default deployment doesn't
+  set `API_KEY` at all. See `docs/security_architecture_review_2026-08-23.md`
+  finding #5 for the fix direction (short-lived, single-use WS ticket
+  exchanged over an authenticated HTTP call instead of the standing secret).
+- **HTTPS** is forced by Caddy's automatic HTTPS (production) / `fly.toml`'s
+  `force_https = true` (if ever redeployed to Fly). Caddy also sends HSTS
+  and a strict CSP on the API domain (`deploy/Caddyfile`, a reference copy
+  of the live config on the VM) — added 2026-08-23 after a live `curl`
+  check found both missing.
 - **Rate limiting** on public endpoints via slowapi (`backend/rate_limit.py`),
   in-memory/per-process — correct for the current single-machine deployment,
-  not multi-instance safe. Chat 20/min, image/video generation 5/min
-  (expensive compute — the main abuse vector), feedback 30/min, TTS 20/min,
-  admin login 10/min (brute-force protection). Per-IP via `get_remote_address`.
+  not multi-instance safe. Two stacked limiters: `limiter`, keyed on the
+  anonymous per-device `X-Contributor-Id` token (falls back to IP) —
+  deliberately NOT per-IP-only, since carrier-grade NAT across the Sahel
+  means many real users share one public IP; and `ip_limiter`, a second,
+  genuinely per-IP (`get_remote_address`) ceiling stacked alongside it on
+  every endpoint that reaches a paid third-party API or otherwise-expensive
+  compute (chat, document translate/summarize, TTS, image/video generation,
+  admin login) — set to a generous multiple of the per-device limit
+  everywhere except admin-login (one legitimate caller, so a strict cap has
+  no fairness cost) specifically to close the "rotate a fresh device token
+  every request" bypass the single device-keyed limiter alone can't stop.
+  Chat 20/min per-device + 100/min per-IP, document 10/min + 50/min, TTS
+  20/min + 100/min, image/video generation 5/min + 30/min, feedback 30/min
+  (no IP ceiling — free, not a cost/abuse vector), admin login 10/min +
+  10/min (brute-force protection, strict on both).
+- **Live-voice connection caps** (`backend/routers/audio.py`): per-IP (2
+  concurrent, `MAX_LIVE_CONNECTIONS_PER_IP`) and process-wide (40 concurrent,
+  `MAX_LIVE_CONNECTIONS_TOTAL`) — the per-IP cap alone doesn't stop a
+  distributed attacker opening a couple of connections from each of many
+  source IPs, since each `/api/live` connection runs a genuinely expensive
+  Whisper+LLM+VITS pipeline on the single CPU-only VM.
 - **Still open (not yet implemented):** per-private-mode frontend `X-API-Key`
   wiring (only needed if you choose `API_KEY` mode); an admin UI for
   creating/removing delegate reviewer accounts (currently a one-off Python
-  call); and the WebSocket voice endpoint (`/api/live`) is not gated by
-  `API_KEY` at all even when it's configured, nor by the rate limiter (slowapi
-  targets HTTP request/response, not WebSocket) — flagged, not yet fixed.
+  call).
 
 ### Cloud Run (fallback, not currently used)
 1. **CI** ([`.github/workflows/backend-ci.yml`](../.github/workflows/backend-ci.yml)) — lint, type-check, `pytest` with coverage. Runs on every push/PR to `main`.

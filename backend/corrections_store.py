@@ -112,6 +112,22 @@ def review_correction(
     return updated
 
 
+def _sanitize_for_prompt(text: str) -> str:
+    """Strip bracket-tag-shaped structure and hard newlines before splicing
+    user-submitted text into the shared system prompt.
+
+    Corrections are the one channel in this codebase where one user's
+    submitted text can change model behavior for every OTHER user (see
+    module docstring) — the human-review gate is real mitigation, but a
+    plausible-sounding, mistakenly-approved submission containing literal
+    "[HUMAN_VALIDATED_CORRECTIONS]:" or "[CORRECTION]:" text (or embedded
+    newlines shaping fake structure) could otherwise forge additional fake
+    correction entries once rendered, on top of whatever the reviewer
+    actually approved. Found in the 2026-08-23 follow-up security-
+    architecture review."""
+    return text.replace("[", "(").replace("]", ")").replace("\n", " ").replace("\r", " ")
+
+
 def get_approved_corrections_prompt() -> str:
     """Rendered as extra system-prompt content — this is how approved
     corrections actually change model behavior, for every user, immediately."""
@@ -119,8 +135,8 @@ def get_approved_corrections_prompt() -> str:
     if not approved:
         return ""
     lines = [
-        f"[CORRECTION]: When asked something like '{e['originalText']}', "
-        f"the verified correct answer is: '{e['correction']}'"
+        f"[CORRECTION]: When asked something like '{_sanitize_for_prompt(e['originalText'])}', "
+        f"the verified correct answer is: '{_sanitize_for_prompt(e['correction'])}'"
         for e in approved
     ]
     return "[HUMAN_VALIDATED_CORRECTIONS]:\n" + "\n".join(lines)

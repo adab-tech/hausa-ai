@@ -19,6 +19,7 @@ call is safe under that model. This does not coordinate across multiple
 machines/workers; don't scale out without revisiting this.
 """
 
+import hashlib
 import os
 import secrets
 import sqlite3
@@ -150,13 +151,32 @@ def verify_login(username: str, password: str) -> int | None:
     return None
 
 
+def _hash_token(token: str) -> str:
+    """Sessions store this hash, never the raw token -- see create_session's
+    docstring for why."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
 def create_session(admin_id: int) -> str:
+    """Returns the raw session token (goes into the HttpOnly cookie). Only
+    sha256(token) is persisted to sessions.token, not the raw value.
+
+    The token already has good entropy (256 bits, secrets.token_urlsafe) and
+    the cookie carrying it is HttpOnly, so this isn't exploitable through
+    the app's own request surface -- the gap it closes is narrower: if
+    admin.db is ever read through some OTHER channel (a misconfigured
+    backup, a future path-traversal bug, an operator debugging via `sqlite3
+    admin.db` and pasting output somewhere), a plaintext token there would
+    make every currently-valid session immediately hijackable with no
+    further work, for up to the full session TTL. Hashing means a DB read
+    alone isn't enough. Found in the 2026-08-23 follow-up security-
+    architecture review."""
     token = secrets.token_urlsafe(32)
     now = time.time()
     with _get_conn() as conn:
         conn.execute(
             "INSERT INTO sessions (token, admin_id, created_at, expires_at) VALUES (?, ?, ?, ?)",
-            (token, admin_id, now, now + _SESSION_TTL_SECONDS),
+            (_hash_token(token), admin_id, now, now + _SESSION_TTL_SECONDS),
         )
     return token
 
@@ -164,22 +184,23 @@ def create_session(admin_id: int) -> str:
 def get_session_username(token: str) -> str | None:
     """Return the admin's username if the session token is valid and not
     expired, else None. Expired sessions are lazily deleted on lookup."""
+    token_hash = _hash_token(token)
     now = time.time()
     with _get_conn() as conn:
         row = conn.execute(
             """SELECT admins.username AS username, sessions.expires_at AS expires_at
                FROM sessions JOIN admins ON sessions.admin_id = admins.id
                WHERE sessions.token = ?""",
-            (token,),
+            (token_hash,),
         ).fetchone()
         if row is None:
             return None
         if row["expires_at"] < now:
-            conn.execute("DELETE FROM sessions WHERE token = ?", (token,))
+            conn.execute("DELETE FROM sessions WHERE token = ?", (token_hash,))
             return None
     return row["username"]
 
 
 def delete_session(token: str) -> None:
     with _get_conn() as conn:
-        conn.execute("DELETE FROM sessions WHERE token = ?", (token,))
+        conn.execute("DELETE FROM sessions WHERE token = ?", (_hash_token(token),))

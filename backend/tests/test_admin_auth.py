@@ -39,6 +39,40 @@ def test_password_syncs_from_secret_on_init(tmp_path, monkeypatch):
     assert admin_store.verify_login("adamu", "first-password") is None
 
 
+def test_session_token_stored_hashed_not_plaintext(isolated_admin_store):
+    """Regression test for a gap the 2026-08-23 follow-up security-
+    architecture review found: sessions.token stored the raw
+    secrets.token_urlsafe(32) value directly, matched by equality on lookup.
+    Not exploitable through the app's own request surface (good entropy,
+    HttpOnly cookie) but if admin.db is ever read through some OTHER channel
+    (a misconfigured backup, a future path-traversal bug, an operator
+    debugging via `sqlite3 admin.db`), a plaintext token there hijacks every
+    currently-valid session with no further work. Hashing removes that."""
+    import sqlite3
+
+    isolated_admin_store.create_admin("adamu", "correct-horse")
+    admin_id = isolated_admin_store.verify_login("adamu", "correct-horse")
+    token = isolated_admin_store.create_session(admin_id)
+
+    with sqlite3.connect(isolated_admin_store._DB_PATH) as conn:
+        row = conn.execute("SELECT token FROM sessions").fetchone()
+
+    assert row[0] != token, "raw session token must not be stored at rest"
+    assert isolated_admin_store.get_session_username(token) == "adamu"
+    assert isolated_admin_store.get_session_username(row[0]) is None, (
+        "the stored (hashed) value itself must not work as a session token"
+    )
+
+
+def test_delete_session_removes_hashed_row(isolated_admin_store):
+    isolated_admin_store.create_admin("adamu", "correct-horse")
+    admin_id = isolated_admin_store.verify_login("adamu", "correct-horse")
+    token = isolated_admin_store.create_session(admin_id)
+    assert isolated_admin_store.get_session_username(token) == "adamu"
+    isolated_admin_store.delete_session(token)
+    assert isolated_admin_store.get_session_username(token) is None
+
+
 @pytest.mark.anyio
 async def test_me_without_session_401s(client, isolated_admin_store):
     resp = await client.get("/api/admin/me")
