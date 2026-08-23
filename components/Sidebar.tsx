@@ -55,6 +55,10 @@ const VIBE_META: Record<SovereignVibe, { icon: React.ElementType; blurb: string 
   Academic: { icon: GraduationCap, blurb: 'Sepia manuscript, scholarly' },
 };
 
+/** Same gating pattern as FEATURED_VOICES below: two protocols free now,
+ *  the rest unlockable with sign-in. Chosen 2026-08-23. */
+const FEATURED_VIBES: SovereignVibe[] = ['Classic', 'Royal'];
+
 /** The two voices put "in front" for user testing — vetted post-fix
  *  (see the SPEAKER_MAP / WAXAL-match-threshold backend fixes) and given
  *  fictional Hausa names so they read as personas, not raw model slots.
@@ -189,7 +193,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </button>
                 {showVibeDial && (
                   <div role="listbox" className="absolute top-[52px] left-0 right-0 bg-dyn-bg-tertiary/95 border border-dyn-border rounded-2xl p-2 shadow-2xl z-[100] animate-reveal backdrop-blur-xl origin-top space-y-1">
-                    {(['Classic', 'Royal', 'Cyberpunk', 'Academic'] as SovereignVibe[]).map(v => (
+                    {FEATURED_VIBES.map(v => (
                       <OptionButton
                         key={v}
                         role="option"
@@ -200,6 +204,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         onClick={() => { setVibe(v); setShowVibeDial(false); }}
                       />
                     ))}
+                    <div className="h-[1px] bg-dyn-border my-1.5"></div>
+                    <div className="px-3 py-1.5 text-[9px] uppercase tracking-wider text-dyn-text-muted font-bold text-center">
+                      More protocols — coming with sign-in
+                    </div>
                   </div>
                 )}
               </div>
