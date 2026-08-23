@@ -276,7 +276,11 @@ class LocalService {
       onerror?: (err: Event) => void;
     },
     addresseeGender: AddresseeGender = "unspecified"
-  ): Promise<{ sendRealtimeInput: (p: { media: { data: string; mimeType: string } }) => void; close: () => void }> {
+  ): Promise<{
+    sendRealtimeInput: (p: { media: { data: string; mimeType: string } }) => void;
+    setAssistantSpeaking: (speaking: boolean) => void;
+    close: () => void;
+  }> {
     const params = new URLSearchParams();
     if (speakerId !== null) params.set("speaker_id", String(speakerId));
     params.set("addressee_gender", addresseeGender);
@@ -327,6 +331,16 @@ class LocalService {
         const buf = new Uint8Array(binary.length);
         for (let i = 0; i < binary.length; i++) buf[i] = binary.charCodeAt(i);
         ws.send(buf.buffer);
+      },
+      // Server-side backstop against the "assistant hears itself" self-echo
+      // loop: tells the backend, via a small JSON control frame, when this
+      // reply's TTS is scheduled to be audible so it can drop any leaked
+      // mic audio itself -- independent of whatever the client's own
+      // half-duplex mute window did or didn't catch (see the matching
+      // comment in backend/routers/audio.py's live_endpoint).
+      setAssistantSpeaking: (speaking: boolean) => {
+        if (ws.readyState !== WebSocket.OPEN) return;
+        ws.send(JSON.stringify({ type: "assistant_speaking", value: speaking }));
       },
       close: () => ws.close(),
     };

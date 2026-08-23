@@ -99,6 +99,11 @@ const App: React.FC = () => {
   const sessionPromiseRef = useRef<Promise<any> | null>(null);
   const audioContextsRef = useRef<{ in?: AudioContext, out?: AudioContext, nextStartTime: number }>({ nextStartTime: 0 });
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  // Pending "assistant finished speaking" notification for the live-voice
+  // server-side echo backstop (see setAssistantSpeaking in localService.ts).
+  // Re-armed on every TTS chunk so it always fires `tail` seconds after the
+  // LAST scheduled chunk of the current reply finishes, not the first.
+  const assistantSpeakingOffTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const scrollToBottom = (instant = false) => {
     if (scrollRef.current) {
@@ -202,6 +207,10 @@ const App: React.FC = () => {
 
   const toggleLiveVoice = async () => {
     if (isLiveActive) {
+      if (assistantSpeakingOffTimerRef.current) {
+        clearTimeout(assistantSpeakingOffTimerRef.current);
+        assistantSpeakingOffTimerRef.current = null;
+      }
       if (sessionPromiseRef.current) (await sessionPromiseRef.current).close();
       setIsLiveActive(false);
       setVolume(0);
@@ -331,6 +340,23 @@ const App: React.FC = () => {
               audioContextsRef.current.nextStartTime = Math.max(outputCtx.currentTime, audioContextsRef.current.nextStartTime);
               source.start(audioContextsRef.current.nextStartTime);
               audioContextsRef.current.nextStartTime += buffer.duration;
+
+              // Server-side echo backstop: tell the backend the assistant is
+              // (still) speaking so it drops any mic audio that leaks past
+              // this client's own half-duplex gate above — e.g. the brief
+              // scheduling race between a chunk starting to play and the
+              // next onaudioprocess callback picking up the new
+              // nextStartTime, or echoCancellation simply not being enough
+              // on a laptop's built-in speakers. "false" is re-armed on
+              // every chunk so it always fires after the LAST queued chunk
+              // of this reply (+ the same 0.4s tail as the client gate),
+              // not the first.
+              sessionPromiseRef.current?.then(s => s.setAssistantSpeaking?.(true));
+              if (assistantSpeakingOffTimerRef.current) clearTimeout(assistantSpeakingOffTimerRef.current);
+              const offDelayMs = Math.max(0, (audioContextsRef.current.nextStartTime - outputCtx.currentTime + 0.4) * 1000);
+              assistantSpeakingOffTimerRef.current = setTimeout(() => {
+                sessionPromiseRef.current?.then(s => s.setAssistantSpeaking?.(false));
+              }, offDelayMs);
             }
             if (msg.text) {
               setLiveTranscripts(prev => [...prev, { role: msg.isUser ? 'user' : 'assistant', text: msg.text }]);
@@ -345,10 +371,18 @@ const App: React.FC = () => {
             }
           },
           onclose: () => {
+            if (assistantSpeakingOffTimerRef.current) {
+              clearTimeout(assistantSpeakingOffTimerRef.current);
+              assistantSpeakingOffTimerRef.current = null;
+            }
             setIsLiveActive(false);
             setVoiceStatus('idle');
           },
           onerror: () => {
+            if (assistantSpeakingOffTimerRef.current) {
+              clearTimeout(assistantSpeakingOffTimerRef.current);
+              assistantSpeakingOffTimerRef.current = null;
+            }
             setIsLiveActive(false);
             setVoiceStatus('error');
           }

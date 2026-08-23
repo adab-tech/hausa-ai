@@ -23,6 +23,7 @@ import logging
 import os
 import struct
 import tempfile
+import time
 from contextlib import suppress
 from pathlib import Path
 from typing import Any, cast
@@ -483,6 +484,13 @@ def _synthesize_speech_raw(
 # running STT.
 _SPEECH_RMS_THRESHOLD = float(os.getenv("MIC_RMS_THRESHOLD", "0.01"))
 
+# Safety valve for the assistant_speaking server-side echo backstop (see
+# live_endpoint below): if the client never sends the "false" control
+# message -- a JS exception, a dropped control frame, a tab going into deep
+# background throttling -- this guarantees the session doesn't go
+# permanently deaf. No real TTS reply + tail should ever run this long.
+_ASSISTANT_SPEAKING_MAX_S = float(os.getenv("ASSISTANT_SPEAKING_MAX_S", "15.0"))
+
 
 async def _transcribe(pcm_bytes: bytes, sample_rate: int = 16000) -> str:
     """Transcribe pcm_bytes to Hausa text. Tries Cloudflare Workers AI's
@@ -774,13 +782,66 @@ async def live_endpoint(ws: WebSocket, speaker_id: int = 0, addressee_gender: st
     pcm_buffer = bytearray()
     conversation_history: list[dict] = []
 
+    # Server-side echo backstop ("the app is listening to itself" bug): the
+    # client's half-duplex mic gate (App.tsx toggleLiveVoice) is the primary
+    # defense against the assistant transcribing its own TTS, but it's
+    # timing-based client audio-buffer bookkeeping — a scheduling race at
+    # the start of playback, or echoCancellation simply not doing its job
+    # on a laptop's built-in speakers, can leak a bit of the assistant's own
+    # voice into the mic stream. Once that reaches STT, the RMS/VAD gates
+    # below are no help: leaked TTS is real, energetic, VAD-passing speech,
+    # indistinguishable from genuine user speech by those signals alone.
+    # So the client also tells us explicitly, via a small JSON control
+    # message, when its own reply is scheduled to be audible
+    # (setAssistantSpeaking in services/localService.ts), and we drop any
+    # audio bytes that arrive while that's true — independent of whatever
+    # the client's own gate did or didn't catch.
+    assistant_speaking = False
+    assistant_speaking_since: float | None = None
+
     try:
         while True:
-            # Receive binary PCM-16 audio frames from browser (16 kHz, mono)
+            # Receive a raw ASGI websocket message rather than
+            # ws.receive_bytes() so this loop can also accept the
+            # assistant_speaking JSON control frame (a text message) on the
+            # same connection without raising.
             try:
-                data = await asyncio.wait_for(ws.receive_bytes(), timeout=30.0)
+                message = await asyncio.wait_for(ws.receive(), timeout=30.0)
             except TimeoutError:
                 continue
+
+            if message["type"] == "websocket.disconnect":
+                raise WebSocketDisconnect(message.get("code", 1000), message.get("reason"))
+
+            text = message.get("text")
+            if text is not None:
+                try:
+                    control = json.loads(text)
+                except ValueError:
+                    continue
+                if isinstance(control, dict) and control.get("type") == "assistant_speaking":
+                    speaking = bool(control.get("value"))
+                    assistant_speaking = speaking
+                    assistant_speaking_since = time.monotonic() if speaking else None
+                continue
+
+            data = message.get("bytes")
+            if not data:
+                continue
+
+            if assistant_speaking:
+                # Safety valve: don't trust a stuck flag forever in case the
+                # client failed to send the "false" follow-up.
+                if assistant_speaking_since is not None and (
+                    time.monotonic() - assistant_speaking_since > _ASSISTANT_SPEAKING_MAX_S
+                ):
+                    assistant_speaking = False
+                    assistant_speaking_since = None
+                else:
+                    # Drop it outright rather than buffering it — a leaked
+                    # fragment must not survive to be merged into the next
+                    # legitimate ~2s chunk once the flag clears.
+                    continue
 
             pcm_buffer.extend(data)
 

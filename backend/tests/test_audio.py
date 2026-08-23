@@ -303,3 +303,99 @@ def test_waxal_match_returns_file_for_near_exact_text():
     result = _find_closest_waxal_sample("Musulmi na zuwa Masallaci ran juma'a", "5")
     assert result is not None
 
+
+# ---------------------------------------------------------------------------
+# /api/live -- server-side echo backstop ("the app is listening to itself"
+# bug, 2026-08-22). The client's half-duplex mic gate (App.tsx
+# toggleLiveVoice) is timing-based and can leak a bit of the assistant's own
+# TTS into the mic stream; the RMS/VAD gates can't tell that apart from real
+# speech. So the client also sends an explicit
+# {"type": "assistant_speaking", "value": true/false} control frame, and the
+# server must drop any binary audio it receives while that flag is true --
+# entirely independent of whatever the client-side gate did or didn't catch.
+# ---------------------------------------------------------------------------
+
+
+def test_live_endpoint_drops_audio_while_assistant_speaking():
+    """Binary audio received between assistant_speaking:true and :false must
+    never reach STT / be buffered -- only audio sent while unmuted should
+    trigger a transcription."""
+    import json as _json
+    from unittest.mock import AsyncMock, patch
+
+    from starlette.testclient import TestClient
+
+    from main import app
+    from routers.audio import CHUNK_SAMPLES
+
+    muted_chunk = b"\x11\x11" * CHUNK_SAMPLES  # sent while assistant_speaking=true
+    real_chunk = b"\x22\x22" * CHUNK_SAMPLES  # sent while unmuted
+
+    seen_chunks = []
+
+    async def fake_transcribe(pcm_bytes, sample_rate=16000):
+        seen_chunks.append(bytes(pcm_bytes))
+        return "sannu"
+
+    with patch("routers.audio._transcribe", side_effect=fake_transcribe) as mock_transcribe, \
+         patch("routers.audio._llm_respond", AsyncMock(return_value="Sannu, yaya dai?")), \
+         patch("routers.audio._synthesize_speech", return_value=None):
+        with TestClient(app).websocket_connect("/api/live") as ws:
+            # Muted: flag the assistant as speaking, then send a full
+            # 2-second chunk. If dropped correctly, this must not trigger
+            # STT at all, so nothing should arrive on the socket yet.
+            ws.send_text(_json.dumps({"type": "assistant_speaking", "value": True}))
+            ws.send_bytes(muted_chunk)
+
+            # Unmute, then send a second full chunk -- this one must go
+            # through the whole STT -> LLM -> text-reply pipeline.
+            ws.send_text(_json.dumps({"type": "assistant_speaking", "value": False}))
+            ws.send_bytes(real_chunk)
+
+            msg = _json.loads(ws.receive_text())
+            assert msg["type"] == "user_transcript"
+            assert msg["data"] == "sannu"
+
+            reply = _json.loads(ws.receive_text())
+            assert reply["type"] == "text"
+            assert reply["data"] == "Sannu, yaya dai?"
+
+    # STT must have run exactly once, and only on the chunk sent while
+    # unmuted -- the muted chunk's bytes must never have been buffered/seen.
+    mock_transcribe.assert_called_once()
+    assert seen_chunks == [real_chunk]
+
+
+def test_live_endpoint_assistant_speaking_flag_has_a_safety_timeout(monkeypatch):
+    """If the client never sends assistant_speaking:false (crash, dropped
+    frame, backgrounded tab), the server must not stay deaf forever."""
+    import json as _json
+    from unittest.mock import AsyncMock, patch
+
+    from starlette.testclient import TestClient
+
+    from main import app
+    from routers import audio as audio_router
+    from routers.audio import CHUNK_SAMPLES
+
+    # Force the safety valve to trip almost immediately instead of waiting
+    # the real 15s, so the test stays fast.
+    monkeypatch.setattr(audio_router, "_ASSISTANT_SPEAKING_MAX_S", 0.0)
+
+    chunk = b"\x22\x22" * CHUNK_SAMPLES
+
+    with patch("routers.audio._transcribe", AsyncMock(return_value="sannu")) as mock_transcribe, \
+         patch("routers.audio._llm_respond", AsyncMock(return_value="Sannu, yaya dai?")), \
+         patch("routers.audio._synthesize_speech", return_value=None):
+        with TestClient(app).websocket_connect("/api/live") as ws:
+            ws.send_text(_json.dumps({"type": "assistant_speaking", "value": True}))
+            # With max age forced to 0.0, this chunk is already "stale" by
+            # the time it's checked, so it must be let through rather than
+            # dropped forever.
+            ws.send_bytes(chunk)
+
+            msg = _json.loads(ws.receive_text())
+            assert msg["type"] == "user_transcript"
+
+    mock_transcribe.assert_called_once()
+
