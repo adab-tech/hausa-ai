@@ -57,10 +57,13 @@ const VIBE_META: Record<SovereignVibe, { icon: React.ElementType; blurb: string 
 /** The two voices put "in front" for user testing — vetted post-fix
  *  (see the SPEAKER_MAP / WAXAL-match-threshold backend fixes) and given
  *  fictional Hausa names so they read as personas, not raw model slots.
- *  Everything else stays available under "More voices" for QA. */
+ *  Everything else stays available under "More voices" for QA.
+ *  Chosen 2026-08-23 after listening to all 8 samples: voice 6 (Malama
+ *  Asabe) is the default, voice 0 (Malam Garba) second — see App.tsx's
+ *  initial speakerId state. */
 const FEATURED_VOICES: { id: number; name: string; gender: 'Namiji' | 'Mace' }[] = [
+  { id: 6, name: 'Malama Asabe', gender: 'Mace' },
   { id: 0, name: 'Malam Garba', gender: 'Namiji' },
-  { id: 4, name: 'Malama Asabe', gender: 'Mace' },
 ];
 
 function speakerLabel(speakerId: number | null): string {

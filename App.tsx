@@ -42,10 +42,11 @@ const App: React.FC = () => {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [volume, setVolume] = useState(0);
   const [currentAxiomIndex, setCurrentAxiomIndex] = useState(0);
-  // Default to speaker 0 (Malam Garba) — one of the two featured, vetted
-  // voices (see components/Sidebar.tsx's FEATURED_VOICES) put in front for
-  // user testing, rather than the ambiguous null "baseline" path.
-  const [speakerId, setSpeakerId] = useState<number | null>(0);
+  // Default to speaker 6 (Malama Asabe) — chosen 2026-08-23 after listening
+  // to all 8 voice samples. Voice 0 (Malam Garba) is the other featured
+  // voice (see components/Sidebar.tsx's FEATURED_VOICES), rather than the
+  // ambiguous null "baseline" path.
+  const [speakerId, setSpeakerId] = useState<number | null>(6);
   const [showSpeakerDial, setShowSpeakerDial] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
