@@ -94,11 +94,21 @@ export const MessageItem = memo(({
           {m.role === Role.assistant && !m.isThinking && (
             <div className="mt-6 border-t border-dyn-border/40 pt-5 text-left flex flex-col gap-4">
               <div className="flex items-center justify-between w-full flex-wrap gap-2">
+                {allowTrace && (m.normalized || m.toneMapped) ? (
+                  <button
+                    onClick={() => setShowTrace(!showTrace)}
+                    className="flex items-center gap-2 text-xs text-dyn-accent/80 hover:text-dyn-accent transition-colors focus:outline-none"
+                  >
+                    <ChevronRight className={`w-3.5 h-3.5 transform transition-transform duration-300 ${showTrace ? 'rotate-90' : 'rotate-0'}`} />
+                    <span>Hanya / Linguistic Trace</span>
+                  </button>
+                ) : <span />}
+
                 <div className="flex items-center gap-3">
                   {onPlaySpeech && (
                     <button
                       onClick={() => onPlaySpeech(m.text, m.id, m.normalized)}
-                      className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider transition-all focus:outline-none px-3 py-1 rounded-full border ${
+                      className={`flex items-center gap-1.5 text-xs transition-all focus:outline-none px-3 py-1 rounded-full border ${
                         playingSpeechId === m.id
                           ? 'bg-dyn-accent text-dyn-bg-primary border-dyn-accent shadow-[0_0_12px_rgba(var(--accent-gold-rgb),0.3)] animate-pulse'
                           : 'bg-dyn-accent/10 border-dyn-accent/20 text-dyn-accent hover:bg-dyn-accent/20 hover:scale-105 active:scale-95'
@@ -111,17 +121,6 @@ export const MessageItem = memo(({
                       <span>{playingSpeechId === m.id ? 'Dakata' : 'Saurara'}</span>
                     </button>
                   )}
-
-                  {allowTrace && (m.normalized || m.toneMapped) && (
-                    <button
-                      onClick={() => setShowTrace(!showTrace)}
-                      className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-dyn-accent/80 hover:text-dyn-accent transition-colors focus:outline-none"
-                    >
-                      <ChevronRight className={`w-3.5 h-3.5 transform transition-transform duration-300 ${showTrace ? 'rotate-90' : 'rotate-0'}`} />
-                      <span>Hanya / Linguistic Trace (Axiom Trace)</span>
-                    </button>
-                  )}
-                </div>
 
                 {onFeedback && (
                   <div className="flex items-center gap-3">
@@ -148,6 +147,7 @@ export const MessageItem = memo(({
                     </button>
                   </div>
                 )}
+                </div>
               </div>
 
               {showTrace && (
