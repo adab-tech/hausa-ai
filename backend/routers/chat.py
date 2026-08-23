@@ -648,7 +648,10 @@ async def stream_groq(messages: list[dict[str, Any]]) -> AsyncGenerator[str, Non
     from groq import AsyncGroq
 
     client = AsyncGroq(api_key=api_key)
-    model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+    # Verified live against GET /v1/models on this account (2026-08-23) --
+    # llama-3.3-70b-versatile no longer exists on Groq (404). gpt-oss-120b is
+    # a strong general-purpose MoE model, ~500 tok/s.
+    model = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 
     clean_messages = [
         {"role": m["role"], "content": m["content"]} for m in messages
