@@ -8,7 +8,17 @@ class LearningService {
 
   constructor() {
     const savedMemories = localStorage.getItem(MEMORY_KEY);
-    this.memories = savedMemories ? JSON.parse(savedMemories) : [];
+    // Corrupted localStorage (partial write, manual tampering, a bug in an
+    // older app version) used to throw straight out of JSON.parse here --
+    // this runs at MODULE-IMPORT time (see the singleton export below), so
+    // an uncaught throw white-screened the whole app before App.tsx even
+    // got a chance to render. Fall back to a fresh empty list instead.
+    try {
+      this.memories = savedMemories ? JSON.parse(savedMemories) : [];
+    } catch (err) {
+      console.error("Corrupted learning memory in localStorage; resetting.", err);
+      this.memories = [];
+    }
 
     if (this.memories.length === 0) {
       this.memories = [

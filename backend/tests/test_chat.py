@@ -1,6 +1,7 @@
 """Tests for /api/chat."""
 
 import json
+import sys
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -800,4 +801,74 @@ async def test_chat_no_search_without_key(client, monkeypatch):
     system_msg = next(m for m in captured["messages"] if m["role"] == "system")
     assert "[REAL_TIME_LIMITS]" in system_msg["content"]
     assert "[REAL_TIME_RESULTS]" not in system_msg["content"]
+
+
+# ---------------------------------------------------------------------------
+# Regression: each provider used to instantiate a fresh SDK client on EVERY
+# streaming call (a connection-pool leak under sustained traffic). Clients
+# are now cached at module level and reused across calls.
+# ---------------------------------------------------------------------------
+def test_ollama_client_is_reused_across_calls(monkeypatch):
+    from routers import chat as chat_module
+
+    created = []
+
+    class _FakeAsyncClient:
+        def __init__(self, host=None):
+            created.append(host)
+
+    monkeypatch.setattr(chat_module.ollama, "AsyncClient", _FakeAsyncClient)
+    chat_module._ollama_client = None
+
+    first = chat_module._get_ollama_client()
+    second = chat_module._get_ollama_client()
+
+    assert first is second
+    assert len(created) == 1  # constructor called exactly once, not per call
+
+
+def test_cerebras_client_is_reused_across_calls(monkeypatch):
+    from routers import chat as chat_module
+
+    created = []
+
+    class _FakeAsyncCerebras:
+        def __init__(self, api_key=None):
+            created.append(api_key)
+
+    # The `cerebras` package isn't installed in this dev/test environment at
+    # all (stream_cerebras's real path is only exercised in production, or
+    # bypassed entirely by higher-level tests that patch stream_cerebras
+    # itself) -- fake the module in sys.modules so `from cerebras.cloud.sdk
+    # import AsyncCerebras` inside _get_cerebras_client resolves to it.
+    monkeypatch.setitem(
+        sys.modules, "cerebras.cloud.sdk",
+        type("_FakeSdkModule", (), {"AsyncCerebras": _FakeAsyncCerebras})(),
+    )
+    chat_module._cerebras_client = None
+
+    first = chat_module._get_cerebras_client("key-a")
+    second = chat_module._get_cerebras_client("key-a")
+
+    assert first is second
+    assert len(created) == 1
+
+
+def test_gemini_client_is_reused_across_stream_gemini_raw_and_stream_gemini(monkeypatch):
+    from routers import chat as chat_module
+
+    created = []
+
+    class _FakeGenaiClient:
+        def __init__(self, api_key=None):
+            created.append(api_key)
+
+    monkeypatch.setattr("google.genai.Client", _FakeGenaiClient)
+    chat_module._gemini_client = None
+
+    first = chat_module._get_gemini_client("gem-key")
+    second = chat_module._get_gemini_client("gem-key")
+
+    assert first is second
+    assert len(created) == 1
 

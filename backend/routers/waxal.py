@@ -181,12 +181,20 @@ async def get_waxal_tts(
     if not samples:
         raise HTTPException(status_code=404, detail="WAXAL metadata not found")
 
-    # Filter by speaker if provided
+    # Filter by speaker if provided. An unmatched speaker_id must NOT fall
+    # back to searching the whole (unfiltered, mixed-gender) dataset -- that
+    # risks silently matching and returning a recording from the wrong
+    # gender/voice, exactly the failure mode _find_closest_waxal_sample's own
+    # docstring in audio.py warns about. Error instead.
     if speaker_id:
         spk_str = str(speaker_id)
         filtered = [s for s in samples if str(s.get("speaker_id")) == spk_str]
-        if filtered:
-            samples = filtered
+        if not filtered:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No WAXAL samples found for speaker_id={speaker_id!r}",
+            )
+        samples = filtered
 
     # Compute similarity for each sample
     best_sample = None

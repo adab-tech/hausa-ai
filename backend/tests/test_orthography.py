@@ -94,6 +94,48 @@ def test_spell_out_leaves_plain_text_untouched():
 
 
 # ---------------------------------------------------------------------------
+# Regression: leading-zero tokens (phone numbers, codes) must be spelled
+# digit-by-digit, not parsed through int() -- int() silently drops leading
+# zeros and can change what the number means when read aloud.
+# ---------------------------------------------------------------------------
+def test_spell_out_phone_number_keeps_leading_zero():
+    out = spell_out_hausa_numbers("08012345678")
+    # Must start with "sifili" (zero) -- the leading digit must not be dropped.
+    assert out.startswith("sifili")
+    assert out == "sifili takwas sifili ɗaya biyu uku huɗu biyar shida bakwai takwas"
+
+
+def test_spell_out_leading_zero_code_is_digit_by_digit():
+    # "0500" is a code, not the cardinal 500 -- must read "zero five zero
+    # zero", not "five hundred".
+    assert spell_out_hausa_numbers("0500") == "sifili biyar sifili sifili"
+
+
+def test_spell_out_plain_number_without_leading_zero_still_cardinal():
+    # Sanity check: normal numbers are unaffected by the leading-zero fix.
+    assert spell_out_hausa_numbers("500") == "ɗari biyar"
+    assert spell_out_hausa_numbers("0") == "sifili"
+
+
+def test_spell_out_leading_zero_decimal_is_digit_by_digit():
+    assert spell_out_hausa_numbers("0.5") == "sifili digo biyar"
+
+
+# ---------------------------------------------------------------------------
+# Regression: HOOKED_MAP consolidation must not change normalize output for
+# mid-word ("dangling") hook occurrences that don't sit at a word boundary.
+# ---------------------------------------------------------------------------
+def test_normalize_hausa_orthography_mid_word_hook():
+    assert normalize_hausa_orthography("gab'a") == "gaɓa"
+    assert normalize_hausa_orthography("gab'a k'arfi") == "gaɓa ƙarfi"
+
+
+def test_normalize_hausa_orthography_preserves_capital_at_sentence_start():
+    # B'aure ne sunan garin -> capitalized ɓ must stay capitalized.
+    assert normalize_hausa_orthography("B'aure ne sunan garin.") == "Ɓaure ne sunan garin."
+
+
+# ---------------------------------------------------------------------------
 # prepare_text_for_tts — the full synthesis-input pipeline. Each case guards
 # a real failure mode of the 42-symbol phoneme map (silent drops, word
 # gluing, and '$'/'^'/'_' doubling as tokenizer control symbols).

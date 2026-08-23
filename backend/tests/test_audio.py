@@ -1,6 +1,9 @@
 """Tests for the pure helper functions in routers.audio."""
 
+import os
 import struct
+import threading
+import time
 import wave
 
 import numpy as np
@@ -302,6 +305,80 @@ def test_waxal_match_returns_file_for_near_exact_text():
     """Text pulled verbatim from a real corpus entry should still match."""
     result = _find_closest_waxal_sample("Musulmi na zuwa Masallaci ran juma'a", "5")
     assert result is not None
+
+
+# ---------------------------------------------------------------------------
+# Regression: waxal metadata caching (Medium finding — the metadata file was
+# re-parsed from scratch on every single TTS call).
+# ---------------------------------------------------------------------------
+def test_waxal_metadata_cache_reuses_parse_when_mtime_unchanged(tmp_path):
+    from routers import audio
+
+    path = tmp_path / "metadata.jsonl"
+    path.write_text('{"speaker_id": "1", "text": "hello"}\n', encoding="utf-8")
+
+    audio._waxal_metadata_cache.update({"path": None, "mtime": None, "entries": None})
+    first = audio._load_waxal_metadata_cached(path)
+    second = audio._load_waxal_metadata_cached(path)
+    # Same list object back -- proves the second call hit the cache instead
+    # of re-reading and re-parsing the file.
+    assert first is second
+    assert len(first) == 1
+
+
+def test_waxal_metadata_cache_invalidates_on_mtime_change(tmp_path):
+    from routers import audio
+
+    path = tmp_path / "metadata.jsonl"
+    path.write_text('{"speaker_id": "1", "text": "hello"}\n', encoding="utf-8")
+
+    audio._waxal_metadata_cache.update({"path": None, "mtime": None, "entries": None})
+    first = audio._load_waxal_metadata_cached(path)
+    assert len(first) == 1
+
+    path.write_text(
+        '{"speaker_id": "1", "text": "hello"}\n{"speaker_id": "2", "text": "world"}\n',
+        encoding="utf-8",
+    )
+    # Force a distinct mtime even on filesystems with coarse mtime resolution.
+    new_time = path.stat().st_mtime + 1
+    os.utime(path, (new_time, new_time))
+
+    second = audio._load_waxal_metadata_cached(path)
+    assert len(second) == 2
+    assert second is not first
+
+
+# ---------------------------------------------------------------------------
+# Regression: Piper model download had no concurrency lock -- two
+# simultaneous first-TTS-requests after a fresh deploy could both write to
+# the same model file path at once. Verify _get_piper's download path is now
+# serialized (never two threads inside _download_piper_assets at once).
+# ---------------------------------------------------------------------------
+def test_get_piper_serializes_concurrent_download_attempts(monkeypatch):
+    from routers import audio
+
+    monkeypatch.setattr(audio, "_piper_voice", None)
+    state = {"active": 0, "max_active": 0}
+    state_lock = threading.Lock()
+
+    def fake_download(model_path, config_path):
+        with state_lock:
+            state["active"] += 1
+            state["max_active"] = max(state["max_active"], state["active"])
+        time.sleep(0.05)  # widen the window so a race would actually show up
+        with state_lock:
+            state["active"] -= 1
+
+    monkeypatch.setattr(audio, "_download_piper_assets", fake_download)
+
+    threads = [threading.Thread(target=audio._get_piper) for _ in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=5)
+
+    assert state["max_active"] == 1
 
 
 # ---------------------------------------------------------------------------

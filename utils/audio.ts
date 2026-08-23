@@ -40,6 +40,7 @@ export function resampleLinear(
   fromRate: number,
   toRate: number,
 ): Float32Array {
+  if (input.length === 0) return new Float32Array(0);
   if (fromRate === toRate) return new Float32Array(input);
   const outLength = Math.max(1, Math.round((input.length * toRate) / fromRate));
   const out = new Float32Array(outLength);
@@ -96,7 +97,11 @@ export function createBlob(data: Float32Array): { data: string; mimeType: string
   const l = data.length;
   const int16 = new Int16Array(l);
   for (let i = 0; i < l; i++) {
-    int16[i] = data[i] * 32768;
+    // Int16 range is [-32768, 32767]. Multiplying by 32768 overflows on a
+    // full-scale (1.0) sample -- 32768 wraps to -32768, inverting polarity
+    // for exactly the loudest, most important parts of speech. 32767 keeps
+    // every sample in range.
+    int16[i] = data[i] * 32767;
   }
   return {
     data: encode(new Uint8Array(int16.buffer)),

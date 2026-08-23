@@ -19,12 +19,23 @@ import tempfile
 from contextlib import suppress
 
 from fastapi import APIRouter, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from rate_limit import ip_limiter, limiter
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+def _reject_blank_prompt(v: str) -> str:
+    """Shared prompt validator: a blank/whitespace-only prompt must be
+    rejected at the request-parsing stage, before it ever reaches the
+    billed Gemini Imagen call -- previously " " or "" passed straight
+    through and paid for a generation of essentially nothing."""
+    if not v.strip():
+        raise ValueError("prompt must not be blank")
+    return v
+
 
 # ---------------------------------------------------------------------------
 # Request/Response models
@@ -33,9 +44,13 @@ class ImageRequest(BaseModel):
     prompt: str = Field(..., max_length=1_000)
     vibe: str = Field("Classic", pattern=r"^(Classic|Royal|Cyberpunk|Academic)$")
 
+    _validate_prompt = field_validator("prompt")(_reject_blank_prompt)
+
 
 class VideoRequest(BaseModel):
     prompt: str = Field(..., max_length=1_000)
+
+    _validate_prompt = field_validator("prompt")(_reject_blank_prompt)
 
 
 # ---------------------------------------------------------------------------
@@ -139,21 +154,29 @@ async def generate_video(request: Request, req: VideoRequest):
         tmp_fd, tmp_path = tempfile.mkstemp(suffix=".mp4")
         os.close(tmp_fd)
         try:
-            # Use imageio to write video
+            # Use imageio to write video. writer.close() must run even if a
+            # frame write raises partway through the loop -- otherwise the
+            # imageio/ffmpeg writer (a subprocess + open file handle) leaks
+            # for the lifetime of the process instead of being released.
             writer = imageio.get_writer(tmp_path, fps=8, codec='libx264', format='FFMPEG')
-            for frame in frames:
-                writer.append_data(frame)
-            writer.close()
-            
+            try:
+                for frame in frames:
+                    writer.append_data(frame)
+            finally:
+                writer.close()
+
             with open(tmp_path, "rb") as fh:
                 mp4_bytes = fh.read()
         finally:
             with suppress(OSError):
                 os.unlink(tmp_path)
-                
+
         b64 = base64.b64encode(mp4_bytes).decode()
         return {"uri": f"data:video/mp4;base64,{b64}", "error": None}
-        
-    except Exception as e:
+
+    except Exception:
         logger.exception("Video generation failed")
-        return {"uri": None, "error": f"Video generation failed: {str(e)}"}
+        # Same posture as _generate_image_impl's sibling failure path: don't
+        # leak raw exception text (stack internals, library error strings)
+        # to the client -- a plain, honest message instead.
+        return {"uri": None, "error": "Video generation is not available right now."}

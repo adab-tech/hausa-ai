@@ -47,6 +47,27 @@ def _disable_rate_limiting():
     rate_limit.ip_limiter.enabled = True
 
 
+@pytest.fixture(autouse=True)
+def _reset_chat_sdk_client_singletons():
+    """routers.chat caches each provider's SDK client (Cerebras/Groq/Ollama/
+    Gemini) at module level for connection-pool reuse across requests in
+    production (see routers/chat.py's "SDK client reuse" section). Reset
+    those globals before every test so a test's `patch("...AsyncClient",
+    return_value=mock)`-style mock always takes effect, instead of a client
+    cached by an earlier test (or a different mock) silently being reused."""
+    import routers.chat as chat_module
+
+    chat_module._cerebras_client = None
+    chat_module._groq_client = None
+    chat_module._ollama_client = None
+    chat_module._gemini_client = None
+    yield
+    chat_module._cerebras_client = None
+    chat_module._groq_client = None
+    chat_module._ollama_client = None
+    chat_module._gemini_client = None
+
+
 @pytest.fixture(scope="session")
 async def client():
     """Async test client wired to the FastAPI app."""

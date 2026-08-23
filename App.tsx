@@ -83,7 +83,16 @@ const App: React.FC = () => {
     const audio = new Audio(url);
     ttsAudioRef.current = audio;
     setPlayingSpeechId(messageId);
-    audio.play();
+    // audio.play() returns a Promise that can reject on its own (blocked
+    // autoplay policy, AbortError from a fast pause/replace, etc.) -- a
+    // failure mode distinct from the element's onerror event below, and
+    // previously unhandled: the UI would silently stay "playing" with no
+    // sound and no indication anything went wrong.
+    audio.play().catch((err) => {
+      console.error("TTS playback failed to start", err);
+      setPlayingSpeechId(null);
+      alert("Gafara dai, an samu kuskure wajen sauti.");
+    });
     audio.onended = () => {
       setPlayingSpeechId(null);
     };
@@ -388,12 +397,21 @@ const App: React.FC = () => {
             }
             if (msg.text) {
               setMessages(prev => [...prev, {
-                id: Date.now().toString(),
+                // Date.now() alone can collide if two messages land in the
+                // same millisecond (e.g. a fast user+assistant transcript
+                // pair); crypto.randomUUID() (with the same _uuidv4
+                // fallback localService.ts already uses for older WebViews)
+                // guarantees a unique React key/message id.
+                id: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
                 role: msg.isUser ? Role.user : Role.assistant,
                 text: msg.text,
                 timestamp: new Date(),
                 normalized: msg.normalized,
-                toneMapped: msg.tone_mapped
+                // localService.ts's connectLive() already renames this field
+                // to camelCase (msg.toneMapped) before calling back here --
+                // reading the old snake_case msg.tone_mapped meant the
+                // tonal-melody trace was always empty for live-voice turns.
+                toneMapped: msg.toneMapped
               }]);
             }
           },

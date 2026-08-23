@@ -1,5 +1,7 @@
 """Tests for /api/feedback and the human-validated corrections queue."""
 
+import json
+
 import pytest
 
 from routers import feedback as feedback_module
@@ -160,6 +162,70 @@ async def test_correction_approval_flow(client, admin_session):
 async def test_review_nonexistent_correction_404s(client, admin_session):
     resp = await client.post("/api/corrections/does-not-exist/review", json={"action": "approve"})
     assert resp.status_code == 404
+
+
+def test_read_all_skips_malformed_line_instead_of_raising(_isolated_feedback_file):
+    """Regression: one malformed JSON line used to raise straight out of
+    _read_all(), which get_approved_corrections_prompt() -- called
+    unconditionally by every chat/audio request -- has no fallback for.
+    A bad line must be skipped, not fatal."""
+    _isolated_feedback_file  # noqa: B018 (ensures fixture ran; file unused directly)
+    corrections_store._DATA_DIR.mkdir(parents=True, exist_ok=True)
+    good_entry = {
+        "id": "1", "messageId": "m", "originalText": "wrong", "correction": "right",
+        "status": "approved", "contributorId": None, "timestamp": 0,
+        "reviewedAt": None, "reviewedBy": None,
+    }
+    with open(corrections_store._CORRECTIONS_FILE, "w", encoding="utf-8") as f:
+        f.write("{not valid json at all\n")
+        f.write(json.dumps(good_entry) + "\n")
+
+    entries = corrections_store.list_corrections()
+    assert len(entries) == 1
+    assert entries[0]["id"] == "1"
+
+    prompt = corrections_store.get_approved_corrections_prompt()
+    assert "right" in prompt
+
+
+def test_get_approved_corrections_prompt_tolerates_missing_fields(_isolated_feedback_file):
+    """Regression: get_approved_corrections_prompt() used to subscript
+    e['originalText']/e['correction'] directly -- a record missing either
+    field raised KeyError into every chat/audio request. Must degrade
+    gracefully instead."""
+    corrections_store._DATA_DIR.mkdir(parents=True, exist_ok=True)
+    incomplete_entry = {"id": "2", "status": "approved"}  # no originalText/correction
+    with open(corrections_store._CORRECTIONS_FILE, "w", encoding="utf-8") as f:
+        f.write(json.dumps(incomplete_entry) + "\n")
+
+    # Must not raise.
+    prompt = corrections_store.get_approved_corrections_prompt()
+    assert "[CORRECTION]" in prompt
+
+
+def test_review_correction_tolerates_entries_missing_id(_isolated_feedback_file):
+    """Regression: review_correction used e["id"] direct subscript -- a
+    record missing "id" raised KeyError instead of just not matching."""
+    corrections_store._DATA_DIR.mkdir(parents=True, exist_ok=True)
+    with open(corrections_store._CORRECTIONS_FILE, "w", encoding="utf-8") as f:
+        f.write(json.dumps({"status": "pending"}) + "\n")  # no "id"
+
+    # Must not raise -- just finds no match.
+    result = corrections_store.review_correction("does-not-exist", "approve", "admin")
+    assert result is None
+
+
+def test_read_all_cache_reflects_new_write(_isolated_feedback_file):
+    """Regression guard for the mtime-based read cache added to reduce
+    blocking file I/O on the hot chat/audio path: a write must always be
+    visible to the very next read, never served a stale cached list."""
+    corrections_store.add_correction("m1", "wrong1", "right1")
+    first = corrections_store.list_corrections()
+    assert len(first) == 1
+
+    corrections_store.add_correction("m2", "wrong2", "right2")
+    second = corrections_store.list_corrections()
+    assert len(second) == 2
 
 
 def test_concurrent_add_correction_does_not_lose_entries():

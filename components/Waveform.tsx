@@ -20,7 +20,9 @@ export const Waveform: React.FC<{ active: boolean; volume?: number }> = ({ activ
   return (
     <div className="flex items-center justify-center space-x-[2px] sm:space-x-[4px] h-full w-full overflow-hidden px-4 pointer-events-none">
       {bars.map((_, i) => {
-        const dist = Math.abs(i - 20) / 20;
+        // True center of 40 bars (indices 0..39) is 19.5, not 20 -- using 20
+        // skewed the visualizer's peak one bar off-center.
+        const dist = Math.abs(i - 19.5) / 19.5;
         const baseSize = active ? 10 : 4;
         
         const logVolume = volume > 0 ? Math.log10(1 + volume * 25) : 0;

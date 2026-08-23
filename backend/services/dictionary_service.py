@@ -146,9 +146,19 @@ _ABBREV_NOISE = {
 
 def _is_noise(value: str) -> bool:
     """True for OCR/grammatical-tag artifacts that should not be indexed as a
-    real headword or translation."""
+    real headword or translation.
+
+    Previously this also blanket-rejected every single alphabetic character,
+    on the theory that a lone letter is usually a stray OCR/grammar-tag
+    artifact. But that silently dropped real single-letter headwords too --
+    e.g. Hausa "a" (a genuine preposition/particle, see LEXICAL_TONES in
+    orthography.py) or English "a"/"I" -- so define("a") returned nothing
+    even when the source lexicon genuinely defined it. The known
+    single-letter grammar tags this was meant to catch (e.g. "v", "n" for
+    verb/noun) are already covered by `_ABBREV_NOISE` above, so dropping the
+    blanket single-character rule does not let that OCR noise back in."""
     v = value.strip().strip(".").lower()
-    return (not v) or (v in _ABBREV_NOISE) or (len(v) == 1 and v.isalpha())
+    return (not v) or (v in _ABBREV_NOISE)
 
 
 def _index_entry(key_field: str, index: dict[str, list[dict]], entry: dict) -> None:

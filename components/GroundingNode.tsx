@@ -18,8 +18,11 @@ export const GroundingNode: React.FC<{ sources: Source[] }> = ({ sources }) => {
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {sources.map((source, i) => {
-          const isYoutube = source.type === 'youtube' || source.uri.includes('youtube.com') || source.uri.includes('youtu.be');
-          const isMaps = source.type === 'taswira' || source.uri.includes('maps.google.com') || source.uri.includes('goo.gl/maps');
+          // source.uri comes from the backend's grounding results and isn't
+          // validated to always be present -- .includes() on undefined/null
+          // would throw and take down the whole message render.
+          const isYoutube = source.type === 'youtube' || source.uri?.includes('youtube.com') || source.uri?.includes('youtu.be');
+          const isMaps = source.type === 'taswira' || source.uri?.includes('maps.google.com') || source.uri?.includes('goo.gl/maps');
           
           return (
             <a 

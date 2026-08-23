@@ -37,6 +37,13 @@ export const InputConsole: React.FC<InputConsoleProps> = ({
           data: event.target?.result as string
         }]);
       };
+      // Without this, a failed read (corrupted file, permission error, disk
+      // I/O issue) silently drops the attachment with zero feedback -- the
+      // user just sees nothing happen and doesn't know their upload failed.
+      reader.onerror = () => {
+        console.error(`Failed to read file "${file.name}" for attachment.`, reader.error);
+        alert(`An kasa karanta fayil "${file.name}" (Failed to read file).`);
+      };
       reader.readAsDataURL(file);
     });
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -88,7 +95,16 @@ export const InputConsole: React.FC<InputConsoleProps> = ({
           <textarea
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSendMessage(); } }}
+            onKeyDown={(e) => {
+              // isLoading guard: without it, pressing Enter repeatedly while
+              // a response is still streaming fires a new onSendMessage()
+              // call each time, sending overlapping concurrent chat streams
+              // (the send button below has the same guard via `disabled`).
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                if (!isLoading) onSendMessage();
+              }
+            }}
             placeholder="Rubuta saƙonka anan…"
             rows={1}
             aria-label="Shigar da umarni (Message input)"
@@ -100,7 +116,11 @@ export const InputConsole: React.FC<InputConsoleProps> = ({
               type="button"
               onClick={onToggleLiveVoice}
               aria-label={isLiveActive ? "Kashe murya (Stop live voice)" : "Kunna murya (Start live voice)"}
-              className={`p-3 sm:p-4 rounded-full transition-all active:scale-90 ${isLiveActive ? 'bg-red-600 text-white shadow-[0_0_20px_rgba(220,38,38,0.5)] animate-pulse' : 'text-dyn-text-secondary hover:text-dyn-accent hover:bg-white/5'}`}
+              // isLoading guard: without it, a user could start a live-voice
+              // session while a text chat reply is still streaming, running
+              // two concurrent chat streams at once.
+              disabled={isLoading}
+              className={`p-3 sm:p-4 rounded-full transition-all active:scale-90 disabled:opacity-20 disabled:cursor-not-allowed ${isLiveActive ? 'bg-red-600 text-white shadow-[0_0_20px_rgba(220,38,38,0.5)] animate-pulse' : 'text-dyn-text-secondary hover:text-dyn-accent hover:bg-white/5'}`}
             >
               {isLiveActive ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
             </button>
@@ -108,7 +128,10 @@ export const InputConsole: React.FC<InputConsoleProps> = ({
               type="button"
               onClick={onSendMessage}
               aria-label="Aika saƙo (Send message)"
-              disabled={!inputText.trim() && attachments.length === 0}
+              // isLoading guard: without it, clicking Send again while the
+              // previous reply is still streaming fires a second, overlapping
+              // concurrent chat stream.
+              disabled={isLoading || (!inputText.trim() && attachments.length === 0)}
               className="p-3.5 sm:p-4.5 bg-dyn-accent text-dyn-bg-primary rounded-full shadow-2xl hover:scale-105 active:scale-95 transition-all disabled:opacity-20 disabled:scale-100 disabled:cursor-not-allowed"
             >
               <SendHorizontal className="w-5 h-5" />
