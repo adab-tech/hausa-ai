@@ -821,6 +821,26 @@ async def live_endpoint(ws: WebSocket, speaker_id: int = 0, addressee_gender: st
                     continue
                 if isinstance(control, dict) and control.get("type") == "assistant_speaking":
                     speaking = bool(control.get("value"))
+                    if speaking and not assistant_speaking:
+                        # Rising edge: discard whatever partial (<2s) audio is
+                        # already sitting in pcm_buffer. That leftover is
+                        # legitimate pre-reply audio (recorded while the
+                        # server was busy doing STT/LLM/TTS for the previous
+                        # turn and never reached the chunk threshold) -- but
+                        # if it survives, it sits untouched through the whole
+                        # muted window (bytes arriving while muted are
+                        # dropped, never appended) and then gets STITCHED
+                        # onto the front of the next post-reply audio once
+                        # unmuted, once that combined buffer finally reaches
+                        # CHUNK_SAMPLES. STT then runs on a buffer that
+                        # spans a turn boundary: part stale pre-reply audio,
+                        # part fresh post-reply speech, in one Whisper call.
+                        # That produces exactly the garbled/mixed transcript
+                        # symptom reported in production ("wrong
+                        # transcriptions of what have been said before").
+                        # Clearing here guarantees every chunk handed to STT
+                        # starts fresh at a turn boundary.
+                        pcm_buffer.clear()
                     assistant_speaking = speaking
                     assistant_speaking_since = time.monotonic() if speaking else None
                 continue

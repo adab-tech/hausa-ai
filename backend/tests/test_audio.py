@@ -366,6 +366,61 @@ def test_live_endpoint_drops_audio_while_assistant_speaking():
     assert seen_chunks == [real_chunk]
 
 
+def test_live_endpoint_clears_stale_partial_buffer_on_assistant_speaking_rising_edge():
+    """Regression test for the real production bug behind 'still listening
+    to itself' / 'wrong transcriptions of what was said before': a partial
+    (<2s) pre-reply fragment left in pcm_buffer must NOT survive a mute
+    cycle and get stitched onto the front of the next post-reply chunk.
+
+    Sequence: some partial audio arrives (backlog recorded while the
+    server was busy with the previous turn's STT/LLM/TTS, never reached
+    the 2s threshold) -> assistant_speaking:true -> muted echo bytes
+    (dropped) -> assistant_speaking:false -> a full fresh chunk. STT must
+    see ONLY the fresh chunk, never the stale fragment prepended to it."""
+    import json as _json
+    from unittest.mock import AsyncMock, patch
+
+    from starlette.testclient import TestClient
+
+    from main import app
+    from routers.audio import CHUNK_SAMPLES
+
+    # Partial pre-reply backlog: well under the 2s threshold on its own.
+    stale_fragment = b"\x33\x33" * (CHUNK_SAMPLES // 4)
+    muted_chunk = b"\x11\x11" * CHUNK_SAMPLES  # leaked echo, sent while muted
+    real_chunk = b"\x22\x22" * CHUNK_SAMPLES  # fresh post-reply speech
+
+    seen_chunks = []
+
+    async def fake_transcribe(pcm_bytes, sample_rate=16000):
+        seen_chunks.append(bytes(pcm_bytes))
+        return "sannu"
+
+    with patch("routers.audio._transcribe", side_effect=fake_transcribe) as mock_transcribe, \
+         patch("routers.audio._llm_respond", AsyncMock(return_value="Sannu, yaya dai?")), \
+         patch("routers.audio._synthesize_speech", return_value=None):
+        with TestClient(app).websocket_connect("/api/live") as ws:
+            # Partial backlog arrives first -- below threshold, stays buffered.
+            ws.send_bytes(stale_fragment)
+
+            # Assistant starts speaking: this rising edge must discard the
+            # stale fragment above.
+            ws.send_text(_json.dumps({"type": "assistant_speaking", "value": True}))
+            ws.send_bytes(muted_chunk)
+
+            ws.send_text(_json.dumps({"type": "assistant_speaking", "value": False}))
+            ws.send_bytes(real_chunk)
+
+            msg = _json.loads(ws.receive_text())
+            assert msg["type"] == "user_transcript"
+            assert msg["data"] == "sannu"
+
+    # STT must have run exactly once, on exactly real_chunk -- NOT on
+    # stale_fragment + real_chunk (which is what the pre-fix code produced).
+    mock_transcribe.assert_called_once()
+    assert seen_chunks == [real_chunk]
+
+
 def test_live_endpoint_assistant_speaking_flag_has_a_safety_timeout(monkeypatch):
     """If the client never sends assistant_speaking:false (crash, dropped
     frame, backgrounded tab), the server must not stay deaf forever."""
