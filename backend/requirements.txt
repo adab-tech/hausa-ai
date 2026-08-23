@@ -31,7 +31,14 @@ piper-tts~=1.2.0
 pydub>=0.25,<1
 audioop-lts>=0.2,<1; python_version >= "3.13"
 
-# Custom VITS ONNX inference engine (see requirements-inference.txt for pinned version)
+# Custom VITS ONNX inference engine (see requirements-inference.txt for
+# pinned version), AND Silero VAD turn-detection on /api/live
+# (services/vad_service.py). Deliberately onnxruntime-only for both — the
+# upstream Silero reference wrapper (utils_vad.py's OnnxWrapper) imports
+# torch purely for tensor bookkeeping around the same onnxruntime.Session
+# call; reimplemented in numpy here rather than pulling torch back in (see
+# the Pillow/imageio comment below for why torch was removed from this repo
+# in the first place).
 onnxruntime>=1.18,<2
 
 # Image generation goes through Gemini's Imagen API (routers/image.py's

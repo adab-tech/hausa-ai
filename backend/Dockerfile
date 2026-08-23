@@ -41,6 +41,18 @@ COPY backend/ ./
 COPY models/piper_hausa_waxal/model.onnx models/piper_hausa_waxal/model.onnx.json /app/models/piper_hausa_waxal/
 ENV VITS_MODEL_DIR=/app/models/piper_hausa_waxal
 
+# Bake in the Silero VAD ONNX model (~2 MB) used for real turn detection on
+# /api/live — see backend/services/vad_service.py. Fetched from
+# github.com/adab-tech/silero-vad (a fork of snakers4/silero-vad), NOT
+# git-tracked for the same reason as the Piper model above (kept out of git
+# via .gitignore's *.onnx/models/ rules); a local flyctl deploy already has
+# it in the build context, a CI build needs it restored some other way
+# (Git LFS or a build-time fetch step) before this COPY will succeed.
+# VAD_MODEL_PATH mirrors VITS_MODEL_DIR: points the engine straight at the
+# baked-in file since the container flattens backend/ -> /app.
+COPY models/silero_vad/silero_vad.onnx /app/models/silero_vad/silero_vad.onnx
+ENV VAD_MODEL_PATH=/app/models/silero_vad/silero_vad.onnx
+
 # Bake in all THREE dictionary sources so the dictionary/translation tool works
 # in the container. dictionary_service auto-detects these container paths and
 # loads them together: Robinson (1914, public domain) for clean EN->HA, the

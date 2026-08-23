@@ -305,31 +305,83 @@ def test_waxal_match_returns_file_for_near_exact_text():
 
 
 # ---------------------------------------------------------------------------
-# /api/live -- server-side echo backstop ("the app is listening to itself"
-# bug, 2026-08-22). The client's half-duplex mic gate (App.tsx
-# toggleLiveVoice) is timing-based and can leak a bit of the assistant's own
-# TTS into the mic stream; the RMS/VAD gates can't tell that apart from real
-# speech. So the client also sends an explicit
-# {"type": "assistant_speaking", "value": true/false} control frame, and the
-# server must drop any binary audio it receives while that flag is true --
-# entirely independent of whatever the client-side gate did or didn't catch.
+# /api/live -- VAD-driven turn detection helpers.
+#
+# live_endpoint no longer chunks on a fixed ~2s timer; it feeds every
+# incoming frame through a Silero VAD stream (services/vad_service.py) and
+# only calls STT once sustained trailing silence confirms the user is done
+# talking (see routers.audio's _TurnState / VAD_* constants). These tests
+# replace the VAD stream with a deterministic fake that returns a scripted
+# sequence of speech probabilities, so turn boundaries are exact and the
+# tests don't depend on real audio actually reading as "speech" to Silero.
+# ---------------------------------------------------------------------------
+
+from routers.audio import FRAME_MS, VAD_MIN_SPEECH_MS, VAD_TRAILING_SILENCE_MS, _FRAME_BYTES
+
+# Number of consecutive frames needed to clear each threshold, derived from
+# the real tuning constants rather than hardcoded, so these tests track the
+# production constants automatically if they're ever retuned.
+_SPEECH_FRAMES = int(VAD_MIN_SPEECH_MS // FRAME_MS) + 1
+_SILENCE_FRAMES = int(VAD_TRAILING_SILENCE_MS // FRAME_MS) + 1
+
+
+class _ScriptedFakeVAD:
+    """Deterministic stand-in for services.vad_service.SileroVAD:
+    process_frame() returns probabilities from a fixed script (looping the
+    last value once exhausted) instead of running real inference, so tests
+    can drive the live_endpoint turn-detection state machine to an exact,
+    reproducible boundary."""
+
+    def __init__(self, probs):
+        self._probs = list(probs)
+        self._i = 0
+        self.reset_calls = 0
+        self.frames_seen = []
+
+    def process_frame(self, frame):
+        self.frames_seen.append(bytes(np.asarray(frame, dtype=np.float32).tobytes()))
+        prob = self._probs[min(self._i, len(self._probs) - 1)]
+        self._i += 1
+        return prob
+
+    def reset_states(self):
+        self.reset_calls += 1
+
+
+def _frame(byte: bytes) -> bytes:
+    """One full 512-sample (1024-byte) PCM-16 frame filled with `byte`."""
+    return byte * (_FRAME_BYTES // len(byte))
+
+
+def _speech_then_silence_script(n_speech=None, n_silence=None):
+    """A probability script that clears VAD_SPEECH_THRESHOLD for n_speech
+    frames (enough to pass VAD_MIN_SPEECH_MS) then drops below
+    VAD_SILENCE_THRESHOLD for n_silence frames (enough to clear
+    VAD_TRAILING_SILENCE_MS and complete the turn)."""
+    n_speech = n_speech if n_speech is not None else _SPEECH_FRAMES
+    n_silence = n_silence if n_silence is not None else _SILENCE_FRAMES
+    return [0.9] * n_speech + [0.05] * n_silence
+
+
+# ---------------------------------------------------------------------------
+# Core VAD turn-detection behavior
 # ---------------------------------------------------------------------------
 
 
-def test_live_endpoint_drops_audio_while_assistant_speaking():
-    """Binary audio received between assistant_speaking:true and :false must
-    never reach STT / be buffered -- only audio sent while unmuted should
-    trigger a transcription."""
+def test_live_endpoint_completes_turn_on_trailing_silence():
+    """A speech run followed by enough trailing silence must trigger exactly
+    one STT call, with the accumulated speech bytes (not the trailing
+    silence) handed to it."""
     import json as _json
     from unittest.mock import AsyncMock, patch
 
     from starlette.testclient import TestClient
 
     from main import app
-    from routers.audio import CHUNK_SAMPLES
 
-    muted_chunk = b"\x11\x11" * CHUNK_SAMPLES  # sent while assistant_speaking=true
-    real_chunk = b"\x22\x22" * CHUNK_SAMPLES  # sent while unmuted
+    fake_vad = _ScriptedFakeVAD(_speech_then_silence_script())
+    speech_bytes = _frame(b"\x22\x22") * _SPEECH_FRAMES
+    silence_bytes = _frame(b"\x00\x00") * _SILENCE_FRAMES
 
     seen_chunks = []
 
@@ -337,20 +389,12 @@ def test_live_endpoint_drops_audio_while_assistant_speaking():
         seen_chunks.append(bytes(pcm_bytes))
         return "sannu"
 
-    with patch("routers.audio._transcribe", side_effect=fake_transcribe) as mock_transcribe, \
+    with patch("routers.audio.new_vad_stream", return_value=fake_vad), \
+         patch("routers.audio._transcribe", side_effect=fake_transcribe) as mock_transcribe, \
          patch("routers.audio._llm_respond", AsyncMock(return_value="Sannu, yaya dai?")), \
          patch("routers.audio._synthesize_speech", return_value=None):
         with TestClient(app).websocket_connect("/api/live") as ws:
-            # Muted: flag the assistant as speaking, then send a full
-            # 2-second chunk. If dropped correctly, this must not trigger
-            # STT at all, so nothing should arrive on the socket yet.
-            ws.send_text(_json.dumps({"type": "assistant_speaking", "value": True}))
-            ws.send_bytes(muted_chunk)
-
-            # Unmute, then send a second full chunk -- this one must go
-            # through the whole STT -> LLM -> text-reply pipeline.
-            ws.send_text(_json.dumps({"type": "assistant_speaking", "value": False}))
-            ws.send_bytes(real_chunk)
+            ws.send_bytes(speech_bytes + silence_bytes)
 
             msg = _json.loads(ws.receive_text())
             assert msg["type"] == "user_transcript"
@@ -360,23 +404,109 @@ def test_live_endpoint_drops_audio_while_assistant_speaking():
             assert reply["type"] == "text"
             assert reply["data"] == "Sannu, yaya dai?"
 
-    # STT must have run exactly once, and only on the chunk sent while
-    # unmuted -- the muted chunk's bytes must never have been buffered/seen.
     mock_transcribe.assert_called_once()
-    assert seen_chunks == [real_chunk]
+    # The trailing (confirmed-silent) tail is trimmed before STT -- only the
+    # speech portion should have been handed over.
+    assert seen_chunks == [speech_bytes]
 
 
-def test_live_endpoint_clears_stale_partial_buffer_on_assistant_speaking_rising_edge():
-    """Regression test for the real production bug behind 'still listening
-    to itself' / 'wrong transcriptions of what was said before': a partial
-    (<2s) pre-reply fragment left in pcm_buffer must NOT survive a mute
-    cycle and get stitched onto the front of the next post-reply chunk.
+def test_live_endpoint_does_not_transcribe_before_trailing_silence_completes():
+    """Mid-utterance: speech followed by silence that's SHORT of
+    VAD_TRAILING_SILENCE_MS must not trigger STT yet -- a natural pause
+    (breath, searching for a word) must not fragment one sentence into
+    multiple turns."""
+    import asyncio
+    from unittest.mock import AsyncMock, patch
 
-    Sequence: some partial audio arrives (backlog recorded while the
-    server was busy with the previous turn's STT/LLM/TTS, never reached
-    the 2s threshold) -> assistant_speaking:true -> muted echo bytes
-    (dropped) -> assistant_speaking:false -> a full fresh chunk. STT must
-    see ONLY the fresh chunk, never the stale fragment prepended to it."""
+    from starlette.testclient import TestClient
+
+    from main import app
+
+    short_silence_frames = max(1, _SILENCE_FRAMES - 5)
+    fake_vad = _ScriptedFakeVAD(_speech_then_silence_script(n_silence=short_silence_frames))
+    speech_bytes = _frame(b"\x22\x22") * _SPEECH_FRAMES
+    silence_bytes = _frame(b"\x00\x00") * short_silence_frames
+
+    with patch("routers.audio.new_vad_stream", return_value=fake_vad), \
+         patch("routers.audio._transcribe", AsyncMock(return_value="sannu")) as mock_transcribe, \
+         patch("routers.audio._llm_respond", AsyncMock(return_value="Sannu")), \
+         patch("routers.audio._synthesize_speech", return_value=None):
+        with TestClient(app).websocket_connect("/api/live") as ws:
+            ws.send_bytes(speech_bytes + silence_bytes)
+            # Nothing should arrive -- give the (synchronous, in-process)
+            # handling a moment, then assert STT was never reached.
+            import time as _time
+            _time.sleep(0.1)
+
+    mock_transcribe.assert_not_called()
+
+
+def test_live_endpoint_discards_short_noise_blip_without_transcribing():
+    """A speech run shorter than VAD_MIN_SPEECH_MS (a cough, a mic bump)
+    followed by trailing silence must be discarded, not sent to STT."""
+    from unittest.mock import AsyncMock, patch
+
+    from starlette.testclient import TestClient
+
+    from main import app
+
+    n_speech = max(1, _SPEECH_FRAMES - 5)  # short of the minimum
+    fake_vad = _ScriptedFakeVAD(_speech_then_silence_script(n_speech=n_speech))
+    blip_bytes = _frame(b"\x22\x22") * n_speech
+    silence_bytes = _frame(b"\x00\x00") * _SILENCE_FRAMES
+
+    with patch("routers.audio.new_vad_stream", return_value=fake_vad), \
+         patch("routers.audio._transcribe", AsyncMock(return_value="sannu")) as mock_transcribe, \
+         patch("routers.audio._llm_respond", AsyncMock(return_value="Sannu")), \
+         patch("routers.audio._synthesize_speech", return_value=None):
+        with TestClient(app).websocket_connect("/api/live") as ws:
+            ws.send_bytes(blip_bytes + silence_bytes)
+            import time as _time
+            _time.sleep(0.1)
+
+    mock_transcribe.assert_not_called()
+
+
+def test_live_endpoint_forced_cut_at_max_turn_length(monkeypatch):
+    """Continuous speech that never pauses must still eventually reach STT
+    -- the MAX_TURN_SECONDS safety valve forces a cut rather than buffering
+    forever."""
+    import json as _json
+    from unittest.mock import AsyncMock, patch
+
+    from starlette.testclient import TestClient
+
+    from main import app
+    from routers import audio as audio_router
+
+    # Force the safety valve to trip almost immediately instead of the real
+    # ~25s, so the test stays fast. Exactly 2 frames: frame 1 triggers the
+    # turn (the "not triggered yet" branch never checks the forced-cut
+    # clock), frame 2 is the first check once triggered -- with the clock
+    # forced to 0.0 that check fires immediately. Sending more continuous-
+    # speech frames after that would just trip the (now hair-trigger) forced
+    # cut repeatedly and call _handle_turn more than once, which isn't what
+    # this test is verifying.
+    fake_vad = _ScriptedFakeVAD([0.9] * 2)
+    speech_bytes = _frame(b"\x22\x22") * 2
+    monkeypatch.setattr(audio_router, "MAX_TURN_SECONDS", 0.0)
+
+    with patch("routers.audio.new_vad_stream", return_value=fake_vad), \
+         patch("routers.audio._transcribe", AsyncMock(return_value="sannu")) as mock_transcribe, \
+         patch("routers.audio._llm_respond", AsyncMock(return_value="Sannu")), \
+         patch("routers.audio._synthesize_speech", return_value=None):
+        with TestClient(app).websocket_connect("/api/live") as ws:
+            ws.send_bytes(speech_bytes)
+            msg = _json.loads(ws.receive_text())
+            assert msg["type"] == "user_transcript"
+
+    mock_transcribe.assert_called_once()
+
+
+def test_live_endpoint_falls_back_to_fixed_chunking_when_vad_unavailable():
+    """If the Silero VAD model fails to load (new_vad_stream() returns
+    None), the connection must degrade to the old fixed ~2s chunking rather
+    than going deaf -- a real, working fallback, not a crash."""
     import json as _json
     from unittest.mock import AsyncMock, patch
 
@@ -385,10 +515,46 @@ def test_live_endpoint_clears_stale_partial_buffer_on_assistant_speaking_rising_
     from main import app
     from routers.audio import CHUNK_SAMPLES
 
-    # Partial pre-reply backlog: well under the 2s threshold on its own.
-    stale_fragment = b"\x33\x33" * (CHUNK_SAMPLES // 4)
-    muted_chunk = b"\x11\x11" * CHUNK_SAMPLES  # leaked echo, sent while muted
-    real_chunk = b"\x22\x22" * CHUNK_SAMPLES  # fresh post-reply speech
+    chunk = b"\x22\x22" * CHUNK_SAMPLES
+
+    with patch("routers.audio.new_vad_stream", return_value=None), \
+         patch("routers.audio._transcribe", AsyncMock(return_value="sannu")) as mock_transcribe, \
+         patch("routers.audio._llm_respond", AsyncMock(return_value="Sannu")), \
+         patch("routers.audio._synthesize_speech", return_value=None):
+        with TestClient(app).websocket_connect("/api/live") as ws:
+            ws.send_bytes(chunk)
+            msg = _json.loads(ws.receive_text())
+            assert msg["type"] == "user_transcript"
+
+    mock_transcribe.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# /api/live -- server-side echo backstop ("the app is listening to itself"
+# bug, 2026-08-22). The client's half-duplex mic gate (App.tsx
+# toggleLiveVoice) is timing-based and can leak a bit of the assistant's own
+# TTS into the mic stream; VAD alone can't tell that apart from real speech.
+# So the client also sends an explicit
+# {"type": "assistant_speaking", "value": true/false} control frame, and the
+# server must drop any binary audio it receives while that flag is true --
+# entirely independent of whatever the client-side gate did or didn't catch.
+# ---------------------------------------------------------------------------
+
+
+def test_live_endpoint_drops_audio_while_assistant_speaking():
+    """Binary audio received between assistant_speaking:true and :false must
+    never reach the VAD / be buffered -- only audio sent while unmuted
+    should trigger a transcription."""
+    import json as _json
+    from unittest.mock import AsyncMock, patch
+
+    from starlette.testclient import TestClient
+
+    from main import app
+
+    fake_vad = _ScriptedFakeVAD(_speech_then_silence_script())
+    muted_bytes = _frame(b"\x11\x11") * (_SPEECH_FRAMES + _SILENCE_FRAMES)  # sent while assistant_speaking=true
+    real_bytes = _frame(b"\x22\x22") * _SPEECH_FRAMES + _frame(b"\x00\x00") * _SILENCE_FRAMES  # sent while unmuted
 
     seen_chunks = []
 
@@ -396,29 +562,99 @@ def test_live_endpoint_clears_stale_partial_buffer_on_assistant_speaking_rising_
         seen_chunks.append(bytes(pcm_bytes))
         return "sannu"
 
-    with patch("routers.audio._transcribe", side_effect=fake_transcribe) as mock_transcribe, \
+    with patch("routers.audio.new_vad_stream", return_value=fake_vad), \
+         patch("routers.audio._transcribe", side_effect=fake_transcribe) as mock_transcribe, \
          patch("routers.audio._llm_respond", AsyncMock(return_value="Sannu, yaya dai?")), \
          patch("routers.audio._synthesize_speech", return_value=None):
         with TestClient(app).websocket_connect("/api/live") as ws:
-            # Partial backlog arrives first -- below threshold, stays buffered.
-            ws.send_bytes(stale_fragment)
-
-            # Assistant starts speaking: this rising edge must discard the
-            # stale fragment above.
+            # Muted: flag the assistant as speaking, then send audio that
+            # WOULD complete a full turn if it reached the VAD. If dropped
+            # correctly, this must never even reach process_frame().
             ws.send_text(_json.dumps({"type": "assistant_speaking", "value": True}))
-            ws.send_bytes(muted_chunk)
+            ws.send_bytes(muted_bytes)
 
+            # Unmute, then send a real utterance -- this one must go through
+            # the whole STT -> LLM -> text-reply pipeline.
             ws.send_text(_json.dumps({"type": "assistant_speaking", "value": False}))
-            ws.send_bytes(real_chunk)
+            ws.send_bytes(real_bytes)
 
             msg = _json.loads(ws.receive_text())
             assert msg["type"] == "user_transcript"
             assert msg["data"] == "sannu"
 
-    # STT must have run exactly once, on exactly real_chunk -- NOT on
-    # stale_fragment + real_chunk (which is what the pre-fix code produced).
+            reply = _json.loads(ws.receive_text())
+            assert reply["type"] == "text"
+            assert reply["data"] == "Sannu, yaya dai?"
+
+    # STT must have run exactly once, and only on the utterance sent while
+    # unmuted -- the muted bytes must never have reached the VAD at all.
     mock_transcribe.assert_called_once()
-    assert seen_chunks == [real_chunk]
+    assert len(fake_vad.frames_seen) == _SPEECH_FRAMES + _SILENCE_FRAMES
+    assert seen_chunks == [_frame(b"\x22\x22") * _SPEECH_FRAMES]
+
+
+def test_live_endpoint_clears_stale_partial_buffer_on_assistant_speaking_rising_edge():
+    """Regression test for the real production bug behind 'still listening
+    to itself' / 'wrong transcriptions of what was said before': a partial,
+    not-yet-triggered fragment (sub-frame remainder, pre-roll lookback, or a
+    part-way-through-a-turn buffer) must NOT survive a mute cycle and get
+    stitched onto the front of the next post-reply utterance.
+
+    Sequence: some partial pre-speech audio arrives (backlog recorded while
+    the server was busy with the previous turn's STT/LLM/TTS) ->
+    assistant_speaking:true (must fully reset turn state AND the VAD's own
+    recurrent state) -> muted echo bytes (dropped) ->
+    assistant_speaking:false -> a full fresh utterance. STT must see ONLY
+    the fresh utterance, never the stale fragment prepended to it."""
+    import json as _json
+    from unittest.mock import AsyncMock, patch
+
+    from starlette.testclient import TestClient
+
+    from main import app
+
+    # Partial pre-reply backlog: a few frames of speech-probability audio
+    # that never got far enough to trigger a turn on its own.
+    fake_vad = _ScriptedFakeVAD([0.9, 0.9] + _speech_then_silence_script())
+    stale_fragment = _frame(b"\x33\x33") * 2  # backlog, sent before muting
+    muted_bytes = _frame(b"\x11\x11") * (_SPEECH_FRAMES + _SILENCE_FRAMES)  # leaked echo, sent while muted
+    real_bytes = _frame(b"\x22\x22") * _SPEECH_FRAMES + _frame(b"\x00\x00") * _SILENCE_FRAMES  # fresh post-reply speech
+
+    seen_chunks = []
+
+    async def fake_transcribe(pcm_bytes, sample_rate=16000):
+        seen_chunks.append(bytes(pcm_bytes))
+        return "sannu"
+
+    with patch("routers.audio.new_vad_stream", return_value=fake_vad), \
+         patch("routers.audio._transcribe", side_effect=fake_transcribe) as mock_transcribe, \
+         patch("routers.audio._llm_respond", AsyncMock(return_value="Sannu, yaya dai?")), \
+         patch("routers.audio._synthesize_speech", return_value=None):
+        with TestClient(app).websocket_connect("/api/live") as ws:
+            # Partial backlog arrives first -- read as speech-probability
+            # but far too short to complete a turn, stays buffered/triggered.
+            ws.send_bytes(stale_fragment)
+
+            # Assistant starts speaking: this rising edge must discard the
+            # stale fragment above AND reset the VAD's recurrent state.
+            ws.send_text(_json.dumps({"type": "assistant_speaking", "value": True}))
+            ws.send_bytes(muted_bytes)
+
+            ws.send_text(_json.dumps({"type": "assistant_speaking", "value": False}))
+            ws.send_bytes(real_bytes)
+
+            msg = _json.loads(ws.receive_text())
+            assert msg["type"] == "user_transcript"
+            assert msg["data"] == "sannu"
+
+    # STT must have run exactly once, on exactly the fresh utterance -- NOT
+    # on stale_fragment + real_bytes (which is what the pre-fix bug would
+    # have produced at the raw-buffer layer).
+    mock_transcribe.assert_called_once()
+    assert seen_chunks == [_frame(b"\x22\x22") * _SPEECH_FRAMES]
+    # The VAD's own reset_states() must have been called on the rising edge
+    # -- not just the raw byte buffers cleared.
+    assert fake_vad.reset_calls >= 1
 
 
 def test_live_endpoint_assistant_speaking_flag_has_a_safety_timeout(monkeypatch):
@@ -431,23 +667,24 @@ def test_live_endpoint_assistant_speaking_flag_has_a_safety_timeout(monkeypatch)
 
     from main import app
     from routers import audio as audio_router
-    from routers.audio import CHUNK_SAMPLES
 
     # Force the safety valve to trip almost immediately instead of waiting
     # the real 15s, so the test stays fast.
     monkeypatch.setattr(audio_router, "_ASSISTANT_SPEAKING_MAX_S", 0.0)
 
-    chunk = b"\x22\x22" * CHUNK_SAMPLES
+    fake_vad = _ScriptedFakeVAD(_speech_then_silence_script())
+    turn_bytes = _frame(b"\x22\x22") * _SPEECH_FRAMES + _frame(b"\x00\x00") * _SILENCE_FRAMES
 
-    with patch("routers.audio._transcribe", AsyncMock(return_value="sannu")) as mock_transcribe, \
+    with patch("routers.audio.new_vad_stream", return_value=fake_vad), \
+         patch("routers.audio._transcribe", AsyncMock(return_value="sannu")) as mock_transcribe, \
          patch("routers.audio._llm_respond", AsyncMock(return_value="Sannu, yaya dai?")), \
          patch("routers.audio._synthesize_speech", return_value=None):
         with TestClient(app).websocket_connect("/api/live") as ws:
             ws.send_text(_json.dumps({"type": "assistant_speaking", "value": True}))
-            # With max age forced to 0.0, this chunk is already "stale" by
+            # With max age forced to 0.0, this audio is already "stale" by
             # the time it's checked, so it must be let through rather than
             # dropped forever.
-            ws.send_bytes(chunk)
+            ws.send_bytes(turn_bytes)
 
             msg = _json.loads(ws.receive_text())
             assert msg["type"] == "user_transcript"

@@ -8,10 +8,14 @@ Protocol (mirrors the original geminiService.ts connectLive usage):
                     JSON  {"type": "error", "data": "<message>"}
 
 Pipeline:
-  1. Accumulate ~2 s of incoming PCM (32 000 samples at 16 kHz)
-  2. faster-whisper STT → Hausa transcript
-  3. Ollama chat (same model as /api/chat) → response text
-  4. Piper TTS → PCM at 24 kHz
+  1. Feed incoming PCM through Silero VAD (services/vad_service.py) frame by
+     frame (512 samples/32 ms at 16 kHz) and accumulate the FULL variable-
+     length utterance until sustained trailing silence confirms the user is
+     done talking (see _TurnState below) — NOT a fixed-duration timer.
+  2. faster-whisper (or Cloudflare STT) → Hausa transcript
+  3. Cerebras/Groq/Ollama/Gemini chat (same fallback chain as /api/chat) →
+     response text
+  4. VITS/Piper TTS → PCM at 24 kHz
   5. Send PCM chunks back as base64
 """
 
@@ -34,6 +38,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Response, HTTPExc
 from rate_limit import limiter
 from routers.fallback import generate_fallback_response
 from services.cloudflare_stt_service import cloudflare_stt_enabled, transcribe_via_cloudflare
+from services.vad_service import FRAME_MS, WINDOW_SIZE_SAMPLES, new_vad_stream
 import corrections_store
 
 router = APIRouter()
@@ -65,8 +70,69 @@ else:
     # Ensure env-specified directory exists
     Path(PIPER_MODELS_DIR).mkdir(parents=True, exist_ok=True)
 
-# How many 16 kHz PCM samples to accumulate before running STT (~2 s)
+# FALLBACK ONLY: fixed-duration chunk size used exclusively when the Silero
+# VAD model fails to load (see services/vad_service.py's new_vad_stream()
+# returning None). Real turn detection below is variable-length, driven by
+# actual trailing silence — this constant no longer governs the normal path.
 CHUNK_SAMPLES = 32_000
+
+# ---------------------------------------------------------------------------
+# VAD-driven turn detection tuning
+# ---------------------------------------------------------------------------
+# Speech/silence hysteresis. 0.5 is Silero's own recommended default entry
+# threshold; the exit threshold uses their documented neg_threshold formula
+# (threshold - 0.15) rather than a plain 0.5 in both directions -- a single
+# shared 0.5 cutoff makes a probability that hovers right at the boundary
+# (very common with real mic audio, unlike the clean synthetic tones models
+# are usually demoed on) flap rapidly between "speech" and "silence" every
+# other 32 ms frame, which would fragment single utterances into many
+# spurious short turns. The gap between the two thresholds is deliberately
+# "sticky": once triggered by a strong (>=0.5) frame, only a clearly weak
+# (<0.35) frame counts toward silence; anything in between just holds the
+# current state rather than resetting or advancing it.
+VAD_SPEECH_THRESHOLD = float(os.getenv("VAD_SPEECH_THRESHOLD", "0.5"))
+VAD_SILENCE_THRESHOLD = float(os.getenv("VAD_SILENCE_THRESHOLD", "0.35"))
+
+# How long continuous trailing silence must last after speech before a turn
+# is considered complete and handed to STT. Chosen from the 600-700ms range
+# production voice agents (LiveKit Agents, Pipecat) typically tune
+# end-of-turn silence to: short enough that a call doesn't feel like it's
+# hanging after the user stops talking, long enough to survive the natural
+# pauses inside a single sentence (a breath, searching for a word) without
+# chopping it into multiple turns. 700ms (the upper end of that range) is
+# chosen deliberately over something shorter like 500ms because the
+# founder's own complaint was the OPPOSITE failure mode (cut off mid-
+# thought) -- erring slightly toward patience here directly targets that
+# regression, at the cost of a slightly less snappy turnaround, which is the
+# right trade for this bug.
+VAD_TRAILING_SILENCE_MS = float(os.getenv("VAD_TRAILING_SILENCE_MS", "700"))
+
+# A confirmed-speech run shorter than this before trailing silence closes
+# the turn is treated as a noise blip (a cough, a mic bump) rather than an
+# utterance worth transcribing -- mirrors Silero's own
+# get_speech_timestamps' min_speech_duration_ms=250 default.
+VAD_MIN_SPEECH_MS = float(os.getenv("VAD_MIN_SPEECH_MS", "250"))
+
+# Rolling pre-speech lookback kept at all times while NOT triggered, and
+# spliced onto the front of a new turn the instant speech is detected. VAD
+# onset has an inherent ~1-2 frame (32-64ms) detection lag -- without this,
+# the model's own trigger latency would consistently clip the very first
+# syllable of every utterance, which is a real, previously-reported symptom
+# ("misunderstands him") this whole redesign is meant to fix, not
+# reintroduce in a new form. 300ms is generous padding relative to that
+# lag.
+VAD_PRE_ROLL_MS = float(os.getenv("VAD_PRE_ROLL_MS", "300"))
+
+# Safety cap so a stuck VAD state (or someone genuinely talking
+# continuously) can't buffer forever without ever triggering STT. Mirrors
+# the existing _ASSISTANT_SPEAKING_MAX_S safety-valve pattern below. 25s
+# sits in the middle of the 20-30s range: long enough that ordinary
+# sentences/answers never hit it, short enough that a stuck session
+# recovers well within the length of a normal conversational turn.
+MAX_TURN_SECONDS = float(os.getenv("MAX_TURN_SECONDS", "25.0"))
+
+_FRAME_BYTES = WINDOW_SIZE_SAMPLES * 2  # 512 samples * 2 bytes/sample (PCM-16)
+_PRE_ROLL_BYTES = int(VAD_PRE_ROLL_MS / FRAME_MS) * _FRAME_BYTES
 
 # Loudness normalization target for ALL served TTS. Raw model output has no
 # normalization — RMS swings ~-11.5..-14.5 dBFS and peaks hit 0 dBFS
@@ -767,6 +833,43 @@ _MAX_LIVE_CONNECTIONS_PER_IP = int(os.getenv("MAX_LIVE_CONNECTIONS_PER_IP", "2")
 _live_connections_by_ip: dict[str, int] = {}
 
 
+class _TurnState:
+    """Per-connection VAD turn accumulator. One instance lives for the whole
+    WebSocket connection.
+
+    reset_turn() runs after every completed utterance (keeps pre_roll/
+    raw_leftover intact so framing and lookback padding carry smoothly into
+    the next turn). reset_all() runs at connection start AND on every
+    assistant_speaking false->true rising edge, so no audio -- not even a
+    sub-frame remainder or the pre-roll lookback -- survives across that
+    boundary (the same guarantee the old pcm_buffer.clear() gave, extended
+    to cover the new buffers)."""
+
+    __slots__ = (
+        "raw_leftover", "pre_roll", "triggered", "turn_buffer",
+        "silence_run_ms", "last_speech_end_len", "speech_ms_accum",
+        "turn_started_at",
+    )
+
+    def __init__(self) -> None:
+        self.raw_leftover = bytearray()
+        self.pre_roll = bytearray()
+        self.reset_turn()
+
+    def reset_turn(self) -> None:
+        self.triggered = False
+        self.turn_buffer = bytearray()
+        self.silence_run_ms = 0.0
+        self.last_speech_end_len = 0
+        self.speech_ms_accum = 0.0
+        self.turn_started_at = 0.0
+
+    def reset_all(self) -> None:
+        self.raw_leftover = bytearray()
+        self.pre_roll = bytearray()
+        self.reset_turn()
+
+
 @router.websocket("/live")
 async def live_endpoint(ws: WebSocket, speaker_id: int = 0, addressee_gender: str = "unspecified"):
     if addressee_gender not in ("masculine", "feminine", "unspecified"):
@@ -779,8 +882,24 @@ async def live_endpoint(ws: WebSocket, speaker_id: int = 0, addressee_gender: st
 
     await ws.accept()
     _live_connections_by_ip[client_ip] = _live_connections_by_ip.get(client_ip, 0) + 1
-    pcm_buffer = bytearray()
     conversation_history: list[dict] = []
+
+    # Real, variable-length turn detection: each connection gets its own
+    # SileroVAD stream (shared ONNX session, private recurrent state -- see
+    # services/vad_service.py) and its own _TurnState accumulator. If the
+    # model failed to load process-wide, new_vad_stream() returns None and
+    # this connection degrades to the OLD fixed ~2s chunking below rather
+    # than going deaf -- a real, logged fallback, not a silent lie about VAD
+    # running when it isn't.
+    vad_stream = new_vad_stream()
+    using_vad = vad_stream is not None
+    if not using_vad:
+        logger.warning(
+            "Silero VAD unavailable for this /api/live connection -- "
+            "falling back to fixed-duration (~2s) chunking for turn detection."
+        )
+    turn = _TurnState()
+    pcm_buffer = bytearray()  # only used by the fixed-chunk fallback path
 
     # Server-side echo backstop ("the app is listening to itself" bug): the
     # client's half-duplex mic gate (App.tsx toggleLiveVoice) is the primary
@@ -798,6 +917,57 @@ async def live_endpoint(ws: WebSocket, speaker_id: int = 0, addressee_gender: st
     # the client's own gate did or didn't catch.
     assistant_speaking = False
     assistant_speaking_since: float | None = None
+
+    async def _handle_turn(pcm_bytes: bytes) -> None:
+        """Run one complete utterance through STT -> LLM -> TTS and reply.
+        Shared by both the VAD path and the fixed-chunk fallback."""
+        # 1. STT. On failure, SKIP the turn — never substitute an invented
+        # transcript. The old fallback ("Sannu barka") made the assistant
+        # answer speech the user never said, which (with the client's
+        # half-duplex mic gate active during playback) locked live sessions
+        # into a self-talk loop the real user couldn't interrupt.
+        try:
+            transcript = await _transcribe(pcm_bytes)
+        except Exception:
+            logger.exception("STT failed; skipping this turn")
+            return
+
+        if not transcript:
+            return
+
+        await ws.send_text(json.dumps({"type": "user_transcript", "data": transcript}))
+
+        # 2. LLM
+        try:
+            reply_text = await _llm_respond(transcript, conversation_history, addressee_gender)
+        except Exception:
+            logger.exception("LLM failed, using fallback response")
+            reply_text = generate_fallback_response(transcript, addressee_gender=addressee_gender)
+
+        conversation_history.append({"role": "user", "content": transcript})
+        conversation_history.append({"role": "assistant", "content": reply_text})
+
+        # Always send text reply so the UI can display it
+        from orthography import normalize_hausa_orthography, apply_tonal_heuristics
+        normalized = normalize_hausa_orthography(reply_text)
+        tone_mapped = apply_tonal_heuristics(reply_text)
+        await ws.send_text(json.dumps({
+            "type": "text",
+            "data": reply_text,
+            "normalized": normalized,
+            "tone_mapped": tone_mapped
+        }))
+
+        # 3. TTS → send PCM back if available
+        try:
+            pcm_out = await asyncio.get_event_loop().run_in_executor(
+                None, _synthesize_speech, reply_text, speaker_id
+            )
+            if pcm_out:
+                b64 = base64.b64encode(pcm_out).decode()
+                await ws.send_text(json.dumps({"type": "audio", "data": b64}))
+        except Exception:
+            logger.exception("TTS failed")
 
     try:
         while True:
@@ -822,25 +992,32 @@ async def live_endpoint(ws: WebSocket, speaker_id: int = 0, addressee_gender: st
                 if isinstance(control, dict) and control.get("type") == "assistant_speaking":
                     speaking = bool(control.get("value"))
                     if speaking and not assistant_speaking:
-                        # Rising edge: discard whatever partial (<2s) audio is
-                        # already sitting in pcm_buffer. That leftover is
+                        # Rising edge: discard every buffer of not-yet-
+                        # transcribed audio, at every layer. That leftover is
                         # legitimate pre-reply audio (recorded while the
                         # server was busy doing STT/LLM/TTS for the previous
-                        # turn and never reached the chunk threshold) -- but
-                        # if it survives, it sits untouched through the whole
-                        # muted window (bytes arriving while muted are
-                        # dropped, never appended) and then gets STITCHED
-                        # onto the front of the next post-reply audio once
-                        # unmuted, once that combined buffer finally reaches
-                        # CHUNK_SAMPLES. STT then runs on a buffer that
+                        # turn) -- but if it survives, it sits untouched
+                        # through the whole muted window (bytes arriving
+                        # while muted are dropped, never appended) and then
+                        # gets STITCHED onto the front of the next post-reply
+                        # audio once unmuted. STT then runs on a buffer that
                         # spans a turn boundary: part stale pre-reply audio,
                         # part fresh post-reply speech, in one Whisper call.
                         # That produces exactly the garbled/mixed transcript
                         # symptom reported in production ("wrong
                         # transcriptions of what have been said before").
                         # Clearing here guarantees every chunk handed to STT
-                        # starts fresh at a turn boundary.
+                        # starts fresh at a turn boundary -- this now covers
+                        # not just pcm_buffer (fallback path) but the VAD
+                        # path's turn_buffer/pre_roll/raw_leftover AND the
+                        # VAD's own recurrent state/context, which could
+                        # otherwise carry a biased "recent audio" memory of
+                        # the leaked echo across the boundary even with the
+                        # raw bytes discarded.
                         pcm_buffer.clear()
+                        turn.reset_all()
+                        if vad_stream is not None:
+                            vad_stream.reset_states()
                     assistant_speaking = speaking
                     assistant_speaking_since = time.monotonic() if speaking else None
                 continue
@@ -860,66 +1037,99 @@ async def live_endpoint(ws: WebSocket, speaker_id: int = 0, addressee_gender: st
                 else:
                     # Drop it outright rather than buffering it — a leaked
                     # fragment must not survive to be merged into the next
-                    # legitimate ~2s chunk once the flag clears.
+                    # legitimate turn once the flag clears.
                     continue
 
-            pcm_buffer.extend(data)
-
-            # Process when we have ~2 s worth of audio
-            if len(pcm_buffer) < CHUNK_SAMPLES * 2:  # 2 bytes per sample
+            if not using_vad:
+                # Fallback: original fixed ~2s chunking.
+                pcm_buffer.extend(data)
+                if len(pcm_buffer) < CHUNK_SAMPLES * 2:  # 2 bytes per sample
+                    continue
+                chunk = bytes(pcm_buffer)
+                pcm_buffer.clear()
+                await _handle_turn(chunk)
                 continue
 
-            chunk = bytes(pcm_buffer)
-            pcm_buffer.clear()
+            # VAD path: sub-chunk whatever arrived into exact 512-sample
+            # (32 ms) frames -- the browser sends 4096-sample frames (see
+            # App.tsx's scriptProcessor), which never divides evenly into
+            # Silero's fixed window, so a remainder always carries over.
+            turn.raw_leftover.extend(data)
+            while len(turn.raw_leftover) >= _FRAME_BYTES:
+                frame_bytes = bytes(turn.raw_leftover[:_FRAME_BYTES])
+                del turn.raw_leftover[:_FRAME_BYTES]
 
-            # 1. STT. On failure, SKIP the turn — never substitute an
-            # invented transcript. The old fallback ("Sannu barka") made
-            # the assistant answer speech the user never said, which (with
-            # the client's half-duplex mic gate active during playback)
-            # locked live sessions into a self-talk loop the real user
-            # couldn't interrupt.
-            try:
-                transcript = await _transcribe(chunk)
-            except Exception:
-                logger.exception("STT failed; skipping this audio chunk")
-                continue
+                prob = vad_stream.process_frame(_pcm_bytes_to_float32(frame_bytes))
+                is_speech = prob >= VAD_SPEECH_THRESHOLD
+                is_silence = prob < VAD_SILENCE_THRESHOLD
 
-            if not transcript:
-                continue
+                if not turn.triggered:
+                    if is_speech:
+                        # Trigger: seed the turn with the pre-roll lookback
+                        # (past frames only -- NOT this one, it goes in
+                        # exactly once, below) so the instant we DO trigger,
+                        # we splice prior audio onto the front of the turn.
+                        # VAD onset has an inherent ~1-2 frame detection lag
+                        # that would otherwise consistently clip the first
+                        # syllable of every utterance.
+                        turn.triggered = True
+                        turn.turn_buffer = bytearray(turn.pre_roll)
+                        turn.turn_buffer.extend(frame_bytes)
+                        turn.last_speech_end_len = len(turn.turn_buffer)
+                        turn.speech_ms_accum = FRAME_MS
+                        turn.silence_run_ms = 0.0
+                        turn.turn_started_at = time.monotonic()
+                    else:
+                        # Still not triggered: keep rolling the pre-speech
+                        # lookback buffer forward.
+                        turn.pre_roll.extend(frame_bytes)
+                        overflow = len(turn.pre_roll) - _PRE_ROLL_BYTES
+                        if overflow > 0:
+                            del turn.pre_roll[:overflow]
+                    continue
 
-            await ws.send_text(json.dumps({"type": "user_transcript", "data": transcript}))
+                # Triggered: accumulate every frame -- speech or silence --
+                # until the turn ends; STT needs the silence gaps too (a
+                # mid-sentence pause is not a turn boundary).
+                turn.turn_buffer.extend(frame_bytes)
+                if is_speech:
+                    turn.silence_run_ms = 0.0
+                    turn.last_speech_end_len = len(turn.turn_buffer)
+                    turn.speech_ms_accum += FRAME_MS
+                elif is_silence:
+                    turn.silence_run_ms += FRAME_MS
+                # else: ambiguous zone (VAD_SILENCE_THRESHOLD <= prob <
+                # VAD_SPEECH_THRESHOLD) -- hold, neither confirms more
+                # speech nor advances the silence timer. Avoids a
+                # borderline-probability frame flapping the state.
 
-            # 2. LLM
-            try:
-                reply_text = await _llm_respond(transcript, conversation_history, addressee_gender)
-            except Exception as exc:
-                logger.exception("LLM failed, using fallback response")
-                reply_text = generate_fallback_response(transcript, addressee_gender=addressee_gender)
+                natural_end = turn.silence_run_ms >= VAD_TRAILING_SILENCE_MS
+                forced_cut = (time.monotonic() - turn.turn_started_at) >= MAX_TURN_SECONDS
+                if not (natural_end or forced_cut):
+                    continue
 
-            conversation_history.append({"role": "user", "content": transcript})
-            conversation_history.append({"role": "assistant", "content": reply_text})
+                if natural_end and turn.last_speech_end_len:
+                    # Trim the confirmed trailing-silence tail before
+                    # handing to STT -- it's guaranteed non-speech, and
+                    # trimming it here keeps Cloudflare STT (which, unlike
+                    # local faster-whisper's vad_filter=True, has no VAD
+                    # trimming of its own) consistent with the local path.
+                    utterance = bytes(turn.turn_buffer[:turn.last_speech_end_len])
+                else:
+                    # Forced cut mid-speech: nothing confirmed-silent to
+                    # trim yet -- hand over everything accumulated so far.
+                    utterance = bytes(turn.turn_buffer)
 
-            # Always send text reply so the UI can display it
-            from orthography import normalize_hausa_orthography, apply_tonal_heuristics
-            normalized = normalize_hausa_orthography(reply_text)
-            tone_mapped = apply_tonal_heuristics(reply_text)
-            await ws.send_text(json.dumps({
-                "type": "text",
-                "data": reply_text,
-                "normalized": normalized,
-                "tone_mapped": tone_mapped
-            }))
+                long_enough = turn.speech_ms_accum >= VAD_MIN_SPEECH_MS
+                turn.reset_turn()
 
-            # 3. TTS → send PCM back if available
-            try:
-                pcm_out = await asyncio.get_event_loop().run_in_executor(
-                    None, _synthesize_speech, reply_text, speaker_id
-                )
-                if pcm_out:
-                    b64 = base64.b64encode(pcm_out).decode()
-                    await ws.send_text(json.dumps({"type": "audio", "data": b64}))
-            except Exception as exc:
-                logger.exception("TTS failed")
+                if not long_enough and not forced_cut:
+                    # Too short to be real speech (a cough, a mic bump) --
+                    # discard silently rather than paying for a doomed STT
+                    # call, same spirit as the RMS gate discarding silence.
+                    continue
+
+                await _handle_turn(utterance)
 
     except WebSocketDisconnect:
         logger.info("Live session disconnected")
