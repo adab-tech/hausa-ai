@@ -505,6 +505,35 @@ def test_tools_context_none_for_plain_chat():
     assert _tools_context("Barka da yamma, yaya gida?") is None
 
 
+def test_define_re_skips_kalmar_filler_word():
+    """'ma'anar kalmar X' ('the meaning of the WORD X') must extract X, not
+    the filler word 'kalmar' ('word') itself -- a real bug found live in
+    production: the dictionary tool was searching for the literal word
+    "kalmar" (which has no entry) instead of the actual target term, so
+    real dictionary-grounded answers silently never fired for this very
+    common phrasing."""
+    from routers.chat import _DEFINE_RE
+
+    assert _DEFINE_RE.search("me ma'anar kalmar ƙasa?").group(1) == "ƙasa"
+    assert _DEFINE_RE.search("ma'anar ƙasa").group(1) == "ƙasa"
+    assert _DEFINE_RE.search("what does the word ƙasa mean").group(1) == "ƙasa"
+    assert _DEFINE_RE.search("what does ƙasa mean").group(1) == "ƙasa"
+    assert _DEFINE_RE.search("define the term aboki").group(1) == "aboki"
+
+
+def test_tools_context_dictionary_lookup():
+    """A 'ma'anar kalmar X' question yields a DICTIONARY block citing a real
+    source for a word actually in the loaded lexicon."""
+    from routers.chat import _tools_context
+    from services import dictionary_service
+
+    if not dictionary_service.dictionary_ready():
+        pytest.skip("dictionary lexicon not available in this environment")
+
+    ctx = _tools_context("me ma'anar kalmar ruwa?")
+    assert ctx is not None and "DICTIONARY 'ruwa'" in ctx
+
+
 @pytest.mark.anyio
 async def test_calculator_grounding_reaches_model(client):
     """The exact calculation must land in the system prompt the model sees."""

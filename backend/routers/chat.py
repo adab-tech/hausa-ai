@@ -276,8 +276,14 @@ _MATH_TOKEN_RE = re.compile(
     re.IGNORECASE,
 )
 _DEFINE_RE = re.compile(
+    # "ma'anar kalmar ƙasa" ("the meaning of the WORD ƙasa") is a very common
+    # phrasing — without the optional filler group below, this captured
+    # "kalmar" (Hausa for "word") itself as the search term instead of the
+    # actual target that follows it. Same bug for English "what does the
+    # word/term X mean". The filler is optional so plain "ma'anar ƙasa" /
+    # "what does ƙasa mean" (no filler word) still match as before.
     r"(?:ma'?anar|mene ne kalmar|menene kalmar|fassara|define|translate|"
-    r"meaning of|what does)\s+[\"']?([\wɓɗƙƴ']+)",
+    r"meaning of|what does)\s+(?:kalmar?|the\s+(?:word|term))?\s*[\"']?([\wɓɗƙƴ']+)",
     re.IGNORECASE,
 )
 _SOURCE_LABEL = {
