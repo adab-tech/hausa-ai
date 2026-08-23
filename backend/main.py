@@ -218,49 +218,16 @@ async def health():
 
 
 # ---------------------------------------------------------------------------
-# Serve static frontend files (Single-Container Deployment)
+# This is an API-only server — the real frontend is app.murya.ng (Vercel),
+# not anything bundled here. Redirect a bare visit to the root there instead
+# of serving a stale lookalike copy or a raw {"detail":"Not Found"}. Locally,
+# FRONTEND_DEV_URL isn't set, so this falls back to the Vite dev server.
 # ---------------------------------------------------------------------------
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, RedirectResponse
-from fastapi import HTTPException
+from fastapi.responses import RedirectResponse
 
-# Path to the compiled React build (dist folder)
-_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-_DIST_DIR = os.path.join(_BASE_DIR, "dist")
+_FRONTEND_DEV_URL = os.getenv("FRONTEND_DEV_URL", "http://localhost:3000")
 
-if os.path.exists(_DIST_DIR):
-    # Mount assets folder for bundle resources (JS/CSS/images)
-    _assets_dir = os.path.join(_DIST_DIR, "assets")
-    if os.path.exists(_assets_dir):
-        app.mount("/assets", StaticFiles(directory=_assets_dir), name="assets")
-    
-    # Mount main banner at root level
-    @app.get("/hausa_ai_banner.png")
-    async def serve_banner():
-        dist_banner = os.path.join(_DIST_DIR, "hausa_ai_banner.png")
-        if os.path.exists(dist_banner):
-            return FileResponse(dist_banner)
-        workspace_banner = os.path.join(os.path.dirname(_BASE_DIR), "hausa_ai_banner.png")
-        if os.path.exists(workspace_banner):
-            return FileResponse(workspace_banner)
-        raise HTTPException(status_code=404, detail="Banner not found")
 
-    # Serve index.html for root and SPA routing fallbacks
-    @app.get("/{fallback_path:path}")
-    async def spa_fallback(fallback_path: str):
-        if fallback_path.startswith("api/") or fallback_path == "health":
-            raise HTTPException(status_code=404, detail="Not Found")
-            
-        index_file = os.path.join(_DIST_DIR, "index.html")
-        if os.path.exists(index_file):
-            return FileResponse(index_file)
-        raise HTTPException(status_code=404, detail="Frontend build missing")
-else:
-    # Dev mode: no compiled frontend is bundled with the backend, so the app is
-    # served by the Vite dev server. Redirect the bare API root there instead of
-    # returning a raw {"detail":"Not Found"} 404.
-    _FRONTEND_DEV_URL = os.getenv("FRONTEND_DEV_URL", "http://localhost:3000")
-
-    @app.get("/")
-    async def _dev_root_redirect():
-        return RedirectResponse(url=_FRONTEND_DEV_URL)
+@app.get("/")
+async def root_redirect():
+    return RedirectResponse(url=_FRONTEND_DEV_URL)

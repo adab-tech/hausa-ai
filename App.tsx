@@ -15,7 +15,7 @@ import { LiveCallPanel } from './components/LiveCallPanel.tsx';
 import { InputConsole } from './components/InputConsole.tsx';
 import { MessageItem, AXIOM_PHRASES } from './components/MessageItem.tsx';
 import { decodeAudioData, decode, createBlob, makeAudioContext, resampleLinear } from './utils/audio.ts';
-import { Menu, Compass } from 'lucide-react';
+import { Menu } from 'lucide-react';
 
 const App: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -23,8 +23,11 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isLiveActive, setIsLiveActive] = useState(false);
   const [showReview, setShowReview] = useState(false);
-  const [vibe, setVibe] = useState<SovereignVibe>('Classic');
-  const [showVibeDial, setShowVibeDial] = useState(false);
+  // Always Classic — the client-facing app doesn't expose a protocol/vibe
+  // switcher (removed 2026-08-23: English mode names like "Royal"/
+  // "Cyberpunk" didn't fit a Hausa-first product). The type/CSS machinery
+  // stays in place for AdminPanel.tsx and possible future internal use.
+  const [vibe] = useState<SovereignVibe>('Classic');
   const [addresseeGender, setAddresseeGenderState] = useState<AddresseeGender>(() => {
     const stored = localStorage.getItem('hausa_ai_addressee_gender');
     return stored === 'masculine' || stored === 'feminine' ? stored : 'unspecified';
@@ -406,10 +409,6 @@ const App: React.FC = () => {
         setSidebarOpen={setSidebarOpen}
         isLoading={isLoading}
         isLiveActive={isLiveActive}
-        vibe={vibe}
-        setVibe={setVibe}
-        showVibeDial={showVibeDial}
-        setShowVibeDial={setShowVibeDial}
         speakerId={speakerId}
         setSpeakerId={setSpeakerId}
         showSpeakerDial={showSpeakerDial}
@@ -463,11 +462,6 @@ const App: React.FC = () => {
             <div className="hidden sm:flex items-center gap-1" title={BACKEND_URL}>
               <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
               <span>Server: {backendHost}</span>
-            </div>
-            <span className="hidden sm:inline">|</span>
-            <div className="flex items-center gap-1 font-sans font-bold uppercase tracking-wider text-dyn-accent">
-              <Compass className="w-3.5 h-3.5" />
-              <span>{vibe} Mode</span>
             </div>
           </div>
         </header>

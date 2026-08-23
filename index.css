@@ -43,38 +43,43 @@
 }
 
 :root {
-  /* Default Theme: Classic Vibe */
-  --bg-primary: #030303;
-  --bg-secondary: #080808;
-  --bg-tertiary: #101010;
-  --accent-color: #D4AF37;
-  --accent-gold-rgb: 212, 175, 55;
-  --text-primary: #FCFCF9;
-  --text-secondary: rgba(252, 252, 249, 0.6);
-  --text-muted: rgba(252, 252, 249, 0.45);
-  --border-color: rgba(212, 175, 55, 0.12);
-  --bubble-bg: linear-gradient(165deg, rgba(12, 12, 12, 0.95) 0%, rgba(5, 5, 5, 1) 100%);
-  --bg-glass: rgba(10, 10, 10, 0.7);
-  --glow-color: rgba(212, 175, 55, 0.3);
-  --accent-glow: 0 0 20px rgba(212, 175, 55, 0.1);
+  /* Murya's one and only client-facing look: a permanent blend of the old
+     "Classic" (near-black, true gold) and "Royal" (velvet indigo, champagne
+     gold) vibes — richer than plain Classic, without asking anyone to pick
+     or switch a "mode". Royal/Cyberpunk/Academic stay defined below as
+     dormant CSS, reserved for admin/internal tooling (see AdminPanel.tsx,
+     which already hardcodes vibe-classic on its own). */
+  --bg-primary: #05040a;
+  --bg-secondary: #0a0812;
+  --bg-tertiary: #15101f;
+  --accent-color: #E4CA75;
+  --accent-gold-rgb: 228, 202, 117;
+  --text-primary: #FDFDFA;
+  --text-secondary: rgba(253, 253, 250, 0.65);
+  --text-muted: rgba(253, 253, 250, 0.45);
+  --border-color: rgba(228, 202, 117, 0.15);
+  --bubble-bg: linear-gradient(165deg, rgba(17, 15, 34, 0.95) 0%, rgba(8, 6, 19, 1) 100%);
+  --bg-glass: rgba(14, 12, 28, 0.72);
+  --glow-color: rgba(228, 202, 117, 0.35);
+  --accent-glow: 0 0 22px rgba(228, 202, 117, 0.18);
   --font-family-main: "Inter", sans-serif;
   --font-family-serif: "Instrument Serif", serif;
 }
 
 .vibe-classic {
-  --bg-primary: #030303;
-  --bg-secondary: #080808;
-  --bg-tertiary: #101010;
-  --accent-color: #D4AF37;
-  --accent-gold-rgb: 212, 175, 55;
-  --text-primary: #FCFCF9;
-  --text-secondary: rgba(252, 252, 249, 0.6);
-  --text-muted: rgba(252, 252, 249, 0.45);
-  --border-color: rgba(212, 175, 55, 0.12);
-  --bubble-bg: linear-gradient(165deg, rgba(12, 12, 12, 0.95) 0%, rgba(5, 5, 5, 1) 100%);
-  --bg-glass: rgba(10, 10, 10, 0.7);
-  --glow-color: rgba(212, 175, 55, 0.3);
-  --accent-glow: 0 0 20px rgba(212, 175, 55, 0.15);
+  --bg-primary: #05040a;
+  --bg-secondary: #0a0812;
+  --bg-tertiary: #15101f;
+  --accent-color: #E4CA75;
+  --accent-gold-rgb: 228, 202, 117;
+  --text-primary: #FDFDFA;
+  --text-secondary: rgba(253, 253, 250, 0.65);
+  --text-muted: rgba(253, 253, 250, 0.45);
+  --border-color: rgba(228, 202, 117, 0.15);
+  --bubble-bg: linear-gradient(165deg, rgba(17, 15, 34, 0.95) 0%, rgba(8, 6, 19, 1) 100%);
+  --bg-glass: rgba(14, 12, 28, 0.72);
+  --glow-color: rgba(228, 202, 117, 0.35);
+  --accent-glow: 0 0 22px rgba(228, 202, 117, 0.18);
   --font-family-main: "Inter", sans-serif;
   --font-family-serif: "Instrument Serif", serif;
 }

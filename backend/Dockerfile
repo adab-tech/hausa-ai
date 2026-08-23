@@ -1,26 +1,10 @@
 # ==========================================
-# Stage 1: Build the React/Vite Frontend
+# Build the FastAPI Backend
 # ==========================================
-FROM node:20-slim AS frontend-builder
-WORKDIR /build
-
-# Copy frontend package manifests first to leverage Docker cache
-COPY package*.json ./
-RUN npm ci
-
-# Copy all required frontend source files
-COPY tsconfig.json vite.config.ts index.html index.css index.tsx App.tsx types.ts ./
-COPY components/ ./components/
-COPY services/ ./services/
-COPY utils/ ./utils/
-COPY hausa_ai_banner.png ./hausa_ai_banner.png
-
-# Build static assets (generates /build/dist)
-RUN npm run build
-
-# ==========================================
-# Stage 2: Build the FastAPI Backend
-# ==========================================
+# API-only image — the real frontend is app.murya.ng, deployed separately
+# on Vercel. This used to also build and bundle the React frontend for a
+# single-container deploy, but that made api.murya.ng serve a second, stale
+# copy of the app at "/", confusingly indistinguishable from the real one.
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -75,9 +59,6 @@ ENV VITS_MODEL_DIR=/app/models/piper_hausa_waxal
 COPY data/processed/robinson/en_ha_pairs.jsonl /app/dictionaries/robinson/en_ha_pairs.jsonl
 COPY data/processed/hausa_en_open/ha_en_pairs.jsonl /app/dictionaries/hausa_en_open/ha_en_pairs.jsonl
 COPY data/processed/newman_1977/ha_en_pairs_merged.jsonl /app/dictionaries/newman_1977/ha_en_pairs_merged.jsonl
-
-# Copy compiled frontend from Stage 1 into the backend container
-COPY --from=frontend-builder /build/dist ./dist
 
 RUN chmod +x /app/start.sh
 

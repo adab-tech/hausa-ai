@@ -1,9 +1,9 @@
 import React from 'react';
-import { SovereignVibe, AddresseeGender } from '../types.ts';
+import { AddresseeGender } from '../types.ts';
 import { ArewaLogo } from './ArewaLogo.tsx';
 import {
-  Sliders, Volume2, ChevronRight, Activity, BookOpen, Cpu, X, Trash2, UserCircle2,
-  Gem, Crown, Zap, GraduationCap, Mic2, Mars, Venus, CircleDashed, CircleCheck, Languages,
+  Volume2, ChevronRight, Activity, BookOpen, Cpu, X, Trash2, UserCircle2,
+  GraduationCap, Mic2, Mars, Venus, CircleDashed, CircleCheck, Languages,
   MessageSquarePlus,
 } from 'lucide-react';
 
@@ -12,10 +12,6 @@ interface SidebarProps {
   setSidebarOpen: (open: boolean) => void;
   isLoading: boolean;
   isLiveActive: boolean;
-  vibe: SovereignVibe;
-  setVibe: (v: SovereignVibe) => void;
-  showVibeDial: boolean;
-  setShowVibeDial: (v: boolean) => void;
   speakerId: number | null;
   setSpeakerId: (id: number | null) => void;
   showSpeakerDial: boolean;
@@ -47,17 +43,6 @@ const ADDRESSEE_ICONS: Record<AddresseeGender, React.ElementType> = {
   masculine: Mars,
   feminine: Venus,
 };
-
-const VIBE_META: Record<SovereignVibe, { icon: React.ElementType; blurb: string }> = {
-  Classic: { icon: Gem, blurb: 'Timeless gold & obsidian' },
-  Royal: { icon: Crown, blurb: 'Velvet indigo & regalia' },
-  Cyberpunk: { icon: Zap, blurb: 'Neon circuits, high voltage' },
-  Academic: { icon: GraduationCap, blurb: 'Sepia manuscript, scholarly' },
-};
-
-/** Same gating pattern as FEATURED_VOICES below: two protocols free now,
- *  the rest unlockable with sign-in. Chosen 2026-08-23. */
-const FEATURED_VIBES: SovereignVibe[] = ['Classic', 'Royal'];
 
 /** The two voices put "in front" for user testing — vetted post-fix
  *  (see the SPEAKER_MAP / WAXAL-match-threshold backend fixes) and given
@@ -129,10 +114,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setSidebarOpen,
   isLoading,
   isLiveActive,
-  vibe,
-  setVibe,
-  showVibeDial,
-  setShowVibeDial,
   speakerId,
   setSpeakerId,
   showSpeakerDial,
@@ -175,52 +156,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="space-y-6">
             <div className="space-y-2">
               <label className="text-[9px] uppercase tracking-wider text-dyn-text-muted font-bold flex items-center gap-1.5">
-                <Sliders className="w-3 h-3 text-dyn-accent" /> Sovereign Vibe / Protocol
-              </label>
-
-              <div className="relative">
-                <button
-                  onClick={() => { setShowVibeDial(!showVibeDial); setShowSpeakerDial(false); setShowAddresseeDial(false); }}
-                  aria-haspopup="listbox"
-                  aria-expanded={showVibeDial}
-                  className={`w-full min-h-[48px] px-4 py-3 bg-dyn-bg-tertiary/60 border rounded-2xl text-xs font-bold uppercase tracking-wider text-dyn-text-secondary hover:text-dyn-text-primary hover:bg-dyn-bg-tertiary transition-all duration-300 ease-out flex items-center justify-between gap-2 ${showVibeDial ? 'border-dyn-accent/50 shadow-[0_0_20px_var(--glow-color)]' : 'border-dyn-border'}`}
-                >
-                  <span className="flex items-center gap-2.5 min-w-0">
-                    {React.createElement(VIBE_META[vibe].icon, { className: 'w-4 h-4 text-dyn-accent shrink-0' })}
-                    <span className="truncate">Protocol: {vibe}</span>
-                  </span>
-                  <ChevronRight className={`w-4 h-4 shrink-0 transform transition-transform duration-300 ease-out ${showVibeDial ? 'rotate-90' : 'rotate-0'}`} />
-                </button>
-                {showVibeDial && (
-                  <div role="listbox" className="absolute top-[52px] left-0 right-0 bg-dyn-bg-tertiary/95 border border-dyn-border rounded-2xl p-2 shadow-2xl z-[100] animate-reveal backdrop-blur-xl origin-top space-y-1">
-                    {FEATURED_VIBES.map(v => (
-                      <OptionButton
-                        key={v}
-                        role="option"
-                        icon={VIBE_META[v].icon}
-                        label={v}
-                        sublabel={VIBE_META[v].blurb}
-                        selected={vibe === v}
-                        onClick={() => { setVibe(v); setShowVibeDial(false); }}
-                      />
-                    ))}
-                    <div className="h-[1px] bg-dyn-border my-1.5"></div>
-                    <div className="px-3 py-1.5 text-[9px] uppercase tracking-wider text-dyn-text-muted font-bold text-center">
-                      More protocols — coming with sign-in
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-[9px] uppercase tracking-wider text-dyn-text-muted font-bold flex items-center gap-1.5">
                 <Volume2 className="w-3 h-3 text-dyn-accent" /> Murya / TTS Speaker
               </label>
 
               <div className="relative">
                 <button
-                  onClick={() => { setShowSpeakerDial(!showSpeakerDial); setShowVibeDial(false); setShowAddresseeDial(false); }}
+                  onClick={() => { setShowSpeakerDial(!showSpeakerDial); setShowAddresseeDial(false); }}
                   aria-haspopup="listbox"
                   aria-expanded={showSpeakerDial}
                   className={`w-full min-h-[48px] px-4 py-3 bg-dyn-bg-tertiary/60 border rounded-2xl text-xs font-bold uppercase tracking-wider text-dyn-text-secondary hover:text-dyn-text-primary hover:bg-dyn-bg-tertiary transition-all duration-300 ease-out flex items-center justify-between gap-2 ${showSpeakerDial ? 'border-dyn-accent/50 shadow-[0_0_20px_var(--glow-color)]' : 'border-dyn-border'}`}
@@ -262,7 +203,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
               <div className="relative">
                 <button
-                  onClick={() => { setShowAddresseeDial(!showAddresseeDial); setShowVibeDial(false); setShowSpeakerDial(false); }}
+                  onClick={() => { setShowAddresseeDial(!showAddresseeDial); setShowSpeakerDial(false); }}
                   aria-haspopup="listbox"
                   aria-expanded={showAddresseeDial}
                   className={`w-full min-h-[48px] px-4 py-3 bg-dyn-bg-tertiary/60 border rounded-2xl text-xs font-bold uppercase tracking-wider text-dyn-text-secondary hover:text-dyn-text-primary hover:bg-dyn-bg-tertiary transition-all duration-300 ease-out flex items-center justify-between gap-2 ${showAddresseeDial ? 'border-dyn-accent/50 shadow-[0_0_20px_var(--glow-color)]' : 'border-dyn-border'}`}
