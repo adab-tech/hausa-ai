@@ -3,6 +3,7 @@ import { gemini, BACKEND_URL } from './services/localService.ts';
 import { learning } from './services/learningService.ts';
 import { Message, Role, Attachment, SovereignVibe, AddresseeGender } from './types.ts';
 import { ArewaLogo } from './components/ArewaLogo.tsx';
+import { FasaharHausaMark } from './components/FasaharHausaMark.tsx';
 import { Waveform } from './components/Waveform.tsx';
 import { NeuralReview } from './components/NeuralReview.tsx';
 import { WhitePaper } from './components/WhitePaper.tsx';
@@ -474,7 +475,10 @@ const App: React.FC = () => {
 
           {/* Secondary stats preview */}
           <div className="flex items-center gap-4 text-dyn-text-muted text-[10px] font-mono select-none">
-            <span className="font-serif italic tracking-normal text-dyn-text-secondary/80 text-xs">Fasahar Hausa</span>
+            <span className="flex items-center gap-1.5 text-dyn-accent/70">
+              <FasaharHausaMark size={16} />
+              <span className="font-serif italic tracking-normal text-dyn-text-secondary/80 text-xs">Fasahar Hausa</span>
+            </span>
           </div>
         </header>
 

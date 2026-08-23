@@ -4,14 +4,14 @@ import { GroundingNode } from './GroundingNode.tsx';
 import { CheckCircle2, ChevronRight, Play, Square, ThumbsUp, ThumbsDown } from 'lucide-react';
 
 export const AXIOM_PHRASES = [
-  "Ana nazarin harshe da al'adu (Linguistic Analysis)...",
-  "Murya na yin tunani sosai (Deep Thinking)...",
-  "Ana auna Litvinova's Tonal Laws...",
-  "Ana shirya Hikimar Karin Magana (Proverb Engine)...",
-  "Ana daidaita Ingancin Harshe (Orthographic Calibration)...",
-  "Murya na Aiki... (Processing, yawanci sakan 20-25)",
-  "Ana Tattara Bayanan Tarihi (Historical Archive Scan)...",
-  "Jimawa kaɗan, amsawa ta zo (Please Wait, Response Coming)..."
+  "Ana nazarin harshe da al'adu...",
+  "Murya na yin tunani sosai...",
+  "Ana daidaita sautin murya...",
+  "Ana shirya hikimar karin magana...",
+  "Ana daidaita ingancin harshe...",
+  "Murya na aiki, jira kaɗan...",
+  "Ana tattara bayanan tarihi...",
+  "Jimawa kaɗan, amsawa ta zo..."
 ];
 
 // Memoized message item for performant rendering
@@ -59,10 +59,7 @@ export const MessageItem = memo(({
             <div className="flex flex-col gap-4 py-4">
                <div className="flex items-center gap-4">
                   <div className="w-6 h-6 rounded-full border-2 border-dyn-accent border-t-transparent animate-spin"></div>
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-[10px] uppercase tracking-widest text-dyn-accent font-mono animate-pulse">Linguistic Scan</span>
-                    <span className="text-lg font-serif italic text-dyn-text-secondary">{AXIOM_PHRASES[currentAxiomIndex]}</span>
-                  </div>
+                  <span className="text-lg font-serif italic text-dyn-text-secondary">{AXIOM_PHRASES[currentAxiomIndex]}</span>
                </div>
                <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
                   <div className="h-full bg-dyn-accent/50 animate-[drift_3s_linear_infinite]" style={{ width: '45%' }}></div>
