@@ -143,7 +143,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onClearChat,
   hasMessages,
 }) => {
-  const [showMoreVoices, setShowMoreVoices] = React.useState(false);
   return (
     <>
       <aside className={`fixed md:relative top-0 bottom-0 left-0 z-50 w-[290px] bg-dyn-bg-secondary/90 md:bg-dyn-bg-secondary/40 border-r border-dyn-border backdrop-blur-xl md:backdrop-blur-md flex flex-col justify-between p-6 transition-all duration-500 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
@@ -235,37 +234,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       />
                     ))}
                     <div className="h-[1px] bg-dyn-border my-1.5"></div>
-                    <button
-                      type="button"
-                      onClick={() => setShowMoreVoices(!showMoreVoices)}
-                      className="w-full flex items-center justify-between px-3 py-1.5 text-[9px] uppercase tracking-wider text-dyn-text-muted font-bold hover:text-dyn-text-secondary transition-colors"
-                    >
-                      <span>More voices</span>
-                      <ChevronRight className={`w-3 h-3 transform transition-transform duration-200 ${showMoreVoices ? 'rotate-90' : 'rotate-0'}`} />
-                    </button>
-                    {showMoreVoices && (
-                      <>
-                        <OptionButton
-                          role="option"
-                          icon={Mic2}
-                          label="Baseline (Auto)"
-                          sublabel="Server default"
-                          selected={speakerId === null}
-                          onClick={() => { setSpeakerId(null); setShowSpeakerDial(false); }}
-                        />
-                        {Array.from({length: 8}, (_, i) => i).filter(i => !FEATURED_VOICES.some(v => v.id === i)).map(i => (
-                          <OptionButton
-                            key={i}
-                            role="option"
-                            icon={i < 4 ? Mars : Venus}
-                            label={`Murya ${i < 4 ? `M${i + 1} (Namiji)` : `F${i - 3} (Mace)`}`}
-                            sublabel="WAXAL"
-                            selected={speakerId === i}
-                            onClick={() => { setSpeakerId(i); setShowSpeakerDial(false); }}
-                          />
-                        ))}
-                      </>
-                    )}
+                    <div className="px-3 py-1.5 text-[9px] uppercase tracking-wider text-dyn-text-muted font-bold text-center">
+                      More voices — coming with sign-in
+                    </div>
                   </div>
                 )}
               </div>
