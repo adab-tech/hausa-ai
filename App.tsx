@@ -14,6 +14,7 @@ import { Sidebar } from './components/Sidebar.tsx';
 import { LiveCallPanel } from './components/LiveCallPanel.tsx';
 import { InputConsole } from './components/InputConsole.tsx';
 import { MessageItem, AXIOM_PHRASES } from './components/MessageItem.tsx';
+import { ToastHost, ToastItem } from './components/Toast.tsx';
 import { decodeAudioData, decode, createBlob, makeAudioContext, resampleLinear } from './utils/audio.ts';
 import { Menu } from 'lucide-react';
 
@@ -60,6 +61,13 @@ const App: React.FC = () => {
   const [playingSpeechId, setPlayingSpeechId] = useState<string | null>(null);
   const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
 
+  // On-brand replacement for window.alert() — see components/Toast.tsx.
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const showToast = (message: string, variant: ToastItem['variant'] = 'error') => {
+    setToasts(prev => [...prev, { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, message, variant }]);
+  };
+  const dismissToast = (id: string) => setToasts(prev => prev.filter(t => t.id !== id));
+
   const handlePlaySpeech = (text: string, messageId: string, normalized?: string) => {
     // Prefer the orthography-normalized text (ɓɗƙƴ instead of b'/d'/k'/y'
     // apostrophe fallbacks) so playback doesn't mispronounce hooked
@@ -90,7 +98,7 @@ const App: React.FC = () => {
     audio.onerror = (e) => {
       console.error("TTS playback error", e);
       setPlayingSpeechId(null);
-      alert("Gafara dai, an samu kuskure wajen sauti.");
+      showToast("Gafara dai, an samu kuskure wajen sauti.");
     };
   };
 
@@ -250,9 +258,9 @@ const App: React.FC = () => {
     // precisely instead of a misleading "permission denied".
     if (!navigator.mediaDevices?.getUserMedia) {
       setVoiceStatus('error');
-      alert(
+      showToast(
         "Ba a iya buɗe makirufo ba. Ana buƙatar amintacciyar hanya (HTTPS ko 'localhost') " +
-        "kuma browser mai goyon bayan makirufo.\n\n" +
+        "kuma browser mai goyon bayan makirufo.\n" +
         "(Live voice needs a secure HTTPS or localhost page — it won't work over plain http " +
         "or inside a restricted preview frame. It will work on the deployed https site.)"
       );
@@ -414,13 +422,13 @@ const App: React.FC = () => {
         setVoiceStatus('error');
         setIsLiveActive(false);
         if (name === 'NotAllowedError' || name === 'SecurityError' || name === 'PermissionDeniedError') {
-          alert("Ba a ba da izinin makirufo ba. Da fatan za a ba da izini a saitunan browser sannan a sake gwadawa.\n(Microphone permission was denied — allow it in your browser and try again.)");
+          showToast("Ba a ba da izinin makirufo ba. Da fatan za a ba da izini a saitunan browser sannan a sake gwadawa.\n(Microphone permission was denied — allow it in your browser and try again.)");
         } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
-          alert("Ba a sami makirufo ba a na'urarka.\n(No microphone was found on this device.)");
+          showToast("Ba a sami makirufo ba a na'urarka.\n(No microphone was found on this device.)");
         } else if (name === 'NotReadableError' || name === 'TrackStartError') {
-          alert("Makirufo yana amfani da wata manhaja a yanzu. A rufe ta sannan a sake gwadawa.\n(The microphone is in use by another application.)");
+          showToast("Makirufo yana amfani da wata manhaja a yanzu. A rufe ta sannan a sake gwadawa.\n(The microphone is in use by another application.)");
         } else {
-          alert("An samu matsala wajen buɗe makirufo: " + (e?.message || name || 'unknown') + "\n(Could not start the microphone.)");
+          showToast("An samu matsala wajen buɗe makirufo: " + (e?.message || name || 'unknown') + "\n(Could not start the microphone.)");
         }
     }
   };
@@ -575,6 +583,8 @@ const App: React.FC = () => {
       {showDictionary && (
         <DictionarySearch onClose={() => setShowDictionary(false)} />
       )}
+
+      <ToastHost toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 };
