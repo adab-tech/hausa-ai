@@ -49,37 +49,37 @@
      or switch a "mode". Royal/Cyberpunk/Academic stay defined below as
      dormant CSS, reserved for admin/internal tooling (see AdminPanel.tsx,
      which already hardcodes vibe-classic on its own). */
-  --bg-primary: #05040a;
-  --bg-secondary: #0a0812;
-  --bg-tertiary: #15101f;
-  --accent-color: #E4CA75;
-  --accent-gold-rgb: 228, 202, 117;
-  --text-primary: #FDFDFA;
-  --text-secondary: rgba(253, 253, 250, 0.65);
-  --text-muted: rgba(253, 253, 250, 0.45);
-  --border-color: rgba(228, 202, 117, 0.15);
-  --bubble-bg: linear-gradient(165deg, rgba(17, 15, 34, 0.95) 0%, rgba(8, 6, 19, 1) 100%);
-  --bg-glass: rgba(14, 12, 28, 0.72);
-  --glow-color: rgba(228, 202, 117, 0.35);
-  --accent-glow: 0 0 22px rgba(228, 202, 117, 0.18);
+  --bg-primary: #040309;
+  --bg-secondary: #08060f;
+  --bg-tertiary: #100c18;
+  --accent-color: #DEC05C;
+  --accent-gold-rgb: 222, 192, 92;
+  --text-primary: #FCFCF9;
+  --text-secondary: rgba(252, 252, 249, 0.6);
+  --text-muted: rgba(252, 252, 249, 0.45);
+  --border-color: rgba(222, 192, 92, 0.14);
+  --bubble-bg: linear-gradient(165deg, rgba(14, 12, 26, 0.96) 0%, rgba(6, 5, 14, 1) 100%);
+  --bg-glass: rgba(11, 9, 21, 0.82);
+  --glow-color: rgba(222, 192, 92, 0.28);
+  --accent-glow: 0 0 18px rgba(222, 192, 92, 0.14);
   --font-family-main: "Inter", sans-serif;
   --font-family-serif: "Instrument Serif", serif;
 }
 
 .vibe-classic {
-  --bg-primary: #05040a;
-  --bg-secondary: #0a0812;
-  --bg-tertiary: #15101f;
-  --accent-color: #E4CA75;
-  --accent-gold-rgb: 228, 202, 117;
-  --text-primary: #FDFDFA;
-  --text-secondary: rgba(253, 253, 250, 0.65);
-  --text-muted: rgba(253, 253, 250, 0.45);
-  --border-color: rgba(228, 202, 117, 0.15);
-  --bubble-bg: linear-gradient(165deg, rgba(17, 15, 34, 0.95) 0%, rgba(8, 6, 19, 1) 100%);
-  --bg-glass: rgba(14, 12, 28, 0.72);
-  --glow-color: rgba(228, 202, 117, 0.35);
-  --accent-glow: 0 0 22px rgba(228, 202, 117, 0.18);
+  --bg-primary: #040309;
+  --bg-secondary: #08060f;
+  --bg-tertiary: #100c18;
+  --accent-color: #DEC05C;
+  --accent-gold-rgb: 222, 192, 92;
+  --text-primary: #FCFCF9;
+  --text-secondary: rgba(252, 252, 249, 0.6);
+  --text-muted: rgba(252, 252, 249, 0.45);
+  --border-color: rgba(222, 192, 92, 0.14);
+  --bubble-bg: linear-gradient(165deg, rgba(14, 12, 26, 0.96) 0%, rgba(6, 5, 14, 1) 100%);
+  --bg-glass: rgba(11, 9, 21, 0.82);
+  --glow-color: rgba(222, 192, 92, 0.28);
+  --accent-glow: 0 0 18px rgba(222, 192, 92, 0.14);
   --font-family-main: "Inter", sans-serif;
   --font-family-serif: "Instrument Serif", serif;
 }

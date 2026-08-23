@@ -463,6 +463,8 @@ const App: React.FC = () => {
               <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
               <span>Server: {backendHost}</span>
             </div>
+            <span className="hidden sm:inline opacity-40">|</span>
+            <span className="font-serif italic tracking-normal text-dyn-text-secondary/80 text-xs">Fasahar Hausa</span>
           </div>
         </header>
 
