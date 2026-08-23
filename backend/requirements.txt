@@ -54,9 +54,14 @@ google-genai>=1.0.0,<2
 google-auth>=2.30,<3
 requests>=2.32.4,<3  # floor raised: CVE-2024-35195 (verify bypass) + CVE-2024-47081 (netrc leak)
 
-# Cerebras Cloud SDK (hosted low-latency inference — sits between Ollama and
-# Gemini in the chat/voice fallback chain in routers/chat.py / routers/audio.py)
+# Cerebras Cloud SDK (hosted low-latency inference — primary in the chat/
+# voice fallback chain in routers/chat.py / routers/audio.py)
 cerebras-cloud-sdk>=1.0,<2
+
+# Groq SDK (OpenAI-compatible, LPU hardware — sits between Cerebras and Ollama
+# in the fallback chain; real free tier, unlike local Ollama on this box which
+# has never once succeeded under current RAM pressure)
+groq>=1.6,<2
 
 # Tavily official SDK — search (already used), plus extract/crawl/map (corpus
 # gathering for the native Hausa LLM, see docs/murya_roadmap.md Milestone #1)

@@ -187,10 +187,39 @@ async def test_chat_uses_cerebras_as_primary(client, monkeypatch):
 
 
 @pytest.mark.anyio
-async def test_chat_falls_back_to_ollama_when_cerebras_down(client, monkeypatch):
-    """When Cerebras fails (or has no key), the endpoint should fall through
-    to Ollama next, before Gemini or the static fallback."""
+async def test_chat_falls_back_to_groq_when_cerebras_down(client, monkeypatch):
+    """When Cerebras fails (or has no key), the endpoint should try Groq
+    next — before Ollama, which has never once succeeded in production
+    under current RAM pressure, so trying it first would waste its timeout
+    on every request."""
     monkeypatch.delenv("CEREBRAS_API_KEY", raising=False)
+
+    mock_client = AsyncMock()
+    mock_client.chat = AsyncMock(side_effect=Exception("ollama should not be called"))
+
+    async def _fake_stream_groq(*_args, **_kwargs):
+        for piece in ("Sannu", ", ", "daga Groq"):
+            yield piece
+
+    with patch("routers.chat.ollama.AsyncClient", return_value=mock_client), \
+         patch("routers.chat.stream_groq", _fake_stream_groq):
+        response = await client.post("/api/chat", json={"text": "Groq fallback test"})
+
+    assert response.status_code == 200
+    events = _iter_sse(response.content)
+    final = events[-1]
+    assert final["isDone"] is True
+    assert "daga Groq" in final["text"]
+    mock_client.chat.assert_not_called()
+
+
+@pytest.mark.anyio
+async def test_chat_falls_back_to_ollama_when_cerebras_and_groq_down(client, monkeypatch):
+    """When both Cerebras and Groq fail (or have no key), the endpoint
+    should fall through to Ollama next, before Gemini or the static
+    fallback."""
+    monkeypatch.delenv("CEREBRAS_API_KEY", raising=False)
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
 
     mock_client = AsyncMock()
     mock_client.chat = AsyncMock(side_effect=_fake_ollama_chat)

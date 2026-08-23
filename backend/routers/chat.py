@@ -630,6 +630,41 @@ async def stream_cerebras(messages: list[dict[str, Any]]) -> AsyncGenerator[str,
             yield delta
 
 
+async def stream_groq(messages: list[dict[str, Any]]) -> AsyncGenerator[str, None]:
+    """
+    Stream responses via Groq (OpenAI-compatible chat completions). Sits
+    between Cerebras and Ollama: Groq's free tier is real and fast (LPU
+    hardware), unlike local Ollama on this box, which has never once
+    succeeded in production under current RAM pressure (see stream_ollama) —
+    trying Groq before wasting the Ollama timeout is strictly better.
+    Requires GROQ_API_KEY; raises (never silently no-ops) so callers fall
+    through to the next provider when it's unset, same contract as the
+    other stream_* functions.
+    """
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        raise RuntimeError("GROQ_API_KEY not set in environment.")
+
+    from groq import AsyncGroq
+
+    client = AsyncGroq(api_key=api_key)
+    model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+
+    clean_messages = [
+        {"role": m["role"], "content": m["content"]} for m in messages
+    ]
+
+    stream = await client.chat.completions.create(
+        model=model,
+        messages=clean_messages,
+        stream=True,
+    )
+    async for chunk in stream:
+        delta = chunk.choices[0].delta.content
+        if delta:
+            yield delta
+
+
 async def stream_ollama(messages: list[dict[str, Any]]) -> AsyncGenerator[str, None]:
     """
     Stream responses via local Ollama, bounded by a first-token timeout so a
@@ -864,29 +899,38 @@ async def chat_endpoint(request: Request, req: ChatRequest):
 
         async def fetch_stream():
             try:
-                # Step A: Cerebras is the fast, hosted primary. Local Ollama
-                # on this box is slow enough that trying it first before
-                # Cerebras just adds latency for no upside.
+                # Step A: Cerebras is the fast, hosted primary.
                 async for delta in stream_cerebras(messages):
                     await queue.put(delta)
             except Exception as cerebras_err:
-                print(f"[Murya] Cerebras unavailable ({type(cerebras_err).__name__}: {cerebras_err}), switching to Ollama...")
+                print(f"[Murya] Cerebras unavailable ({type(cerebras_err).__name__}: {cerebras_err}), switching to Groq...")
                 try:
-                    # Step B: Local Ollama, bounded by a first-token timeout
-                    # so a slow (not just erroring) response still moves on.
-                    async for delta in stream_ollama(messages):
+                    # Step B: Groq — fast, real free tier. Tried before Ollama
+                    # because local Ollama on this box has never once
+                    # succeeded in production under current RAM pressure
+                    # (see stream_ollama's docstring); trying it first would
+                    # just waste its first-token timeout on every request.
+                    async for delta in stream_groq(messages):
                         await queue.put(delta)
-                except Exception as ollama_err:
-                    # Step C: Fallback to Gemini via google-genai SDK
-                    print(f"[Murya] Ollama failed ({type(ollama_err).__name__}: {ollama_err}), switching to Gemini...")
+                except Exception as groq_err:
+                    print(f"[Murya] Groq unavailable ({type(groq_err).__name__}: {groq_err}), switching to Ollama...")
                     try:
-                        async for delta in stream_gemini(req):
+                        # Step C: Local Ollama, bounded by a first-token
+                        # timeout so a slow (not just erroring) response
+                        # still moves on.
+                        async for delta in stream_ollama(messages):
                             await queue.put(delta)
-                    except Exception as gemini_err:
-                        # Step D: Fallback to static rule-based generator
-                        print(f"[Murya] Gemini failed ({type(gemini_err).__name__}: {gemini_err}), using static fallback.")
-                        fallback_text = generate_fallback_response(req.text, req.vibe, req.addresseeGender)
-                        await queue.put(fallback_text)
+                    except Exception as ollama_err:
+                        # Step D: Fallback to Gemini via google-genai SDK
+                        print(f"[Murya] Ollama failed ({type(ollama_err).__name__}: {ollama_err}), switching to Gemini...")
+                        try:
+                            async for delta in stream_gemini(req):
+                                await queue.put(delta)
+                        except Exception as gemini_err:
+                            # Step E: Fallback to static rule-based generator
+                            print(f"[Murya] Gemini failed ({type(gemini_err).__name__}: {gemini_err}), using static fallback.")
+                            fallback_text = generate_fallback_response(req.text, req.vibe, req.addresseeGender)
+                            await queue.put(fallback_text)
             # Signal the end of stream
             await queue.put(None)
             

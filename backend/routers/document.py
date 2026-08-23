@@ -62,7 +62,12 @@ def _system_prompt(action: str, target: str) -> str:
 @limiter.limit("10/minute")
 async def document_endpoint(request: Request, req: DocumentRequest):
     # Reuse the exact same tested provider functions the chat router uses.
-    from routers.chat import stream_cerebras, stream_gemini_raw, stream_ollama
+    from routers.chat import (
+        stream_cerebras,
+        stream_gemini_raw,
+        stream_groq,
+        stream_ollama,
+    )
 
     messages = [
         {"role": "system", "content": _system_prompt(req.action, req.target)},
@@ -81,6 +86,7 @@ async def document_endpoint(request: Request, req: DocumentRequest):
 
         for stream_fn, label in (
             (stream_cerebras(messages), "Cerebras"),
+            (stream_groq(messages), "Groq"),
             (stream_ollama(messages), "Ollama"),
             (stream_gemini_raw(messages), "Gemini"),
         ):
