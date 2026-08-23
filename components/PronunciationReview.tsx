@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { gemini } from '../services/localService.ts';
+import { ConfirmDialog } from './ConfirmDialog.tsx';
 import { WavRecorder } from '../utils/wavRecorder.ts';
 import { Mic, Square, Play, Check, X, Trash2, Plus, Loader2, RefreshCw, Download } from 'lucide-react';
 
@@ -46,8 +47,71 @@ function useRecorder() {
     recRef.current = null;
     setRecording(false);
   };
+
+  // If the owning component unmounts mid-recording (e.g. the item this
+  // recorder belongs to disappears from the list because another action
+  // changed its status), release the mic instead of leaking the stream —
+  // same class of bug as deep-scan finding #8 (live-voice hangup), just
+  // scoped to this admin recorder.
+  useEffect(() => {
+    return () => {
+      if (recRef.current) {
+        try { recRef.current.stop(); } catch { /* ignore */ }
+        recRef.current = null;
+      }
+    };
+  }, []);
+
   return { recording, start, stop };
 }
+
+/**
+ * One row's flag-recording UI, with its OWN useRecorder() instance. Before
+ * this, every row in the "needs recording" list shared a single `flagRec`
+ * object owned by the parent: starting a second row's recording called
+ * flagRec.start() again, which created a brand-new WavRecorder and
+ * overwrote the ref holding the FIRST row's still-live WavRecorder —
+ * silently abandoning its open MediaStream (mic never released) instead of
+ * stopping it (deep-scan #14). Giving each row its own hook instance means
+ * each row's recorder lives in its own closure; there is no shared ref to
+ * clobber, and useRecorder's unmount cleanup (above) releases the mic if
+ * the row disappears mid-recording.
+ */
+const FlagRow: React.FC<{
+  it: Item;
+  busy: boolean;
+  otherRowRecording: boolean;
+  onRecordingChange: (id: number, recording: boolean) => void;
+  onRecorded: (id: number, blob: Blob) => void;
+  onDelete: (it: Item) => void;
+}> = ({ it, busy, otherRowRecording, onRecordingChange, onRecorded, onDelete }) => {
+  const rec = useRecorder();
+
+  useEffect(() => { onRecordingChange(it.id, rec.recording); }, [rec.recording, it.id, onRecordingChange]);
+
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-dyn-border bg-dyn-bg-tertiary/20 px-4 py-3">
+      <div className="min-w-0">
+        <p className="text-sm text-dyn-text-primary truncate">{it.text}</p>
+        {it.note && <p className="text-[11px] text-dyn-text-muted truncate">“{it.note}”</p>}
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        {rec.recording ? (
+          <button onClick={rec.stop} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/20 border border-red-500/50 text-red-400 text-[11px] font-bold uppercase animate-pulse"><Square className="w-3 h-3" /> Stop</button>
+        ) : (
+          <button
+            onClick={() => rec.start((blob) => onRecorded(it.id, blob))}
+            disabled={busy || otherRowRecording}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-dyn-accent/50 text-dyn-accent text-[11px] font-bold uppercase hover:bg-dyn-accent/10 disabled:opacity-30"
+          >
+            {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Mic className="w-3 h-3" />} Record
+          </button>
+        )}
+        <button onClick={() => onDelete(it)} disabled={busy || rec.recording} className="p-1.5 rounded-lg text-dyn-text-muted hover:text-red-400 disabled:opacity-30" aria-label="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
+      </div>
+    </div>
+  );
+};
 
 export const PronunciationReview: React.FC = () => {
   const [items, setItems] = useState<Item[]>([]);
@@ -56,16 +120,20 @@ export const PronunciationReview: React.FC = () => {
   const [denied, setDenied] = useState(false);
   const [busy, setBusy] = useState<number | 'new' | null>(null);
   const [exporting, setExporting] = useState(false);
+  // Per-item error from a failed approve/reject/record/delete — a failed
+  // action must never silently leave the item's state unclear (deep-scan #14).
+  const [rowErrors, setRowErrors] = useState<Record<number, string>>({});
+  const [pendingDelete, setPendingDelete] = useState<Item | null>(null);
+  // Which flagged row (if any) currently has a live mic recording, so other
+  // rows' Record buttons can be disabled while it's active — a UX guard on
+  // top of the real fix (each row now owns its own recorder, see FlagRow).
+  const [recordingRowId, setRecordingRowId] = useState<number | null>(null);
 
   // New-correction form
   const [newText, setNewText] = useState('');
   const [newVoice, setNewVoice] = useState('');
   const [newBlob, setNewBlob] = useState<Blob | null>(null);
   const newRec = useRecorder();
-
-  // Recording against an existing flag
-  const [recForId, setRecForId] = useState<number | null>(null);
-  const flagRec = useRecorder();
 
   const load = async () => {
     setLoading(true);
@@ -82,30 +150,46 @@ export const PronunciationReview: React.FC = () => {
     if (url) { const a = new Audio(url); a.play(); }
   };
 
+  const clearError = (id: number) => setRowErrors(prev => { const next = { ...prev }; delete next[id]; return next; });
+
   const submitNew = async () => {
     if (!newText.trim() || !newBlob) return;
     setBusy('new');
     const ok = await gemini.submitPronunciation(newText.trim(), newVoice ? Number(newVoice) : null, newBlob);
     setBusy(null);
     if (ok) { setNewText(''); setNewBlob(null); setNewVoice(''); load(); }
+    else alert('Ajiyewa ya kāsa. Ka sāke gwadawa. (Save failed — try again.)');
   };
 
-  const recordForFlag = (id: number) => {
-    setRecForId(id);
-    flagRec.start(async (blob) => {
-      setBusy(id);
-      const ok = await gemini.recordPronunciation(id, blob);
-      setBusy(null); setRecForId(null);
-      if (ok) load();
-    });
+  const recordForFlag = async (id: number, blob: Blob) => {
+    if (busy !== null) return; // an action is already in flight
+    setBusy(id); clearError(id);
+    const ok = await gemini.recordPronunciation(id, blob);
+    setBusy(null);
+    if (ok) load();
+    else setRowErrors(prev => ({ ...prev, [id]: 'Ajiyewa ya kāsa. Ka sāke gwadawa. (Save failed — try again.)' }));
   };
 
   const setStatus = async (id: number, status: 'approved' | 'rejected') => {
-    setBusy(id); await gemini.setPronunciationStatus(id, status); setBusy(null); load();
+    if (busy !== null) return;
+    setBusy(id); clearError(id);
+    const ok = await gemini.setPronunciationStatus(id, status);
+    setBusy(null);
+    if (ok) load();
+    else setRowErrors(prev => ({ ...prev, [id]: 'Ba a iya adanawa ba. Ka sāke gwadawa. (Save failed — try again.)' }));
   };
-  const remove = async (id: number) => {
-    if (!confirm('Share wannan gyara? (delete)')) return;
-    setBusy(id); await gemini.deletePronunciation(id); setBusy(null); load();
+
+  const requestDelete = (it: Item) => { if (busy === null) setPendingDelete(it); };
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    const id = pendingDelete.id;
+    setBusy(id); clearError(id);
+    const ok = await gemini.deletePronunciation(id);
+    setBusy(null);
+    setPendingDelete(null);
+    if (ok) load();
+    else setRowErrors(prev => ({ ...prev, [id]: 'Sharewa ya kāsa. Ka sāke gwadawa. (Delete failed — try again.)' }));
   };
 
   if (denied) return <p className="text-dyn-text-muted text-sm p-4">An hana shiga. Shiga a matsayin admin. (Admin login required.)</p>;
@@ -170,26 +254,25 @@ export const PronunciationReview: React.FC = () => {
         </div>
       </div>
 
-      {/* Flags that still need a recording */}
+      {/* Flags that still need a recording — each row owns its own recorder
+          instance (FlagRow) so starting one row's recording can never
+          abandon another row's live mic stream. */}
       {needsRecording.length > 0 && (
         <div className="space-y-2">
           <p className="text-[10px] uppercase tracking-widest text-amber-400/80 font-bold">Waɗanda ake jira · flagged, need a recording ({needsRecording.length})</p>
           {needsRecording.map((it) => (
-            <div key={it.id} className="flex items-center justify-between gap-3 rounded-xl border border-dyn-border bg-dyn-bg-tertiary/20 px-4 py-3">
-              <div className="min-w-0">
-                <p className="text-sm text-dyn-text-primary truncate">{it.text}</p>
-                {it.note && <p className="text-[11px] text-dyn-text-muted truncate">“{it.note}”</p>}
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                {recForId === it.id && flagRec.recording ? (
-                  <button onClick={flagRec.stop} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/20 border border-red-500/50 text-red-400 text-[11px] font-bold uppercase animate-pulse"><Square className="w-3 h-3" /> Stop</button>
-                ) : (
-                  <button onClick={() => recordForFlag(it.id)} disabled={busy === it.id} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-dyn-accent/50 text-dyn-accent text-[11px] font-bold uppercase hover:bg-dyn-accent/10 disabled:opacity-30">
-                    {busy === it.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Mic className="w-3 h-3" />} Record
-                  </button>
-                )}
-                <button onClick={() => remove(it.id)} className="p-1.5 rounded-lg text-dyn-text-muted hover:text-red-400" aria-label="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
-              </div>
+            <div key={it.id} className="space-y-1">
+              <FlagRow
+                it={it}
+                busy={busy === it.id}
+                otherRowRecording={recordingRowId !== null && recordingRowId !== it.id}
+                onRecordingChange={(id, recording) => setRecordingRowId(prev => (recording ? id : (prev === id ? null : prev)))}
+                onRecorded={recordForFlag}
+                onDelete={requestDelete}
+              />
+              {rowErrors[it.id] && (
+                <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-1.5">{rowErrors[it.id]}</div>
+              )}
             </div>
           ))}
         </div>
@@ -200,20 +283,25 @@ export const PronunciationReview: React.FC = () => {
         <div className="space-y-2">
           <p className="text-[10px] uppercase tracking-widest text-amber-400/80 font-bold">Ana jira amincewarka · awaiting your approval ({awaitingApproval.length})</p>
           {awaitingApproval.map((it) => (
-            <div key={it.id} className="flex items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/[0.05] px-4 py-3">
-              <div className="flex items-center gap-3 min-w-0">
-                <button onClick={() => play(it.id)} className="p-2 rounded-lg bg-dyn-bg-tertiary/50 text-dyn-accent hover:bg-dyn-bg-tertiary shrink-0" aria-label="Listen before approving"><Play className="w-4 h-4" /></button>
-                <div className="min-w-0">
-                  <p className="text-sm text-dyn-text-primary truncate">{it.text}</p>
-                  <p className="text-[10px] text-dyn-text-muted">{it.speaker_id === null ? 'duk muryoyi' : `voice ${it.speaker_id}`} · listen, then approve</p>
+            <div key={it.id} className="space-y-1">
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/[0.05] px-4 py-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <button onClick={() => play(it.id)} className="p-2 rounded-lg bg-dyn-bg-tertiary/50 text-dyn-accent hover:bg-dyn-bg-tertiary shrink-0" aria-label="Listen before approving"><Play className="w-4 h-4" /></button>
+                  <div className="min-w-0">
+                    <p className="text-sm text-dyn-text-primary truncate">{it.text}</p>
+                    <p className="text-[10px] text-dyn-text-muted">{it.speaker_id === null ? 'duk muryoyi' : `voice ${it.speaker_id}`} · listen, then approve</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button onClick={() => setStatus(it.id, 'approved')} disabled={busy !== null} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-500/50 text-emerald-400 text-[11px] font-bold uppercase hover:bg-emerald-500/30 disabled:opacity-40">
+                    {busy === it.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />} Amince (approve)
+                  </button>
+                  <button onClick={() => requestDelete(it)} disabled={busy !== null} className="p-1.5 rounded-lg text-dyn-text-muted hover:text-red-400 disabled:opacity-40" aria-label="Reject & delete"><Trash2 className="w-3.5 h-3.5" /></button>
                 </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <button onClick={() => setStatus(it.id, 'approved')} disabled={busy === it.id} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-500/50 text-emerald-400 text-[11px] font-bold uppercase hover:bg-emerald-500/30 disabled:opacity-40">
-                  {busy === it.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />} Amince (approve)
-                </button>
-                <button onClick={() => remove(it.id)} className="p-1.5 rounded-lg text-dyn-text-muted hover:text-red-400" aria-label="Reject & delete"><Trash2 className="w-3.5 h-3.5" /></button>
-              </div>
+              {rowErrors[it.id] && (
+                <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-1.5">{rowErrors[it.id]}</div>
+              )}
             </div>
           ))}
         </div>
@@ -224,23 +312,40 @@ export const PronunciationReview: React.FC = () => {
         <p className="text-[10px] uppercase tracking-widest text-emerald-400/80 font-bold">Ana amfani da su · active overrides ({approved.length})</p>
         {approved.length === 0 && <p className="text-xs text-dyn-text-muted/50 italic py-2">Babu tukuna. (None yet — record one above.)</p>}
         {approved.map((it) => (
-          <div key={it.id} className="flex items-center justify-between gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] px-4 py-3">
-            <div className="flex items-center gap-3 min-w-0">
-              <button onClick={() => play(it.id)} className="p-2 rounded-lg bg-dyn-bg-tertiary/50 text-dyn-accent hover:bg-dyn-bg-tertiary shrink-0" aria-label="Play"><Play className="w-4 h-4" /></button>
-              <div className="min-w-0">
-                <p className="text-sm text-dyn-text-primary truncate">{it.text}</p>
-                <p className="text-[10px] text-dyn-text-muted">{it.speaker_id === null ? 'duk muryoyi' : `voice ${it.speaker_id}`}</p>
+          <div key={it.id} className="space-y-1">
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] px-4 py-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <button onClick={() => play(it.id)} className="p-2 rounded-lg bg-dyn-bg-tertiary/50 text-dyn-accent hover:bg-dyn-bg-tertiary shrink-0" aria-label="Play"><Play className="w-4 h-4" /></button>
+                <div className="min-w-0">
+                  <p className="text-sm text-dyn-text-primary truncate">{it.text}</p>
+                  <p className="text-[10px] text-dyn-text-muted">{it.speaker_id === null ? 'duk muryoyi' : `voice ${it.speaker_id}`}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button onClick={() => setStatus(it.id, 'rejected')} disabled={busy !== null} className="p-1.5 rounded-lg text-dyn-text-muted hover:text-amber-400 disabled:opacity-40" aria-label="Disable">
+                  {busy === it.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />}
+                </button>
+                <button onClick={() => requestDelete(it)} disabled={busy !== null} className="p-1.5 rounded-lg text-dyn-text-muted hover:text-red-400 disabled:opacity-40" aria-label="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
               </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <button onClick={() => setStatus(it.id, 'rejected')} disabled={busy === it.id} className="p-1.5 rounded-lg text-dyn-text-muted hover:text-amber-400" aria-label="Disable"><X className="w-4 h-4" /></button>
-              <button onClick={() => remove(it.id)} className="p-1.5 rounded-lg text-dyn-text-muted hover:text-red-400" aria-label="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
-            </div>
+            {rowErrors[it.id] && (
+              <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-1.5">{rowErrors[it.id]}</div>
+            )}
           </div>
         ))}
       </div>
 
       {loading && <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-dyn-accent" /></div>}
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Share wannan gyara?"
+        message={pendingDelete ? `"${pendingDelete.text}" — za a share wannan gyaran furuci har abada. Ba za a iya mayar da shi ba. (This pronunciation correction will be permanently deleted. This cannot be undone.)` : ''}
+        confirmLabel="Share (Delete)"
+        busy={busy === pendingDelete?.id}
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 };
