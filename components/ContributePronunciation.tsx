@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { gemini } from '../services/localService.ts';
 import { WavRecorder } from '../utils/wavRecorder.ts';
-import { Mic, Square, Play, X, Check, Loader2, Send } from 'lucide-react';
+import { Mic, Square, Play, X, Check, Loader2, Send, AlertTriangle } from 'lucide-react';
 
 const VOICES = [
   { v: '', label: 'Duk muryoyi (any voice)' },
@@ -20,6 +20,7 @@ export const ContributePronunciation: React.FC<{ onClose: () => void }> = ({ onC
   const [recording, setRecording] = useState(false);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const recRef = useRef<WavRecorder | null>(null);
 
   useEffect(() => {
@@ -29,6 +30,7 @@ export const ContributePronunciation: React.FC<{ onClose: () => void }> = ({ onC
   }, [onClose]);
 
   const startRec = async () => {
+    setError(null);
     try {
       const rec = new WavRecorder();
       await rec.start();
@@ -37,10 +39,10 @@ export const ContributePronunciation: React.FC<{ onClose: () => void }> = ({ onC
       setRecording(true);
     } catch (err: any) {
       const name = err?.name || '';
-      if (name === 'NotAllowedError' || name === 'SecurityError') alert('An ƙi izinin makurufo. Ba da izini a saitunan browser. (Microphone permission denied — allow it in browser settings.)');
-      else if (name === 'NotFoundError' || name === 'OverconstrainedError') alert('Ba a sami makurufo ba. (No microphone found.)');
-      else if (name === 'NotSupportedError') alert("Wannan browser ba ya goyon bayan yin rikodi ba. (This browser can't record audio.)");
-      else alert('Rikodi ya kāsa: ' + (name || 'error') + (err?.message ? ' — ' + err.message : ''));
+      if (name === 'NotAllowedError' || name === 'SecurityError') setError('An ƙi izinin makurufo. Ba da izini a saitunan browser. (Microphone permission denied — allow it in browser settings.)');
+      else if (name === 'NotFoundError' || name === 'OverconstrainedError') setError('Ba a sami makurufo ba. (No microphone found.)');
+      else if (name === 'NotSupportedError') setError("Wannan browser ba ya goyon bayan yin rikodi ba. (This browser can't record audio.)");
+      else setError('Rikodi ya kāsa: ' + (name || 'error') + (err?.message ? ' — ' + err.message : ''));
     }
   };
   const stopRec = () => {
@@ -52,9 +54,11 @@ export const ContributePronunciation: React.FC<{ onClose: () => void }> = ({ onC
   const submit = async () => {
     if (!text.trim() || !blob) return;
     setBusy(true);
+    setError(null);
     const ok = await gemini.submitUserPronunciation(text.trim(), voice ? Number(voice) : null, blob, note.trim() || undefined);
     setBusy(false);
     if (ok) setDone(true);
+    else setError('An kasa aika gyaran. A sake gwadawa. (Failed to submit — please try again.)');
   };
 
   return (
@@ -81,6 +85,13 @@ export const ContributePronunciation: React.FC<{ onClose: () => void }> = ({ onC
         ) : (
           <div className="space-y-6">
             <p className="text-sm text-dyn-text-secondary leading-relaxed">Idan Murya ta furta wata kalma ba daidai ba, ka rubuta ta sannan ka yi rikodin yadda ya kamata a faɗe ta. (If Murya says a word wrong, type it and record how it should sound.)</p>
+
+            {error && (
+              <div role="alert" className="flex items-start gap-3 p-4 rounded-2xl bg-red-500/[0.06] border border-red-500/30 animate-reveal">
+                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-red-400" />
+                <p className="text-sm text-dyn-text-primary/90 leading-relaxed">{error}</p>
+              </div>
+            )}
 
             <div className="space-y-2">
               <label className="text-[10px] uppercase tracking-widest text-dyn-text-muted font-bold">Kalma / Jimla (Word or phrase)</label>

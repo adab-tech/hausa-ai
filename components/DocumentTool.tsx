@@ -72,7 +72,7 @@ export const DocumentTool: React.FC<{ onClose: () => void }> = ({ onClose }) => 
           />
           <div className="flex justify-between items-center text-[9px] font-mono text-dyn-text-muted">
             <span>{input.length.toLocaleString()} / 30,000</span>
-            {input && <button onClick={() => { setInput(''); setResult(''); setError(null); }} className="hover:text-dyn-text-secondary uppercase tracking-wider">Share (Clear)</button>}
+            {input && <button onClick={() => { setInput(''); setResult(''); setError(null); }} className="hover:text-dyn-text-secondary uppercase tracking-wider">Goge (Clear)</button>}
           </div>
           <div className="grid grid-cols-2 gap-2">
             {ACTIONS.map((a) => (

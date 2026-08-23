@@ -1,7 +1,7 @@
 import React, { memo, useState } from 'react';
 import { Message, Role } from '../types.ts';
 import { GroundingNode } from './GroundingNode.tsx';
-import { CheckCircle2, ChevronRight, Play, Square, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { CheckCircle2, ChevronRight, Play, Square, ThumbsUp, ThumbsDown, Send } from 'lucide-react';
 
 export const AXIOM_PHRASES = [
   "Ana nazarin harshe da al'adu...",
@@ -35,6 +35,12 @@ export const MessageItem = memo(({
   allowTrace?: boolean;
 }) => {
   const [showTrace, setShowTrace] = useState(false);
+  // Inline, on-brand replacement for window.prompt() — a bare OS dialog
+  // looked completely out of place inside this custom manuscript-styled
+  // bubble. Opens a small themed panel instead; "Tsallake" still records
+  // the down-vote with no correction text, same as leaving prompt() blank.
+  const [showCorrectionInput, setShowCorrectionInput] = useState(false);
+  const [correctionText, setCorrectionText] = useState('');
 
   return (
     <div className={`flex ${m.role === Role.user ? 'justify-end' : 'justify-start'} animate-reveal w-full`}>
@@ -105,7 +111,7 @@ export const MessageItem = memo(({
                   {onPlaySpeech && (
                     <button
                       onClick={() => onPlaySpeech(m.text, m.id, m.normalized)}
-                      className={`flex items-center gap-1.5 text-xs transition-all focus:outline-none px-3 py-1 rounded-full border ${
+                      className={`relative flex items-center gap-1.5 text-xs transition-all focus:outline-none px-3 py-1 rounded-full border before:content-[''] before:absolute before:-inset-y-2.5 before:-inset-x-1.5 ${
                         playingSpeechId === m.id
                           ? 'bg-dyn-accent text-dyn-bg-primary border-dyn-accent shadow-[0_0_12px_rgba(var(--accent-gold-rgb),0.3)] animate-pulse'
                           : 'bg-dyn-accent/10 border-dyn-accent/20 text-dyn-accent hover:bg-dyn-accent/20 hover:scale-105 active:scale-95'
@@ -124,20 +130,15 @@ export const MessageItem = memo(({
                     <button
                       onClick={() => onFeedback(m.id, 'up')}
                       disabled={!!feedback}
-                      className={`p-2 rounded-xl transition-all ${feedback === 'up' ? 'bg-green-500/20 text-green-400 font-bold border border-green-500/30' : feedback ? 'opacity-30 cursor-not-allowed' : 'text-dyn-text-secondary hover:text-green-400 hover:bg-white/5 border border-transparent'}`}
+                      className={`relative p-2 rounded-xl transition-all before:content-[''] before:absolute before:-inset-1.5 ${feedback === 'up' ? 'bg-green-500/20 text-green-400 font-bold border border-green-500/30' : feedback ? 'opacity-30 cursor-not-allowed' : 'text-dyn-text-secondary hover:text-green-400 hover:bg-white/5 border border-transparent'}`}
                       title={feedback === 'up' ? 'An adana amsa mai kyau' : 'Amsa mai kyau (Thumbs Up)'}
                     >
                       <ThumbsUp className="w-4.5 h-4.5" />
                     </button>
                     <button
-                      onClick={() => {
-                        const correction = window.prompt(
-                          "Me ya kamata amsar ta kasance? (Optional — leave blank to just flag it)"
-                        );
-                        onFeedback(m.id, 'down', correction?.trim() || undefined);
-                      }}
+                      onClick={() => setShowCorrectionInput(v => !v)}
                       disabled={!!feedback}
-                      className={`p-2 rounded-xl transition-all ${feedback === 'down' ? 'bg-red-500/20 text-red-400 font-bold border border-red-500/30' : feedback ? 'opacity-30 cursor-not-allowed' : 'text-dyn-text-secondary hover:text-red-400 hover:bg-white/5 border border-transparent'}`}
+                      className={`relative p-2 rounded-xl transition-all before:content-[''] before:absolute before:-inset-1.5 ${feedback === 'down' ? 'bg-red-500/20 text-red-400 font-bold border border-red-500/30' : feedback ? 'opacity-30 cursor-not-allowed' : showCorrectionInput ? 'bg-white/5 text-red-400 border border-dyn-border' : 'text-dyn-text-secondary hover:text-red-400 hover:bg-white/5 border border-transparent'}`}
                       title={feedback === 'down' ? 'An adana kuskure' : 'Amsa ba daidai ba (Thumbs Down)'}
                     >
                       <ThumbsDown className="w-4.5 h-4.5" />
@@ -145,6 +146,37 @@ export const MessageItem = memo(({
                   </div>
                 )}
                 </div>
+
+                {showCorrectionInput && !feedback && (
+                  <div className="w-full p-4 rounded-2xl bg-black/50 border border-dyn-border/30 space-y-3 animate-reveal">
+                    <label className="text-[10px] uppercase tracking-wider text-dyn-text-muted font-bold block">
+                      Me ya kamata amsar ta kasance? (Optional — leave blank to just flag it)
+                    </label>
+                    <textarea
+                      value={correctionText}
+                      onChange={(e) => setCorrectionText(e.target.value)}
+                      rows={2}
+                      autoFocus
+                      placeholder="Rubuta gyara anan… (Write the correction here…)"
+                      className="w-full bg-white/[0.02] border border-dyn-border rounded-xl px-3.5 py-2.5 text-sm text-dyn-text-primary focus:outline-none focus:border-dyn-accent/50 placeholder:text-dyn-text-muted/40 resize-none no-scrollbar"
+                    />
+                    <div className="flex items-center justify-end flex-wrap gap-2">
+                      <button
+                        onClick={() => { setShowCorrectionInput(false); setCorrectionText(''); onFeedback(m.id, 'down', undefined); }}
+                        className="px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider whitespace-nowrap text-dyn-text-secondary hover:text-dyn-text-primary hover:bg-white/5 transition-colors"
+                      >
+                        Tsallake (Skip)
+                      </button>
+                      <button
+                        onClick={() => { const c = correctionText.trim(); setShowCorrectionInput(false); setCorrectionText(''); onFeedback(m.id, 'down', c || undefined); }}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider whitespace-nowrap shrink-0 bg-dyn-accent/15 text-dyn-accent border border-dyn-accent/30 hover:bg-dyn-accent/25 transition-colors"
+                      >
+                        <Send className="w-3.5 h-3.5 shrink-0" />
+                        Aika (Submit)
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {showTrace && (

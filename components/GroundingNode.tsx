@@ -11,25 +11,25 @@ export const GroundingNode: React.FC<{ sources: Source[] }> = ({ sources }) => {
   if (!sources || sources.length === 0) return null;
 
   return (
-    <div className="mt-12 space-y-4 animate-flourish">
+    <div className="mt-12 space-y-4 animate-reveal">
       <div className="flex items-center gap-4 opacity-40">
-        <span className="h-[1px] w-8 bg-silk-gold"></span>
-        <span className="meta-tag text-[8px] tracking-[0.4em]">Hujojin_Bincike_da_Majiyoyi</span>
+        <span className="h-[1px] w-8 bg-dyn-accent"></span>
+        <span className="text-[8px] uppercase font-bold tracking-[0.3em] text-dyn-text-secondary">Majiyoyi (Sources)</span>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {sources.map((source, i) => {
           const isYoutube = source.type === 'youtube' || source.uri.includes('youtube.com') || source.uri.includes('youtu.be');
           const isMaps = source.type === 'taswira' || source.uri.includes('maps.google.com') || source.uri.includes('goo.gl/maps');
-          
+
           return (
-            <a 
-              key={i} 
-              href={source.uri} 
-              target="_blank" 
+            <a
+              key={i}
+              href={source.uri}
+              target="_blank"
               rel="noopener noreferrer"
-              className="group p-4 rounded-2xl border border-white/5 bg-white/5 hover:border-silk-gold/30 hover:bg-silk-gold/5 transition-all duration-500 flex items-center gap-4"
+              className="group p-4 rounded-2xl border border-dyn-border/40 bg-white/5 hover:border-dyn-accent/30 hover:bg-dyn-accent/5 transition-all duration-500 flex items-center gap-4"
             >
-              <div className={`flex-none p-2 rounded-xl ${isYoutube ? 'text-red-500 bg-red-500/10' : isMaps ? 'text-green-500 bg-green-500/10' : 'text-silk-gold bg-silk-gold/10'}`}>
+              <div className={`flex-none p-2 rounded-xl ${isYoutube ? 'text-red-500 bg-red-500/10' : isMaps ? 'text-green-500 bg-green-500/10' : 'text-dyn-accent bg-dyn-accent/10'}`}>
                 {isYoutube ? (
                   <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
                 ) : isMaps ? (
@@ -39,10 +39,10 @@ export const GroundingNode: React.FC<{ sources: Source[] }> = ({ sources }) => {
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-bold text-white/80 truncate group-hover:text-silk-gold transition-colors">{source.title}</p>
-                <p className="text-[8px] text-white/30 truncate uppercase tracking-widest">{isYoutube ? 'Video' : isMaps ? 'Wuri' : ' Shafin Ilimi'}</p>
+                <p className="text-[10px] font-bold text-dyn-text-primary/90 truncate group-hover:text-dyn-accent transition-colors">{source.title}</p>
+                <p className="text-[8px] text-dyn-text-muted truncate uppercase tracking-widest">{isYoutube ? 'Video' : isMaps ? 'Wuri' : ' Shafin Ilimi'}</p>
               </div>
-              <svg className="w-4 h-4 text-white/20 group-hover:text-silk-gold transition-all group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              <svg className="w-4 h-4 text-dyn-text-muted group-hover:text-dyn-accent transition-all group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
             </a>
           );
         })}

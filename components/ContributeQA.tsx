@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { gemini } from '../services/localService.ts';
-import { MessageSquarePlus, X, Check, Loader2, Send } from 'lucide-react';
+import { MessageSquarePlus, X, Check, Loader2, Send, AlertTriangle } from 'lucide-react';
 
 /** User-facing: contribute a native-written Hausa question + answer. Feeds the
  * LLM training mix (Milestone #1) — submitted as PENDING, used only after the
@@ -11,6 +11,7 @@ export const ContributeQA: React.FC<{ onClose: () => void }> = ({ onClose }) => 
   const [topic, setTopic] = useState('');
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -21,9 +22,11 @@ export const ContributeQA: React.FC<{ onClose: () => void }> = ({ onClose }) => 
   const submit = async () => {
     if (question.trim().length < 2 || answer.trim().length < 2) return;
     setBusy(true);
+    setError(null);
     const ok = await gemini.submitQA(question.trim(), answer.trim(), topic.trim() || undefined);
     setBusy(false);
     if (ok) setDone(true);
+    else setError('An kasa aikawa. A sake gwadawa. (Failed to submit — please try again.)');
   };
 
   return (
@@ -50,6 +53,13 @@ export const ContributeQA: React.FC<{ onClose: () => void }> = ({ onClose }) => 
         ) : (
           <div className="space-y-6">
             <p className="text-sm text-dyn-text-secondary leading-relaxed">Rubuta tambaya a Hausa, sannan ka rubuta amsar da ta dace — kamar yadda ƙwararren mai magana da Hausa zai amsa. Wannan yana koya wa Murya tunani da magana da Hausa ta gaskiya. (Write a Hausa question and the ideal Hausa answer — this teaches Murya to think and speak authentic Hausa.)</p>
+
+            {error && (
+              <div role="alert" className="flex items-start gap-3 p-4 rounded-2xl bg-red-500/[0.06] border border-red-500/30 animate-reveal">
+                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-red-400" />
+                <p className="text-sm text-dyn-text-primary/90 leading-relaxed">{error}</p>
+              </div>
+            )}
 
             <div className="space-y-2">
               <label className="text-[10px] uppercase tracking-widest text-dyn-text-muted font-bold">Tambaya (Question, in Hausa)</label>
