@@ -182,6 +182,17 @@ _auth = [Depends(verify_api_key)]
 
 app.include_router(chat.router, prefix="/api", dependencies=_auth)
 app.include_router(image.router, prefix="/api", dependencies=_auth)
+# audio.router deliberately does NOT get the router-level _auth here (found
+# missing entirely in a 2026-08-23 security review, but a router-level
+# Security(APIKeyHeader) dependency is incompatible with the WebSocket route
+# on this same router -- FastAPI/Starlette can't supply the HTTP Request
+# object APIKeyHeader.__call__ requires for a WebSocket handshake, and
+# raises a TypeError before the connection even opens. A browser's native
+# WebSocket API also cannot set custom headers at all, so header-based auth
+# could never work for /api/live from the real frontend regardless. Instead:
+# /api/tts (a normal HTTP GET, fetch()-able, header-settable) gets _auth
+# directly on its own route decorator in routers/audio.py; /api/live gets
+# its own WebSocket-native, query-param-based check inside live_endpoint.
 app.include_router(audio.router, prefix="/api")
 # waxal.router serves the training-corpus browser (NeuralReview admin panel)
 # — real admin session required, not just the optional API key, since this

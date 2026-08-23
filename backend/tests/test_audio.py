@@ -589,6 +589,58 @@ def test_live_endpoint_falls_back_to_fixed_chunking_when_vad_unavailable():
     mock_transcribe.assert_called_once()
 
 
+def test_live_endpoint_rejects_wrong_or_missing_api_key_when_configured(monkeypatch):
+    """Regression test for a real gap found in a 2026-08-23 security review:
+    /api/live had no API_KEY enforcement at all, unlike every other product
+    endpoint. Since a Security(APIKeyHeader) router-level dependency doesn't
+    work on a WebSocket route (confirmed empirically -- FastAPI can't supply
+    the Request object it needs for a WS handshake), the check is a plain
+    query-param comparison (auth.api_key_valid) done manually inside
+    live_endpoint before ws.accept()."""
+    import auth
+    from starlette.testclient import TestClient
+    from starlette.websockets import WebSocketDisconnect as ClientWSDisconnect
+
+    from main import app
+
+    monkeypatch.setattr(auth, "_CONFIGURED_KEY", "the-real-secret")
+
+    # No key at all.
+    with pytest.raises(ClientWSDisconnect):
+        with TestClient(app).websocket_connect("/api/live"):
+            pass
+
+    # Wrong key.
+    with pytest.raises(ClientWSDisconnect):
+        with TestClient(app).websocket_connect("/api/live?api_key=wrong"):
+            pass
+
+
+def test_live_endpoint_allows_connection_with_correct_api_key(monkeypatch):
+    """The other half of the regression test above: a correct key must still
+    connect normally, not just reject bad ones."""
+    import json as _json
+    from unittest.mock import AsyncMock, patch
+
+    import auth
+    from starlette.testclient import TestClient
+
+    from main import app
+    from routers.audio import CHUNK_SAMPLES
+
+    monkeypatch.setattr(auth, "_CONFIGURED_KEY", "the-real-secret")
+    chunk = b"\x22\x22" * CHUNK_SAMPLES
+
+    with patch("routers.audio.new_vad_stream", return_value=None), \
+         patch("routers.audio._transcribe", AsyncMock(return_value="sannu")), \
+         patch("routers.audio._llm_respond", AsyncMock(return_value="Sannu")), \
+         patch("routers.audio._synthesize_speech", return_value=None):
+        with TestClient(app).websocket_connect("/api/live?api_key=the-real-secret") as ws:
+            ws.send_bytes(chunk)
+            msg = _json.loads(ws.receive_text())
+            assert msg["type"] == "user_transcript"
+
+
 # ---------------------------------------------------------------------------
 # /api/live -- server-side echo backstop ("the app is listening to itself"
 # bug, 2026-08-22). The client's half-duplex mic gate (App.tsx

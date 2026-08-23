@@ -33,7 +33,9 @@ from pathlib import Path
 from typing import Any, cast
 
 import numpy as np
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Response, HTTPException, Request
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, Response, HTTPException, Request
+
+from auth import api_key_valid, verify_api_key
 
 from rate_limit import limiter
 from routers.fallback import generate_fallback_response
@@ -809,7 +811,7 @@ def _add_wav_header(pcm_bytes: bytes, sample_rate: int = 24000) -> bytes:
     return header.getvalue()
 
 
-@router.get("/tts")
+@router.get("/tts", dependencies=[Depends(verify_api_key)])
 @limiter.limit("20/minute")
 async def tts_endpoint(
     request: Request,
@@ -895,7 +897,18 @@ class _TurnState:
 
 
 @router.websocket("/live")
-async def live_endpoint(ws: WebSocket, speaker_id: int = 0, addressee_gender: str = "unspecified"):
+async def live_endpoint(
+    ws: WebSocket, speaker_id: int = 0, addressee_gender: str = "unspecified", api_key: str | None = None
+):
+    # WebSocket-native equivalent of the router-level _auth other product
+    # endpoints get -- see auth.py's api_key_valid docstring for why this
+    # can't be a Security(APIKeyHeader) dependency like the rest. No-op
+    # (always allows) when API_KEY isn't configured, matching every other
+    # endpoint's self-hosted-default behavior.
+    if not api_key_valid(api_key):
+        await ws.close(code=1008, reason="Invalid or missing API key.")
+        return
+
     if addressee_gender not in ("masculine", "feminine", "unspecified"):
         addressee_gender = "unspecified"
 

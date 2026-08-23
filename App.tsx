@@ -103,6 +103,36 @@ const App: React.FC = () => {
   // Re-armed on every TTS chunk so it always fires `tail` seconds after the
   // LAST scheduled chunk of the current reply finishes, not the first.
   const assistantSpeakingOffTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The live mic stream + the audio graph nodes built on top of it in
+  // onopen — stored here so hangup/onclose/onerror can actually tear them
+  // down. Previously these were only local closure variables inside
+  // onopen, so nothing ever stopped the MediaStream or disconnected the
+  // ScriptProcessor: the browser's mic-in-use indicator stayed lit after
+  // hangup, and redialing (audioContextsRef.current.in is reused across
+  // calls) attached a SECOND onaudioprocess handler while the orphaned
+  // first one kept firing into whatever session sessionPromiseRef now
+  // pointed at — a real risk of doubled/garbled mic audio on redial.
+  const liveAudioNodesRef = useRef<{
+    stream: MediaStream;
+    source: MediaStreamAudioSourceNode;
+    scriptProcessor: ScriptProcessorNode;
+  } | null>(null);
+
+  const teardownLiveAudio = () => {
+    if (assistantSpeakingOffTimerRef.current) {
+      clearTimeout(assistantSpeakingOffTimerRef.current);
+      assistantSpeakingOffTimerRef.current = null;
+    }
+    const nodes = liveAudioNodesRef.current;
+    if (nodes) {
+      nodes.scriptProcessor.onaudioprocess = null;
+      nodes.scriptProcessor.disconnect();
+      nodes.source.disconnect();
+      nodes.stream.getTracks().forEach(t => t.stop());
+      liveAudioNodesRef.current = null;
+    }
+    sessionPromiseRef.current = null;
+  };
 
   const scrollToBottom = (instant = false) => {
     if (scrollRef.current) {
@@ -206,11 +236,8 @@ const App: React.FC = () => {
 
   const toggleLiveVoice = async () => {
     if (isLiveActive) {
-      if (assistantSpeakingOffTimerRef.current) {
-        clearTimeout(assistantSpeakingOffTimerRef.current);
-        assistantSpeakingOffTimerRef.current = null;
-      }
       if (sessionPromiseRef.current) (await sessionPromiseRef.current).close();
+      teardownLiveAudio();
       setIsLiveActive(false);
       setVolume(0);
       setVoiceStatus('idle');
@@ -279,6 +306,9 @@ const App: React.FC = () => {
             // It is connected to destination below because some browsers never
             // fire onaudioprocess otherwise (its output is silence).
             const scriptProcessor = inputCtx.createScriptProcessor(4096, 1, 1);
+            // Stored so hangup/onclose/onerror can actually stop the stream
+            // and disconnect these nodes — see teardownLiveAudio above.
+            liveAudioNodesRef.current = { stream, source, scriptProcessor };
             // The REAL capture rate — browsers that ignored the 16000 hint
             // (Safari, many WebViews) typically run at 44100/48000 here.
             const captureRate = inputCtx.sampleRate;
@@ -368,18 +398,12 @@ const App: React.FC = () => {
             }
           },
           onclose: () => {
-            if (assistantSpeakingOffTimerRef.current) {
-              clearTimeout(assistantSpeakingOffTimerRef.current);
-              assistantSpeakingOffTimerRef.current = null;
-            }
+            teardownLiveAudio();
             setIsLiveActive(false);
             setVoiceStatus('idle');
           },
           onerror: () => {
-            if (assistantSpeakingOffTimerRef.current) {
-              clearTimeout(assistantSpeakingOffTimerRef.current);
-              assistantSpeakingOffTimerRef.current = null;
-            }
+            teardownLiveAudio();
             setIsLiveActive(false);
             setVoiceStatus('error');
           }

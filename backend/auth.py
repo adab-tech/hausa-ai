@@ -26,15 +26,28 @@ _CONFIGURED_KEY: str | None = os.getenv("API_KEY")
 
 async def verify_api_key(api_key: str | None = Security(_api_key_header)) -> None:
     """FastAPI dependency — enforce API key when one is configured."""
-    if _CONFIGURED_KEY is None:
-        # No key configured → open access (self-hosted default).
-        return
-    if api_key is None or not hmac.compare_digest(api_key, _CONFIGURED_KEY):
+    if not api_key_valid(api_key):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or missing API key. Set the X-API-Key header.",
             headers={"WWW-Authenticate": "ApiKey"},
         )
+
+
+def api_key_valid(candidate: str | None) -> bool:
+    """Plain (non-dependency-injected) API key check, usable anywhere the
+    key string has already been pulled from somewhere other than the
+    X-API-Key header -- specifically for /api/live: a WebSocket route can't
+    use Security(APIKeyHeader) as a router-level dependency (FastAPI can't
+    supply the HTTP Request object APIKeyHeader.__call__ requires during a
+    WebSocket handshake, and raises before the connection even opens), and
+    a browser's native WebSocket API can't set custom headers at all
+    regardless. True means access is allowed -- either no key is
+    configured (open access, the self-hosted default) or the candidate
+    matches."""
+    if _CONFIGURED_KEY is None:
+        return True
+    return candidate is not None and hmac.compare_digest(candidate, _CONFIGURED_KEY)
 
 
 _REVIEWER_KEY_NAME = "X-Reviewer-Key"

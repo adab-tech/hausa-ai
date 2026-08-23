@@ -56,18 +56,37 @@ def normalize_hausa_orthography(text: str) -> str:
     normalized = normalize_digits(text)
 
     # 1. First replace explicit quote representations (e.g. b', d', k', y', 'y)
-    # Using word boundaries where appropriate or specific patterns
-    normalized = re.sub(r"\bb\'", "ɓ", normalized, flags=re.IGNORECASE)
-    normalized = re.sub(r"\bd\'", "ɗ", normalized, flags=re.IGNORECASE)
-    normalized = re.sub(r"\bk\'", "ƙ", normalized, flags=re.IGNORECASE)
-    normalized = re.sub(r"\by\'|\'y", "ƴ", normalized, flags=re.IGNORECASE)
-    normalized = re.sub(r"\bB\'", "Ɓ", normalized)
-    normalized = re.sub(r"\bD\'", "Ɗ", normalized)
-    normalized = re.sub(r"\bK\'", "Ƙ", normalized)
-    normalized = re.sub(r"\bY\'|\'Y", "Ƴ", normalized)
-    normalized = re.sub(r"ts\'", "ts", normalized, flags=re.IGNORECASE)
-    normalized = re.sub(r"Ts\'", "Ts", normalized)
-    normalized = re.sub(r"TS\'", "TS", normalized)
+    # Using word boundaries where appropriate or specific patterns.
+    #
+    # Case-preserving: these used to be split into a case-INSENSITIVE pass
+    # (always producing the lowercase hooked letter) followed by a
+    # case-sensitive uppercase-only pass -- but since the insensitive pass
+    # ran first and matched BOTH cases, it consumed every occurrence before
+    # the uppercase pass ever got a chance to run, silently lowercasing any
+    # capitalized hooked-letter word (sentence-initial, proper nouns) that
+    # should have kept its capital. `str.isupper()` ignores the apostrophe
+    # (only cased characters count), so it correctly detects "B'" as
+    # uppercase and "b'" as lowercase regardless of which side the
+    # apostrophe sits on (matters for the y'/'y pair).
+    def _hooked(lower: str, upper: str):
+        def repl(m: re.Match) -> str:
+            return upper if m.group(0).isupper() else lower
+        return repl
+
+    normalized = re.sub(r"\bb\'", _hooked("ɓ", "Ɓ"), normalized, flags=re.IGNORECASE)
+    normalized = re.sub(r"\bd\'", _hooked("ɗ", "Ɗ"), normalized, flags=re.IGNORECASE)
+    normalized = re.sub(r"\bk\'", _hooked("ƙ", "Ƙ"), normalized, flags=re.IGNORECASE)
+    normalized = re.sub(r"\by\'|\'y", _hooked("ƴ", "Ƴ"), normalized, flags=re.IGNORECASE)
+
+    def _ts_repl(m: re.Match) -> str:
+        letters = m.group(0)[:2]
+        if letters.isupper():
+            return "TS"
+        if letters[0].isupper():
+            return "Ts"
+        return "ts"
+
+    normalized = re.sub(r"ts\'", _ts_repl, normalized, flags=re.IGNORECASE)
 
     # 2. Replace dangling post-consonant quotes
     normalized = re.sub(r"b'", "ɓ", normalized)
