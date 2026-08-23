@@ -12,6 +12,7 @@ authentication is disabled and all requests are allowed through.
 
 import hmac
 import os
+from urllib.parse import urlparse
 
 from fastapi import HTTPException, Request, Security, status
 from fastapi.security.api_key import APIKeyHeader
@@ -92,3 +93,40 @@ async def verify_admin_session(request: Request) -> str:
             detail="Admin session required. Log in at /admin/login.",
         )
     return username
+
+
+_ALLOWED_ORIGINS_RAW = os.getenv("ALLOWED_ORIGINS", "*").strip()
+_ALLOWED_ORIGINS_SET: set[str] | None = (
+    None if _ALLOWED_ORIGINS_RAW == "*"
+    else {o.strip() for o in _ALLOWED_ORIGINS_RAW.split(",") if o.strip()}
+)
+
+
+async def verify_csrf_origin(request: Request) -> None:
+    """CSRF guard for admin state-changing routes gated only by the session
+    cookie. The cookie is SameSite=None by necessity (admin_store.py --
+    app.murya.ng and the API domain differ, so SameSite=Lax/Strict would
+    break every admin request), which means the browser attaches it to
+    cross-site requests too. Routes that accept multipart/form-data (a CORS
+    "simple" content type, e.g. the pronunciation admin recording endpoints)
+    trigger no preflight, so CORS's allow_origins list is never even
+    consulted for them -- a malicious page's auto-submitting <form> reaches
+    the route with a valid session cookie attached. This checks Origin
+    (falling back to Referer, since some browsers omit Origin on same-site
+    navigations) against ALLOWED_ORIGINS by hand, closing exactly the gap
+    CORS doesn't cover. No-op when ALLOWED_ORIGINS='*' (open dev config,
+    nothing trusted to check against)."""
+    if _ALLOWED_ORIGINS_SET is None:
+        return
+    origin = request.headers.get("origin")
+    if not origin:
+        referer = request.headers.get("referer")
+        if referer:
+            parsed = urlparse(referer)
+            if parsed.scheme and parsed.netloc:
+                origin = f"{parsed.scheme}://{parsed.netloc}"
+    if origin not in _ALLOWED_ORIGINS_SET:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cross-site request blocked.",
+        )

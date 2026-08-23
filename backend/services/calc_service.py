@@ -72,10 +72,34 @@ _FUNCS = {
 # DoS guards: reject expressions that would hang or exhaust memory.
 _MAX_POW_EXPONENT = 1000
 _MAX_FACTORIAL = 1000
+# ~1233 decimal digits -- far beyond any sane calculator answer, but small
+# enough that even the worst-case allowed computation stays instant.
+_MAX_RESULT_BITS = 4096
 
 
 class _Unsafe(Exception):
     """Raised internally when a node/operation is outside the allow-list."""
+
+
+def _bit_length(value: float | int) -> int:
+    if isinstance(value, int):
+        return abs(value).bit_length()
+    if isinstance(value, float) and value == value and abs(value) not in (math.inf,):
+        return abs(value).__trunc__().bit_length() if abs(value) < 1e300 else _MAX_RESULT_BITS + 1
+    return 0
+
+
+def _check_pow(base: float | int, exponent: float | int) -> None:
+    """Reject an exponentiation before it runs, not after. A literal exponent
+    cap alone isn't enough: (2**999)**999 has an exponent of 999 (passes a
+    exponent-only check) but its base is already ~999 bits from the first,
+    individually-allowed exponentiation -- computing it builds a ~998,000-bit
+    integer. Estimate the result's bit-length from the base's bit-length
+    instead of waiting to see how big the actual result turns out to be."""
+    if abs(exponent) > _MAX_POW_EXPONENT:
+        raise _Unsafe("exponent too large")
+    if exponent and _bit_length(base) * abs(float(exponent)) > _MAX_RESULT_BITS:
+        raise _Unsafe("result too large")
 
 
 def _eval(node: ast.AST) -> float | int:
@@ -91,10 +115,11 @@ def _eval(node: ast.AST) -> float | int:
         left = _eval(node.left)
         right = _eval(node.right)
         if op_type is ast.Pow:
-            # Cap exponent magnitude so 10**100000 can't hang the worker.
-            if isinstance(right, (int, float)) and abs(right) > _MAX_POW_EXPONENT:
-                raise _Unsafe("exponent too large")
-        return _BIN_OPS[op_type](left, right)
+            _check_pow(left, right)
+        result = _BIN_OPS[op_type](left, right)
+        if _bit_length(result) > _MAX_RESULT_BITS:
+            raise _Unsafe("result too large")
+        return result
 
     if isinstance(node, ast.UnaryOp):
         op_type = type(node.op)
@@ -119,7 +144,15 @@ def _eval(node: ast.AST) -> float | int:
             n = args[0]
             if not isinstance(n, int) or n < 0 or n > _MAX_FACTORIAL:
                 raise _Unsafe("factorial out of range")
-        return _FUNCS[name](*args)
+        if name == "pow" and len(args) >= 2:
+            # The pow() builtin is a second path to exponentiation that
+            # bypasses the ast.Pow/** guard above entirely -- same estimate
+            # check before computing.
+            _check_pow(args[0], args[1])
+        result = _FUNCS[name](*args)
+        if _bit_length(result) > _MAX_RESULT_BITS:
+            raise _Unsafe("result too large")
+        return result
 
     # Anything else (Attribute, Subscript, Lambda, comprehensions, ...) is banned.
     raise _Unsafe(f"disallowed expression: {type(node).__name__}")

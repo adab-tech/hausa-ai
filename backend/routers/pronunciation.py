@@ -26,7 +26,7 @@ from fastapi import (APIRouter, Depends, File, Form, HTTPException, Request,
 from pydantic import BaseModel, Field
 
 import pronunciation_store as store
-from auth import verify_admin_session
+from auth import verify_admin_session, verify_csrf_origin
 from contributor import get_contributor_id
 from rate_limit import limiter
 
@@ -151,7 +151,7 @@ async def admin_export(_admin: str = Depends(verify_admin_session)):
     )
 
 
-@router.post("/admin/pronunciation")
+@router.post("/admin/pronunciation", dependencies=[Depends(verify_csrf_origin)])
 async def admin_create(
     request: Request,
     text: str = Form(...),
@@ -174,7 +174,7 @@ async def admin_create(
     return {"ok": True, "id": row_id}
 
 
-@router.post("/admin/pronunciation/{row_id}/record")
+@router.post("/admin/pronunciation/{row_id}/record", dependencies=[Depends(verify_csrf_origin)])
 async def admin_record_against_flag(
     row_id: int,
     audio: UploadFile = File(...),
@@ -205,7 +205,7 @@ class StatusBody(BaseModel):
     status: str = Field(..., pattern=r"^(pending|approved|rejected)$")
 
 
-@router.post("/admin/pronunciation/{row_id}/status")
+@router.post("/admin/pronunciation/{row_id}/status", dependencies=[Depends(verify_csrf_origin)])
 async def admin_set_status(row_id: int, body: StatusBody,
                            _admin: str = Depends(verify_admin_session)):
     if not store.set_status(row_id, body.status):
@@ -213,7 +213,7 @@ async def admin_set_status(row_id: int, body: StatusBody,
     return {"ok": True, "id": row_id, "status": body.status}
 
 
-@router.delete("/admin/pronunciation/{row_id}")
+@router.delete("/admin/pronunciation/{row_id}", dependencies=[Depends(verify_csrf_origin)])
 async def admin_delete(row_id: int, _admin: str = Depends(verify_admin_session)):
     if not store.delete(row_id):
         raise HTTPException(status_code=404, detail="Item not found")

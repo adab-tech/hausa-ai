@@ -82,6 +82,35 @@ def test_dos_guards_do_not_hang():
     assert calculate("factorial(99999)") is None
 
 
+def test_nested_pow_chain_is_rejected():
+    """Regression test for the 2026-08-23 deep scan finding: a single-level
+    exponent cap alone is bypassable by chaining allowed exponentiations --
+    (2**999)**999 has an exponent of 999 (passes an exponent-only check) but
+    a base that's already ~999 bits, so computing it builds a ~998,000-bit
+    integer. Live-tested in the original report: a 3-level chain took 7.46s
+    and built a ~125MB integer with no error."""
+    import time
+
+    t0 = time.monotonic()
+    assert calculate("((2**999)**999)**999") is None
+    assert time.monotonic() - t0 < 1.0
+
+
+def test_pow_function_bypass_is_rejected():
+    """The pow() builtin (exposed in _FUNCS) is a second path to
+    exponentiation that doesn't go through ast.Pow/** at all -- must get the
+    same base-aware guard, not just the operator path."""
+    assert calculate("pow(pow(2, 999), 999)") is None
+    assert calculate("pow(2, 10)") == "1024"
+
+
+def test_single_level_large_pow_still_allowed():
+    # A single large-but-bounded exponentiation is legitimate and must still work.
+    result = calculate("2**999")
+    assert result is not None
+    assert result.startswith("5357543035931336604")
+
+
 def test_garbage_and_empty():
     assert calculate("") is None
     assert calculate("   ") is None

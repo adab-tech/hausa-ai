@@ -23,7 +23,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from auth import verify_admin_session
+from auth import verify_admin_session, verify_csrf_origin
 from contributor import get_contributor_id
 from rate_limit import limiter
 import corrections_store
@@ -76,7 +76,7 @@ async def get_corrections(
     return corrections_store.list_corrections(status)
 
 
-@router.post("/corrections/{correction_id}/review")
+@router.post("/corrections/{correction_id}/review", dependencies=[Depends(verify_csrf_origin)])
 async def review_correction_endpoint(
     correction_id: str,
     req: ReviewRequest,
