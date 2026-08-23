@@ -2,7 +2,7 @@ import React from 'react';
 import { AddresseeGender } from '../types.ts';
 import { ArewaLogo } from './ArewaLogo.tsx';
 import {
-  Volume2, ChevronRight, Activity, BookOpen, Cpu, X, Trash2, UserCircle2,
+  Volume2, ChevronRight, Activity, BookOpen, Cpu, X, UserCircle2,
   GraduationCap, Mic2, Mars, Venus, CircleDashed, CircleCheck, Languages,
   MessageSquarePlus,
 } from 'lucide-react';
@@ -28,8 +28,6 @@ interface SidebarProps {
   onOpenDictionary: () => void;
   onOpenReview: () => void;
   onOpenWhitePaper: () => void;
-  onClearChat: () => void;
-  hasMessages: boolean;
 }
 
 const ADDRESSEE_LABELS: Record<AddresseeGender, string> = {
@@ -130,8 +128,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenDictionary,
   onOpenReview,
   onOpenWhitePaper,
-  onClearChat,
-  hasMessages,
 }) => {
   return (
     <>
@@ -306,26 +302,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <span>White Paper</span>
             </button>
           </div>
-        </div>
-
-        {/* System Stats Footer */}
-        <div className="space-y-4 border-t border-dyn-border/40 pt-5 text-[10px] font-mono text-dyn-text-muted">
-          <div className="flex justify-between">
-            <span>Model Tier:</span>
-            <span className="text-dyn-accent font-bold">Murya</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Autonomy Level:</span>
-            <span className="text-dyn-accent font-bold">FADA Protocol</span>
-          </div>
-          <button
-            onClick={onClearChat}
-            disabled={!hasMessages}
-            className="w-full min-h-[44px] py-2.5 border border-red-500/20 hover:border-red-500/40 hover:bg-red-500/5 text-red-500/70 hover:text-red-500 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 disabled:opacity-20 disabled:cursor-not-allowed"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span>Goge Hira (Clear)</span>
-          </button>
         </div>
       </aside>
 

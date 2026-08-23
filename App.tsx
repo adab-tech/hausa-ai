@@ -370,12 +370,6 @@ const App: React.FC = () => {
     }
   };
 
-  const clearChat = () => {
-    if (window.confirm("Shin kana son goge dukkan hirar nan?")) {
-      setMessages([]);
-    }
-  };
-
   const dynamicVibeClass = useMemo(() => {
     return `vibe-${vibe.toLowerCase()}`;
   }, [vibe]);
@@ -425,8 +419,6 @@ const App: React.FC = () => {
         onOpenDictionary={() => setShowDictionary(true)}
         onOpenReview={() => setShowReview(true)}
         onOpenWhitePaper={() => setShowWhitePaper(true)}
-        onClearChat={clearChat}
-        hasMessages={messages.length > 0}
       />
 
       {/* ── MAIN CONTENT AREA ── */}
