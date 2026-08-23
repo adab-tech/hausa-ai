@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ArewaLogo } from './ArewaLogo.tsx';
 import { gemini } from '../services/localService.ts';
 import { PronunciationReview } from './PronunciationReview.tsx';
+import { VisitorAnalytics } from './VisitorAnalytics.tsx';
 import {
   Activity,
   Layers,
@@ -10,7 +11,6 @@ import {
   Search,
   Play,
   Pause,
-  Users,
   Sparkles,
   BookOpen,
   ShieldCheck,
@@ -18,26 +18,31 @@ import {
   Sliders,
   Database,
   Globe,
-  Mic
+  Mic,
+  LogOut
 } from 'lucide-react';
 
 export const NeuralReview: React.FC<{ onClose: () => void; onOpenWhitePaper?: () => void }> = ({ onClose, onOpenWhitePaper }) => {
   const [feedbackStats, setFeedbackStats] = useState<{ up: number; down: number; total: number } | null>(null);
   const [activeTab, setActiveTab] = useState<'telemetry' | 'visitors' | 'matrix' | 'phonology' | 'vision' | 'waxal' | 'pronunciation'>('telemetry');
-  const [analytics, setAnalytics] = useState<any>(null);
+  // Session visibility: this modal can gate content behind an admin session
+  // (pronunciation/visitors/waxal tabs) without the user having gone through
+  // the dedicated /admin/login screen first, so — unlike AdminPanel.tsx —
+  // there was previously no indication anywhere in here of who (if anyone)
+  // is currently signed in, or any way to end that session from this view.
+  const [adminUsername, setAdminUsername] = useState<string | null>(null);
 
   useEffect(() => {
     gemini.getFeedbackStats().then(data => {
       if (data) setFeedbackStats(data);
     });
+    gemini.adminMe().then(setAdminUsername);
   }, []);
 
-  // Load visitor analytics when the Ziyara tab is opened (admin-gated endpoint).
-  useEffect(() => {
-    if (activeTab === 'visitors') {
-      gemini.getAnalytics().then(data => setAnalytics(data ?? { denied: true }));
-    }
-  }, [activeTab]);
+  const adminLogout = async () => {
+    await gemini.adminLogout();
+    setAdminUsername(null);
+  };
 
   // Accessibility: let keyboard users close the modal with Escape, matching
   // standard dialog behavior (this modal has no other keyboard dismiss path).
@@ -151,6 +156,20 @@ export const NeuralReview: React.FC<{ onClose: () => void; onOpenWhitePaper?: ()
             <div>
               <h2 className="font-serif italic text-3xl sm:text-5xl text-dyn-accent leading-none">Matattarar Bayanai</h2>
               <p className="text-[9px] opacity-50 uppercase tracking-[0.4em] mt-1 text-dyn-text-primary">Sovereign Linguistic Analytics Matrix</p>
+              {adminUsername && (
+                <div className="flex items-center gap-2 mt-2">
+                  <span className="text-[10px] font-mono text-dyn-text-secondary">
+                    Admin: <span className="text-dyn-accent">{adminUsername}</span>
+                  </span>
+                  <button
+                    onClick={adminLogout}
+                    className="flex items-center gap-1 text-[9px] uppercase tracking-wider text-dyn-text-muted hover:text-dyn-text-primary transition-colors"
+                    title="End admin session"
+                  >
+                    <LogOut className="w-3 h-3" /> Fita
+                  </button>
+                </div>
+              )}
             </div>
           </div>
           
@@ -259,102 +278,12 @@ export const NeuralReview: React.FC<{ onClose: () => void; onOpenWhitePaper?: ()
             </div>
           )}
 
-          {/* Visitors (Ziyara) Tab — privacy-preserving analytics */}
+          {/* Visitors (Ziyara) Tab — privacy-preserving analytics. Reuses
+              VisitorAnalytics.tsx (the same component AdminPanel.tsx's
+              "Ziyara" tab renders) instead of reimplementing the fetch +
+              chart logic a second time here — see its docstring. */}
           {activeTab === 'visitors' && (
-            <div className="space-y-8 animate-reveal">
-              {!analytics ? (
-                <div className="text-center py-10 text-dyn-text-secondary/40 font-mono text-xs animate-pulse">Ana ɗora bayanan ziyara…</div>
-              ) : analytics.denied ? (
-                <div className="text-center py-10 space-y-2">
-                  <div className="text-dyn-accent font-serif italic text-lg">Sai shiga na masu bita</div>
-                  <div className="text-dyn-text-secondary/60 font-mono text-xs">Wannan sashe na masu bita ne kaɗai. (Reviewer-only — sign in as admin.)</div>
-                </div>
-              ) : (
-                <>
-                  {/* Headline numbers */}
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-                    {[
-                      { label: 'Jimillar Ziyara', val: analytics.total_visits ?? 0, sub: 'Total visits (all time)' },
-                      { label: 'Na Yau', val: analytics.unique_devices?.today ?? 0, sub: 'Unique devices today' },
-                      { label: 'Kwana 7', val: analytics.unique_devices?.last_7d ?? 0, sub: 'Unique devices, last 7 days' },
-                      { label: 'Duka', val: analytics.unique_devices?.all_time ?? 0, sub: 'Unique devices, all time' },
-                    ].map((item, i) => (
-                      <div key={i} className="p-6 rounded-3xl bg-dyn-bg-tertiary/30 border border-dyn-border text-center group hover:border-dyn-accent/40 transition-all shadow-xl">
-                        <span className="text-[9px] text-dyn-text-secondary uppercase tracking-widest block mb-3 font-semibold">{item.label}</span>
-                        <div className="text-4xl sm:text-5xl font-serif italic text-dyn-accent tabular-nums">{item.val}</div>
-                        <p className="text-[9px] text-dyn-text-muted mt-3 uppercase tracking-wider font-medium">{item.sub}</p>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* Daily trend bar chart */}
-                    <div className="p-6 rounded-3xl bg-dyn-bg-tertiary/20 border border-dyn-border">
-                      <h3 className="text-xs uppercase tracking-widest text-dyn-accent mb-5 font-bold flex items-center gap-2">
-                        <Activity className="w-4 h-4" /> Ziyara / Kullum (Daily visits)
-                      </h3>
-                      {(() => {
-                        const daily = analytics.daily ?? [];
-                        const max = Math.max(1, ...daily.map((d: any) => d.visits));
-                        return (
-                          <div className="flex items-end gap-1 h-32">
-                            {daily.map((d: any, i: number) => (
-                              <div key={i} className="flex-1 flex flex-col items-center justify-end group" title={`${d.day}: ${d.visits} ziyara, ${d.unique} na'urori`}>
-                                <div className="w-full rounded-t bg-dyn-accent/70 group-hover:bg-dyn-accent transition-all" style={{ height: `${(d.visits / max) * 100}%`, minHeight: d.visits > 0 ? '3px' : '0' }}></div>
-                                <span className="text-[7px] text-dyn-text-muted mt-1 tabular-nums">{d.day?.slice(8)}</span>
-                              </div>
-                            ))}
-                          </div>
-                        );
-                      })()}
-                      <p className="text-[9px] text-dyn-text-muted mt-3 italic">Kwanaki na ƙarshe. (Last {(analytics.daily ?? []).length} days.)</p>
-                    </div>
-
-                    {/* Geography by timezone */}
-                    <div className="p-6 rounded-3xl bg-dyn-bg-tertiary/20 border border-dyn-border">
-                      <h3 className="text-xs uppercase tracking-widest text-dyn-accent mb-5 font-bold flex items-center gap-2">
-                        <Globe className="w-4 h-4" /> Daga Ina (Where from)
-                      </h3>
-                      <div className="space-y-2">
-                        {(analytics.by_country ?? []).length === 0 && (
-                          <p className="text-[10px] text-dyn-text-muted italic">Babu bayanai tukuna. (No data yet.)</p>
-                        )}
-                        {(() => {
-                          const rows = analytics.by_country ?? [];
-                          const max = Math.max(1, ...rows.map((r: any) => r.visits));
-                          return rows.map((r: any, i: number) => (
-                            <div key={i} className="flex items-center gap-3">
-                              <span className="text-[11px] text-dyn-text-primary w-40 truncate">{r.country}</span>
-                              <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
-                                <div className="h-full bg-dyn-accent/70 rounded-full" style={{ width: `${(r.visits / max) * 100}%` }}></div>
-                              </div>
-                              <span className="text-[10px] text-dyn-text-secondary font-mono tabular-nums w-8 text-right">{r.visits}</span>
-                            </div>
-                          ));
-                        })()}
-                      </div>
-                      <p className="text-[8px] text-dyn-text-muted/70 mt-4 italic">Ta yankin lokaci na na'ura (by device timezone — approximate, no IP tracked).</p>
-                    </div>
-                  </div>
-
-                  {/* Languages */}
-                  {(analytics.by_language ?? []).length > 0 && (
-                    <div className="p-6 rounded-3xl bg-dyn-bg-tertiary/20 border border-dyn-border">
-                      <h3 className="text-xs uppercase tracking-widest text-dyn-accent mb-4 font-bold flex items-center gap-2">
-                        <Users className="w-4 h-4" /> Harshen Na'ura (Browser language)
-                      </h3>
-                      <div className="flex flex-wrap gap-2">
-                        {(analytics.by_language ?? []).map((l: any, i: number) => (
-                          <span key={i} className="px-3 py-1.5 rounded-full bg-white/5 border border-dyn-border text-[10px] text-dyn-text-secondary font-mono">
-                            {l.lang} · {l.visits}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
+            <div className="animate-reveal"><VisitorAnalytics /></div>
           )}
 
           {/* Phonology Tab */}

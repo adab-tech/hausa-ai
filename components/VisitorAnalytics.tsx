@@ -1,17 +1,17 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { gemini } from '../services/localService.ts';
+import { useAdminFetch } from '../hooks/useAdminFetch.ts';
 import { Activity, Globe, Users, RefreshCw } from 'lucide-react';
 
 /** Privacy-preserving visitor analytics (Ziyara) — counts + rough geography by
- * browser timezone, no IP/PII. Admin-gated (GET /api/admin/analytics). */
+ * browser timezone, no IP/PII. Admin-gated (GET /api/admin/analytics).
+ * Also embedded directly inside NeuralReview.tsx's "Ziyara" tab — this is the
+ * single source of truth for that view; don't reimplement it there. */
 export const VisitorAnalytics: React.FC = () => {
-  const [analytics, setAnalytics] = useState<any>(null);
+  const { data: analytics, loading, denied, reload } = useAdminFetch(() => gemini.getAnalytics());
 
-  const load = () => { setAnalytics(null); gemini.getAnalytics().then((d) => setAnalytics(d ?? { denied: true })); };
-  useEffect(() => { load(); }, []);
-
-  if (!analytics) return <div className="text-center py-10 text-dyn-text-secondary/40 font-mono text-xs animate-pulse">Ana ɗora bayanan ziyara…</div>;
-  if (analytics.denied) return (
+  if (loading && !analytics) return <div className="text-center py-10 text-dyn-text-secondary/40 font-mono text-xs animate-pulse">Ana ɗora bayanan ziyara…</div>;
+  if (denied || !analytics) return (
     <div className="text-center py-10 space-y-2">
       <div className="text-dyn-accent font-serif italic text-lg">Sai shiga na masu bita</div>
       <div className="text-dyn-text-secondary/60 font-mono text-xs">Wannan sashe na masu bita ne kaɗai. (Reviewer-only — sign in as admin.)</div>
@@ -30,7 +30,7 @@ export const VisitorAnalytics: React.FC = () => {
           <h3 className="font-serif italic text-xl text-dyn-text-primary">Ziyara</h3>
           <p className="text-[10px] uppercase tracking-widest text-dyn-text-muted">Visitors · privacy-preserving (no IP, by timezone)</p>
         </div>
-        <button onClick={load} className="p-2 rounded-lg text-dyn-text-secondary hover:text-dyn-text-primary hover:bg-white/5" aria-label="Refresh"><RefreshCw className="w-4 h-4" /></button>
+        <button onClick={reload} className="p-2 rounded-lg text-dyn-text-secondary hover:text-dyn-text-primary hover:bg-white/5" aria-label="Refresh"><RefreshCw className="w-4 h-4" /></button>
       </div>
 
       {/* Headline numbers */}

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { gemini } from '../services/localService.ts';
-import { CheckCircle2, XCircle } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 
 interface Correction {
   id: string;
@@ -20,6 +20,14 @@ interface Correction {
 export const CorrectionsReview: React.FC = () => {
   const [pending, setPending] = useState<Correction[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Which row has an approve/reject request in flight — disables its buttons
+  // and blocks a second click from firing a concurrent request for the same
+  // row (see docs/deep_scan_2026-08-23.md finding #14).
+  const [busyId, setBusyId] = useState<string | null>(null);
+  // Per-row error from a failed approve/reject, so a failure is visible on
+  // the item itself instead of leaving it silently stuck in "pending" with
+  // no indication anything went wrong.
+  const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
 
   const loadPending = async () => {
     setError(null);
@@ -37,9 +45,20 @@ export const CorrectionsReview: React.FC = () => {
   }, []);
 
   const review = async (id: string, action: 'approve' | 'reject') => {
+    if (busyId) return; // a request for some row is already in flight
+    setBusyId(id);
+    setRowErrors(prev => { const next = { ...prev }; delete next[id]; return next; });
     const ok = await gemini.reviewCorrection(id, action);
+    setBusyId(null);
     if (ok) {
       setPending(prev => (prev ? prev.filter(c => c.id !== id) : prev));
+    } else {
+      setRowErrors(prev => ({
+        ...prev,
+        [id]: action === 'approve'
+          ? 'Amincewa ya kāsa. Ka sāke gwadawa. (Approve failed — try again.)'
+          : 'Ƙin amincewa ya kāsa. Ka sāke gwadawa. (Reject failed — try again.)',
+      }));
     }
   };
 
@@ -72,20 +91,27 @@ export const CorrectionsReview: React.FC = () => {
               <p className="text-sm font-serif text-dyn-text-primary">{c.correction}</p>
             </div>
           </div>
+          {rowErrors[c.id] && (
+            <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/30 rounded-xl px-3 py-2">
+              {rowErrors[c.id]}
+            </div>
+          )}
           <div className="flex items-center justify-between pt-3 border-t border-dyn-border/30">
             <span className="text-[9px] font-mono text-dyn-text-muted">{new Date(c.timestamp * 1000).toLocaleString()}</span>
             <div className="flex gap-3">
               <button
                 onClick={() => review(c.id, 'reject')}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-wider border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-all"
+                disabled={busyId === c.id}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-wider border border-red-500/30 text-red-400 hover:bg-red-500/10 disabled:opacity-40 transition-all"
               >
-                <XCircle className="w-3.5 h-3.5" /> Ki (Reject)
+                {busyId === c.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <XCircle className="w-3.5 h-3.5" />} Ki (Reject)
               </button>
               <button
                 onClick={() => review(c.id, 'approve')}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-wider bg-dyn-accent text-dyn-bg-primary hover:scale-105 active:scale-95 transition-all"
+                disabled={busyId === c.id}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-wider bg-dyn-accent text-dyn-bg-primary hover:scale-105 active:scale-95 disabled:opacity-40 disabled:hover:scale-100 transition-all"
               >
-                <CheckCircle2 className="w-3.5 h-3.5" /> Amince (Approve)
+                {busyId === c.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />} Amince (Approve)
               </button>
             </div>
           </div>

@@ -10,10 +10,12 @@ touches JS, and corrections finally get a real "reviewed by" identity
 
 import os
 
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
+import admin_audit_store
 import admin_store
+from auth import verify_admin_session
 from rate_limit import ip_limiter, limiter
 
 router = APIRouter()
@@ -78,3 +80,13 @@ async def admin_me(request: Request):
     if username is None:
         raise HTTPException(status_code=401, detail="Not authenticated.")
     return {"username": username}
+
+
+@router.get("/admin/audit-log")
+async def audit_log(limit: int = 200, surface: str | None = None,
+                    _admin: str = Depends(verify_admin_session)):
+    """Unified, queryable trail of every admin action across corrections,
+    pronunciation, and Q&A review (see admin_audit_store.py). Capped at 500
+    rows per call regardless of the requested limit -- this is a review aid,
+    not a bulk-export endpoint."""
+    return {"items": admin_audit_store.list_recent(limit=min(max(limit, 1), 500), surface=surface)}

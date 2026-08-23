@@ -35,6 +35,7 @@ from auth import verify_api_key, verify_admin_session
 from rate_limit import limiter
 from routers import (admin_auth, analytics, audio, chat, dictionary, document,
                      feedback, image, pronunciation, qa, waxal)
+import admin_audit_store
 import admin_store
 import analytics_store
 import pronunciation_store
@@ -115,6 +116,11 @@ async def lifespan(app: FastAPI):
     # Startup: create the community Q&A DB (native-written instruction data for
     # the LLM training mix — see qa_store.py / docs/murya_roadmap.md)
     qa_store.init_db()
+
+    # Startup: create the unified admin audit-log DB (who approved/rejected/
+    # deleted what, when, across corrections/pronunciation/Q&A review — see
+    # admin_audit_store.py)
+    admin_audit_store.init_db()
 
     # Startup: Pre-load STT and TTS models to avoid cold-start latency
     import logging

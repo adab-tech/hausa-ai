@@ -1,17 +1,81 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { gemini } from '../services/localService.ts';
+import { useAdminFetch } from '../hooks/useAdminFetch.ts';
 import { ArewaLogo } from './ArewaLogo.tsx';
 import { CorrectionsReview } from './CorrectionsReview.tsx';
 import { PronunciationReview } from './PronunciationReview.tsx';
 import { QAReview } from './QAReview.tsx';
 import { VisitorAnalytics } from './VisitorAnalytics.tsx';
-import { LogOut, FileText, Mic, Globe, MessageSquare } from 'lucide-react';
+import { LogOut, FileText, Mic, Globe, MessageSquare, History, RefreshCw, Loader2 } from 'lucide-react';
+
+/** ADMIN: read-only trail of every approve/reject/delete/record action across
+ * corrections, pronunciation, and Q&A review — see backend/admin_audit_store.py.
+ * Minimal by design (single-admin app, see admin_store.py): a plain
+ * newest-first table, no filtering UI beyond what the endpoint already
+ * supports. This is a safety net for "what did I just do", not a reporting
+ * dashboard. */
+const AuditLogView: React.FC = () => {
+  const { data: items, loading, denied, reload } = useAdminFetch(() => gemini.getAuditLog());
+
+  if (loading && !items) return <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-dyn-accent" /></div>;
+  if (denied || !items) return <p className="text-dyn-text-muted text-sm p-4">An hana shiga. (Admin login required.)</p>;
+
+  const actionColor = (action: string) => {
+    if (action === 'delete') return 'text-red-400';
+    if (action === 'approved' || action === 'approve' || action === 'create' || action === 'record') return 'text-emerald-400';
+    if (action === 'rejected' || action === 'reject') return 'text-amber-400';
+    return 'text-dyn-text-secondary';
+  };
+
+  return (
+    <div className="space-y-4 animate-reveal">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-serif italic text-xl text-dyn-text-primary">Tarihin Aiki</h3>
+          <p className="text-[10px] uppercase tracking-widest text-dyn-text-muted">Audit log · every approve/reject/delete across all three review surfaces</p>
+        </div>
+        <button onClick={reload} className="p-2 rounded-lg text-dyn-text-secondary hover:text-dyn-text-primary hover:bg-white/5" aria-label="Refresh"><RefreshCw className="w-4 h-4" /></button>
+      </div>
+
+      {items.length === 0 ? (
+        <p className="text-center py-12 text-dyn-text-muted italic text-sm">Babu wani aiki tukuna. (No admin actions recorded yet.)</p>
+      ) : (
+        <div className="rounded-2xl border border-dyn-border overflow-hidden">
+          <table className="w-full text-left text-xs">
+            <thead>
+              <tr className="bg-dyn-bg-tertiary/40 text-[9px] uppercase tracking-wider text-dyn-text-muted">
+                <th className="p-3">Lokaci (When)</th>
+                <th className="p-3">Admin</th>
+                <th className="p-3">Aiki (Action)</th>
+                <th className="p-3">Sashe (Surface)</th>
+                <th className="p-3">Abu (Item)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((row) => (
+                <tr key={row.id} className="border-t border-dyn-border/30">
+                  <td className="p-3 font-mono text-dyn-text-muted whitespace-nowrap">{new Date(row.created_at * 1000).toLocaleString()}</td>
+                  <td className="p-3 text-dyn-text-primary">{row.admin}</td>
+                  <td className={`p-3 font-bold uppercase ${actionColor(row.action)}`}>{row.action}</td>
+                  <td className="p-3 text-dyn-text-secondary capitalize">{row.surface}</td>
+                  <td className="p-3 text-dyn-text-secondary truncate max-w-xs" title={row.detail ?? undefined}>
+                    {row.target_id ? `#${row.target_id}` : ''}{row.detail ? ` — ${row.detail}` : ''}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const AdminPanel: React.FC = () => {
   const navigate = useNavigate();
   const [username, setUsername] = useState<string | null | 'loading'>('loading');
-  const [tab, setTab] = useState<'corrections' | 'pronunciation' | 'qa' | 'visitors'>('corrections');
+  const [tab, setTab] = useState<'corrections' | 'pronunciation' | 'qa' | 'visitors' | 'audit'>('corrections');
 
   useEffect(() => {
     let cancelled = false;
@@ -68,6 +132,7 @@ export const AdminPanel: React.FC = () => {
             { id: 'pronunciation', label: 'Gyaran Furuci', sub: 'Voice', icon: Mic },
             { id: 'qa', label: 'Tambaya', sub: 'Q&A', icon: MessageSquare },
             { id: 'visitors', label: 'Ziyara', sub: 'Visitors', icon: Globe },
+            { id: 'audit', label: 'Tarihi', sub: 'Audit log', icon: History },
           ] as const).map((t) => {
             const Icon = t.icon;
             return (
@@ -92,6 +157,7 @@ export const AdminPanel: React.FC = () => {
         {tab === 'pronunciation' && <PronunciationReview />}
         {tab === 'qa' && <QAReview />}
         {tab === 'visitors' && <VisitorAnalytics />}
+        {tab === 'audit' && <AuditLogView />}
       </main>
     </div>
   );

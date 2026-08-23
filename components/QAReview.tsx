@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { gemini } from '../services/localService.ts';
+import { ConfirmDialog } from './ConfirmDialog.tsx';
 import { Check, X, Trash2, Loader2, RefreshCw, Download } from 'lucide-react';
 
 type Item = {
@@ -16,6 +17,10 @@ export const QAReview: React.FC = () => {
   const [denied, setDenied] = useState(false);
   const [busy, setBusy] = useState<number | null>(null);
   const [exporting, setExporting] = useState(false);
+  // Per-item error from a failed approve/reject/delete — a failed action
+  // must never silently leave the item's state unclear (deep-scan #14).
+  const [rowErrors, setRowErrors] = useState<Record<number, string>>({});
+  const [pendingDelete, setPendingDelete] = useState<Item | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -25,12 +30,28 @@ export const QAReview: React.FC = () => {
   };
   useEffect(() => { load(); }, []);
 
+  const clearError = (id: number) => setRowErrors(prev => { const next = { ...prev }; delete next[id]; return next; });
+
   const setStatus = async (id: number, status: 'approved' | 'rejected') => {
-    setBusy(id); await gemini.setQAStatus(id, status); setBusy(null); load();
+    if (busy !== null) return; // an action is already in flight
+    setBusy(id); clearError(id);
+    const ok = await gemini.setQAStatus(id, status);
+    setBusy(null);
+    if (ok) load();
+    else setRowErrors(prev => ({ ...prev, [id]: 'Ba a iya adanawa ba. Ka sāke gwadawa. (Save failed — try again.)' }));
   };
-  const remove = async (id: number) => {
-    if (!confirm('Share wannan? (delete)')) return;
-    setBusy(id); await gemini.deleteQA(id); setBusy(null); load();
+
+  const requestDelete = (it: Item) => { if (busy === null) setPendingDelete(it); };
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    const id = pendingDelete.id;
+    setBusy(id); clearError(id);
+    const ok = await gemini.deleteQA(id);
+    setBusy(null);
+    setPendingDelete(null);
+    if (ok) load();
+    else setRowErrors(prev => ({ ...prev, [id]: 'Sharewa ya kāsa. Ka sāke gwadawa. (Delete failed — try again.)' }));
   };
 
   if (denied) return <p className="text-dyn-text-muted text-sm p-4">An hana shiga. (Admin login required.)</p>;
@@ -48,16 +69,21 @@ export const QAReview: React.FC = () => {
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           {!approvedRow && (
-            <button onClick={() => setStatus(it.id, 'approved')} disabled={busy === it.id} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-500/50 text-emerald-400 text-[10px] font-bold uppercase hover:bg-emerald-500/30 disabled:opacity-40" title="Approve">
+            <button onClick={() => setStatus(it.id, 'approved')} disabled={busy !== null} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-500/50 text-emerald-400 text-[10px] font-bold uppercase hover:bg-emerald-500/30 disabled:opacity-40" title="Approve">
               {busy === it.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
             </button>
           )}
           {approvedRow && (
-            <button onClick={() => setStatus(it.id, 'rejected')} disabled={busy === it.id} className="p-1.5 rounded-lg text-dyn-text-muted hover:text-amber-400" title="Disable"><X className="w-4 h-4" /></button>
+            <button onClick={() => setStatus(it.id, 'rejected')} disabled={busy !== null} className="p-1.5 rounded-lg text-dyn-text-muted hover:text-amber-400 disabled:opacity-40" title="Disable">
+              {busy === it.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />}
+            </button>
           )}
-          <button onClick={() => remove(it.id)} className="p-1.5 rounded-lg text-dyn-text-muted hover:text-red-400" title="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
+          <button onClick={() => requestDelete(it)} disabled={busy !== null} className="p-1.5 rounded-lg text-dyn-text-muted hover:text-red-400 disabled:opacity-40" title="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
         </div>
       </div>
+      {rowErrors[it.id] && (
+        <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-1.5">{rowErrors[it.id]}</div>
+      )}
     </div>
   );
 
@@ -97,6 +123,16 @@ export const QAReview: React.FC = () => {
       </div>
 
       {loading && <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-dyn-accent" /></div>}
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Share wannan Tambaya & Amsa?"
+        message={pendingDelete ? `"${pendingDelete.question}" za a share shi har abada. Ba za a iya mayar da shi ba. (This Q&A pair will be permanently deleted. This cannot be undone.)` : ''}
+        confirmLabel="Share (Delete)"
+        busy={busy === pendingDelete?.id}
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 };
