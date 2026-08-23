@@ -971,6 +971,21 @@ async def live_endpoint(ws: WebSocket, speaker_id: int = 0, addressee_gender: st
 
     try:
         while True:
+            # Safety-valve check runs on EVERY loop tick -- not only when an
+            # audio frame happens to arrive -- so a stuck assistant_speaking
+            # flag self-heals even if the client has also stopped sending
+            # mic bytes entirely (e.g. a stalled AudioContext: the same bug
+            # that would drop the "false" control message would also stop
+            # the client's onaudioprocess callback from firing at all).
+            # Bounded by the 30s receive timeout below, so this fires within
+            # at most ~30s of the valve's own threshold even on a
+            # completely silent connection.
+            if assistant_speaking and assistant_speaking_since is not None and (
+                time.monotonic() - assistant_speaking_since > _ASSISTANT_SPEAKING_MAX_S
+            ):
+                assistant_speaking = False
+                assistant_speaking_since = None
+
             # Receive a raw ASGI websocket message rather than
             # ws.receive_bytes() so this loop can also accept the
             # assistant_speaking JSON control frame (a text message) on the
@@ -1027,18 +1042,11 @@ async def live_endpoint(ws: WebSocket, speaker_id: int = 0, addressee_gender: st
                 continue
 
             if assistant_speaking:
-                # Safety valve: don't trust a stuck flag forever in case the
-                # client failed to send the "false" follow-up.
-                if assistant_speaking_since is not None and (
-                    time.monotonic() - assistant_speaking_since > _ASSISTANT_SPEAKING_MAX_S
-                ):
-                    assistant_speaking = False
-                    assistant_speaking_since = None
-                else:
-                    # Drop it outright rather than buffering it — a leaked
-                    # fragment must not survive to be merged into the next
-                    # legitimate turn once the flag clears.
-                    continue
+                # Drop it outright rather than buffering it — a leaked
+                # fragment must not survive to be merged into the next
+                # legitimate turn once the flag clears. (Staleness/safety-
+                # valve check already ran at the top of this loop tick.)
+                continue
 
             if not using_vad:
                 # Fallback: original fixed ~2s chunking.
@@ -1075,6 +1083,21 @@ async def live_endpoint(ws: WebSocket, speaker_id: int = 0, addressee_gender: st
                         turn.triggered = True
                         turn.turn_buffer = bytearray(turn.pre_roll)
                         turn.turn_buffer.extend(frame_bytes)
+                        # pre_roll is only refilled while NOT triggered (see
+                        # the else-branch below) -- it must be cleared here,
+                        # not left as-is, or a turn that re-triggers with
+                        # ~zero gap (most commonly: continuous speech past
+                        # MAX_TURN_SECONDS, where reset_turn() deliberately
+                        # preserves pre_roll and the very next frame is still
+                        # speech) would splice audio that's been frozen since
+                        # BEFORE the turn that just ended -- up to 25+
+                        # seconds stale -- onto the front of the next
+                        # utterance, corrupting the transcript. Losing the
+                        # onset padding for that one rare rapid-retrigger
+                        # case is a far smaller cost than feeding STT stale
+                        # audio; pre_roll naturally refills during the next
+                        # silence gap regardless.
+                        turn.pre_roll = bytearray()
                         turn.last_speech_end_len = len(turn.turn_buffer)
                         turn.speech_ms_accum = FRAME_MS
                         turn.silence_run_ms = 0.0

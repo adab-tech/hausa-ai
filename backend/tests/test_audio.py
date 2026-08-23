@@ -316,7 +316,7 @@ def test_waxal_match_returns_file_for_near_exact_text():
 # tests don't depend on real audio actually reading as "speech" to Silero.
 # ---------------------------------------------------------------------------
 
-from routers.audio import FRAME_MS, VAD_MIN_SPEECH_MS, VAD_TRAILING_SILENCE_MS, _FRAME_BYTES
+from routers.audio import FRAME_MS, VAD_MIN_SPEECH_MS, VAD_PRE_ROLL_MS, VAD_TRAILING_SILENCE_MS, _FRAME_BYTES
 
 # Number of consecutive frames needed to clear each threshold, derived from
 # the real tuning constants rather than hardcoded, so these tests track the
@@ -501,6 +501,66 @@ def test_live_endpoint_forced_cut_at_max_turn_length(monkeypatch):
             assert msg["type"] == "user_transcript"
 
     mock_transcribe.assert_called_once()
+
+
+def test_live_endpoint_does_not_splice_stale_pre_roll_into_rapid_retrigger(monkeypatch):
+    """Regression test for a real bug found in code review: pre_roll is only
+    refilled while NOT triggered, so if a turn ends and speech resumes with
+    ~zero gap (most realistically: continuous talking past MAX_TURN_SECONDS,
+    where reset_turn() deliberately preserves pre_roll across the boundary),
+    the next turn would splice pre_roll frozen from BEFORE the turn that
+    just ended onto its front -- stale audio corrupting a fresh transcript.
+    pre_roll must be cleared the moment it's consumed at trigger time."""
+    import json as _json
+    from unittest.mock import AsyncMock, patch
+
+    from starlette.testclient import TestClient
+
+    from main import app
+    from routers import audio as audio_router
+
+    pre_roll_frames = int(VAD_PRE_ROLL_MS // FRAME_MS) + 2
+    stale_marker = _frame(b"\xAA\xAA") * pre_roll_frames  # fills pre_roll before turn 1
+    # Turn 1 needs exactly 2 speech frames once triggered: frame 1 triggers
+    # (the "not triggered yet" branch never checks forced_cut), frame 2 is
+    # the first check once triggered -- with MAX_TURN_SECONDS forced to 0.0
+    # that check fires immediately, force-cutting turn 1 right away.
+    turn1_speech = _frame(b"\x33\x33") * 2
+    turn2_speech = _frame(b"\x22\x22") * 3  # continuous speech straight after the forced cut
+
+    # Script: enough low-probability frames to fill pre_roll with the stale
+    # marker, then continuous high-probability speech for both turn 1 (which
+    # gets force-cut almost immediately) and turn 2 (retriggering with no
+    # silence gap in between).
+    fake_vad = _ScriptedFakeVAD([0.05] * pre_roll_frames + [0.9] * 10)
+    monkeypatch.setattr(audio_router, "MAX_TURN_SECONDS", 0.0)
+
+    seen_chunks = []
+
+    async def fake_transcribe(pcm_bytes, sample_rate=16000):
+        seen_chunks.append(bytes(pcm_bytes))
+        return "sannu"
+
+    with patch("routers.audio.new_vad_stream", return_value=fake_vad), \
+         patch("routers.audio._transcribe", side_effect=fake_transcribe) as mock_transcribe, \
+         patch("routers.audio._llm_respond", AsyncMock(return_value="Sannu")), \
+         patch("routers.audio._synthesize_speech", return_value=None):
+        with TestClient(app).websocket_connect("/api/live") as ws:
+            ws.send_bytes(stale_marker)  # fills pre_roll, no turn yet
+            ws.send_bytes(turn1_speech)  # triggers turn 1, then force-cuts on frame 2's check
+            msg1 = _json.loads(ws.receive_text())
+            assert msg1["type"] == "user_transcript"
+            reply1 = _json.loads(ws.receive_text())
+            assert reply1["type"] == "text"
+            ws.send_bytes(turn2_speech)  # turn 2: continuous speech, zero silence gap since turn 1 ended
+            msg2 = _json.loads(ws.receive_text())
+            assert msg2["type"] == "user_transcript"
+
+    assert mock_transcribe.call_count == 2
+    turn2_bytes = seen_chunks[1]
+    assert b"\xAA\xAA" not in turn2_bytes, (
+        "turn 2 must not contain the stale pre_roll marker recorded before turn 1 started"
+    )
 
 
 def test_live_endpoint_falls_back_to_fixed_chunking_when_vad_unavailable():
