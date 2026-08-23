@@ -32,6 +32,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Response, HTTPExc
 
 from rate_limit import limiter
 from routers.fallback import generate_fallback_response
+from services.cloudflare_stt_service import cloudflare_stt_enabled, transcribe_via_cloudflare
 import corrections_store
 
 router = APIRouter()
@@ -483,27 +484,49 @@ def _synthesize_speech_raw(
 _SPEECH_RMS_THRESHOLD = float(os.getenv("MIC_RMS_THRESHOLD", "0.01"))
 
 
-def _transcribe(pcm_bytes: bytes, sample_rate: int = 16000) -> str:
-    """Run faster-whisper STT; returns transcript string ('' for non-speech)."""
+async def _transcribe(pcm_bytes: bytes, sample_rate: int = 16000) -> str:
+    """Transcribe pcm_bytes to Hausa text. Tries Cloudflare Workers AI's
+    hosted Whisper first when configured -- offloads STT off this box
+    entirely, relieving the RAM/CPU pressure shared with Ollama/Piper that's
+    been causing Ollama's failures (see stream_ollama's docstring in
+    routers/chat.py) -- falling back to local faster-whisper otherwise or on
+    any Cloudflare failure. Returns '' for non-speech either way."""
     float_audio = _pcm_bytes_to_float32(pcm_bytes)
 
-    # 1. Energy gate: skip silence/background noise without running Whisper.
+    # 1. Energy gate: skip silence/background noise without running STT at all.
     rms = float(np.sqrt(np.mean(float_audio**2))) if float_audio.size else 0.0
     if rms < _SPEECH_RMS_THRESHOLD:
         return ""
 
+    if cloudflare_stt_enabled():
+        text = await transcribe_via_cloudflare(_wav_bytes(float_audio, sample_rate))
+        if text is not None:
+            # Sanity floor: one or two characters is noise, not Hausa.
+            return text if len(text) > 2 else ""
+        logger.warning("Cloudflare STT unavailable, falling back to local Whisper.")
+
+    # Local faster-whisper is CPU-bound/blocking -- run off the event loop.
+    return await asyncio.get_event_loop().run_in_executor(
+        None, _transcribe_local, float_audio, sample_rate
+    )
+
+
+def _transcribe_local(float_audio: np.ndarray, sample_rate: int) -> str:
+    """Run local faster-whisper STT; returns transcript string ('' for
+    non-speech). Fallback path when Cloudflare STT is unconfigured or fails."""
     model = _get_whisper()
     # Write to temp WAV for whisper; always clean up afterward
     tmp_path = None
     try:
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
             tmp_path = tmp.name
-        _write_wav(tmp_path, float_audio, sample_rate)
-        # 2. vad_filter: Silero VAD inside faster-whisper strips non-speech
+        with open(tmp_path, "wb") as f:
+            f.write(_wav_bytes(float_audio, sample_rate))
+        # vad_filter: Silero VAD inside faster-whisper strips non-speech
         # spans, the main defense against hallucinated transcripts.
         segments, _ = model.transcribe(tmp_path, language="ha", vad_filter=True)
         text = " ".join(seg.text for seg in segments).strip()
-        # 3. Sanity floor: one or two characters is noise, not Hausa.
+        # Sanity floor: one or two characters is noise, not Hausa.
         return text if len(text) > 2 else ""
     finally:
         if tmp_path:
@@ -511,19 +534,19 @@ def _transcribe(pcm_bytes: bytes, sample_rate: int = 16000) -> str:
                 os.unlink(tmp_path)
 
 
-def _write_wav(path: str, audio: np.ndarray, sample_rate: int):
-    """Write a minimal PCM WAV file."""
+def _wav_bytes(audio: np.ndarray, sample_rate: int) -> bytes:
+    """Build a minimal PCM WAV file in memory."""
     pcm = _float32_to_pcm16_bytes(audio)
-    with open(path, "wb") as f:
-        # RIFF header
-        f.write(b"RIFF")
-        f.write(struct.pack("<I", 36 + len(pcm)))
-        f.write(b"WAVE")
-        f.write(b"fmt ")
-        f.write(struct.pack("<IHHIIHH", 16, 1, 1, sample_rate, sample_rate * 2, 2, 16))
-        f.write(b"data")
-        f.write(struct.pack("<I", len(pcm)))
-        f.write(pcm)
+    buf = io.BytesIO()
+    buf.write(b"RIFF")
+    buf.write(struct.pack("<I", 36 + len(pcm)))
+    buf.write(b"WAVE")
+    buf.write(b"fmt ")
+    buf.write(struct.pack("<IHHIIHH", 16, 1, 1, sample_rate, sample_rate * 2, 2, 16))
+    buf.write(b"data")
+    buf.write(struct.pack("<I", len(pcm)))
+    buf.write(pcm)
+    return buf.getvalue()
 
 
 # ---------------------------------------------------------------------------
@@ -741,9 +764,7 @@ async def live_endpoint(ws: WebSocket, speaker_id: int = 0, addressee_gender: st
             # locked live sessions into a self-talk loop the real user
             # couldn't interrupt.
             try:
-                transcript = await asyncio.get_event_loop().run_in_executor(
-                    None, _transcribe, chunk
-                )
+                transcript = await _transcribe(chunk)
             except Exception:
                 logger.exception("STT failed; skipping this audio chunk")
                 continue

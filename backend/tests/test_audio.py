@@ -6,6 +6,8 @@ import wave
 import numpy as np
 import pytest
 
+import io
+
 from routers.audio import (
     SPEAKER_MAP,
     _find_closest_waxal_sample,
@@ -13,7 +15,7 @@ from routers.audio import (
     _normalize_loudness,
     _pcm_bytes_to_float32,
     _synthesize_speech,
-    _write_wav,
+    _wav_bytes,
 )
 
 # ---------------------------------------------------------------------------
@@ -57,31 +59,29 @@ def test_pcm_round_trip():
 
 
 # ---------------------------------------------------------------------------
-# _write_wav
+# _wav_bytes
 # ---------------------------------------------------------------------------
 
 
-def test_write_wav_creates_valid_riff(tmp_path):
-    """_write_wav writes a RIFF WAV file readable by the stdlib wave module."""
-    path = str(tmp_path / "test.wav")
+def test_wav_bytes_creates_valid_riff():
+    """_wav_bytes builds a RIFF WAV readable by the stdlib wave module."""
     audio = np.zeros(16000, dtype=np.float32)
-    _write_wav(path, audio, sample_rate=16000)
+    data = _wav_bytes(audio, sample_rate=16000)
 
-    with wave.open(path, "rb") as wf:
+    with wave.open(io.BytesIO(data), "rb") as wf:
         assert wf.getnchannels() == 1
         assert wf.getsampwidth() == 2
         assert wf.getframerate() == 16000
         assert wf.getnframes() == 16000
 
 
-def test_write_wav_non_zero_audio(tmp_path):
-    """Non-zero audio is written correctly."""
-    path = str(tmp_path / "sine.wav")
+def test_wav_bytes_non_zero_audio():
+    """Non-zero audio is encoded correctly."""
     t = np.linspace(0, 1, 8000, dtype=np.float32)
     audio = (np.sin(2 * np.pi * 440 * t) * 0.5).astype(np.float32)
-    _write_wav(path, audio, sample_rate=8000)
+    data = _wav_bytes(audio, sample_rate=8000)
 
-    with wave.open(path, "rb") as wf:
+    with wave.open(io.BytesIO(data), "rb") as wf:
         assert wf.getnframes() == 8000
 
 
@@ -146,18 +146,60 @@ def test_normalize_preserves_sample_count():
 # ---------------------------------------------------------------------------
 
 
-def test_transcribe_silence_returns_empty_without_running_whisper():
+@pytest.mark.anyio
+async def test_transcribe_silence_returns_empty_without_running_whisper():
     """Silence must be energy-gated BEFORE Whisper runs: Whisper hallucinates
     text on non-speech input, and every hallucinated 'user turn' made the
-    live voice session answer speech nobody said (self-talk loop)."""
+    live voice session answer speech nobody said (self-talk loop). Must also
+    never reach Cloudflare STT for the same reason."""
     from unittest.mock import patch
     from routers.audio import _transcribe
 
     silent_chunk = b"\x00\x00" * 32_000  # 2s of pure silence @16 kHz PCM-16
-    with patch("routers.audio._get_whisper") as mock_whisper:
-        result = _transcribe(silent_chunk)
+    with patch("routers.audio._get_whisper") as mock_whisper, \
+         patch("routers.audio.cloudflare_stt_enabled", return_value=True), \
+         patch("routers.audio.transcribe_via_cloudflare") as mock_cf:
+        result = await _transcribe(silent_chunk)
     assert result == ""
     mock_whisper.assert_not_called()
+    mock_cf.assert_not_called()
+
+
+@pytest.mark.anyio
+async def test_transcribe_prefers_cloudflare_when_enabled():
+    """When Cloudflare STT is configured, it's tried first -- local Whisper
+    must not be touched. This is the whole point of the offload: relieve
+    local RAM/CPU pressure shared with Ollama/Piper."""
+    from unittest.mock import AsyncMock, patch
+    from routers.audio import _transcribe
+
+    # A loud enough chunk to pass the energy gate.
+    loud_chunk = (b"\x00\x7f" * 32_000)  # non-zero PCM-16 samples
+    with patch("routers.audio._get_whisper") as mock_whisper, \
+         patch("routers.audio.cloudflare_stt_enabled", return_value=True), \
+         patch("routers.audio.transcribe_via_cloudflare", AsyncMock(return_value="sannu")):
+        result = await _transcribe(loud_chunk)
+    assert result == "sannu"
+    mock_whisper.assert_not_called()
+
+
+@pytest.mark.anyio
+async def test_transcribe_falls_back_to_local_when_cloudflare_fails():
+    """When Cloudflare STT is configured but returns None (any failure), the
+    local faster-whisper path is used -- STT must never go silent just
+    because the remote provider had a bad moment."""
+    from unittest.mock import AsyncMock, MagicMock, patch
+    from routers.audio import _transcribe
+
+    loud_chunk = (b"\x00\x7f" * 32_000)
+    fake_segment = MagicMock(text="sannu")
+    with patch("routers.audio._get_whisper") as mock_whisper, \
+         patch("routers.audio.cloudflare_stt_enabled", return_value=True), \
+         patch("routers.audio.transcribe_via_cloudflare", AsyncMock(return_value=None)):
+        mock_whisper.return_value.transcribe.return_value = ([fake_segment], None)
+        result = await _transcribe(loud_chunk)
+    assert result == "sannu"
+    mock_whisper.assert_called()
 
 
 def test_synthesize_speech_returns_none_when_piper_unavailable():
