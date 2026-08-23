@@ -26,6 +26,7 @@ from pydantic import BaseModel, Field
 from auth import verify_admin_session, verify_csrf_origin
 from contributor import get_contributor_id
 from rate_limit import limiter
+import admin_audit_store
 import corrections_store
 
 router = APIRouter()
@@ -85,6 +86,8 @@ async def review_correction_endpoint(
     updated = corrections_store.review_correction(correction_id, req.action, reviewed_by=admin)
     if updated is None:
         raise HTTPException(status_code=404, detail="Correction not found")
+    admin_audit_store.log(admin, req.action, "correction", correction_id,
+                          detail=updated.get("correction"))
     return updated
 
 

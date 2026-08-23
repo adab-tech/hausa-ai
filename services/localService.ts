@@ -519,6 +519,23 @@ class LocalService {
     }
   }
 
+  /** ADMIN: unified audit trail (who approved/rejected/deleted what, when)
+   * across corrections/pronunciation/Q&A review — see admin_audit_store.py. */
+  async getAuditLog(surface?: "correction" | "pronunciation" | "qa"): Promise<
+    { id: number; admin: string; action: string; surface: string; target_id: string | null; detail: string | null; created_at: number }[] | null
+  > {
+    try {
+      const q = surface ? `?surface=${surface}` : "";
+      const res = await fetch(`${BACKEND_URL}/api/admin/audit-log${q}`, { credentials: "include" });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.items ?? [];
+    } catch (err) {
+      console.error("Failed to fetch audit log:", err);
+      return null;
+    }
+  }
+
   // ── Corrections review queue (real admin session, not a shared key) ───────
   async getCorrections(status: "pending" | "approved" | "rejected"): Promise<any[] | null> {
     try {
