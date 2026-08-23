@@ -374,17 +374,6 @@ const App: React.FC = () => {
     return `vibe-${vibe.toLowerCase()}`;
   }, [vibe]);
 
-  // Real backend host, not a hardcoded placeholder — this reads the same
-  // BACKEND_URL every API/WS call actually uses (localhost in dev, the
-  // deployed Fly.io host in production).
-  const backendHost = useMemo(() => {
-    try {
-      return new URL(BACKEND_URL).host;
-    } catch {
-      return BACKEND_URL;
-    }
-  }, []);
-
   return (
     <div className={`h-full w-full flex ${dynamicVibeClass} bg-dyn-bg-primary text-dyn-text-primary selection:bg-dyn-accent/30 font-sans overflow-hidden transition-all duration-700`}>
 
@@ -451,11 +440,6 @@ const App: React.FC = () => {
 
           {/* Secondary stats preview */}
           <div className="flex items-center gap-4 text-dyn-text-muted text-[10px] font-mono select-none">
-            <div className="hidden sm:flex items-center gap-1" title={BACKEND_URL}>
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-              <span>Server: {backendHost}</span>
-            </div>
-            <span className="hidden sm:inline opacity-40">|</span>
             <span className="font-serif italic tracking-normal text-dyn-text-secondary/80 text-xs">Fasahar Hausa</span>
           </div>
         </header>

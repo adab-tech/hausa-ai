@@ -66,6 +66,32 @@
   --font-family-serif: "Instrument Serif", serif;
 }
 
+/* Auto light theme, no in-app toggle. Must be :root (not html — lower
+   specificity loses to the plain :root rule above regardless of media
+   match) and not a nested div: Tailwind's @theme maps its dyn color
+   tokens to var(--bg-primary) once, at root, and custom-property
+   inheritance passes down the already-resolved value rather than
+   re-evaluating per element. Overriding --bg-primary deeper in the tree
+   (e.g. on the .vibe-classic wrapper div) never reaches the Tailwind
+   utilities that actually paint the UI. */
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg-primary: #FBF8F1;
+    --bg-secondary: #F5EFE1;
+    --bg-tertiary: #F1E8D3;
+    --accent-color: #B8934B;
+    --accent-gold-rgb: 184, 147, 75;
+    --text-primary: #2A2114;
+    --text-secondary: rgba(42, 33, 20, 0.68);
+    --text-muted: rgba(42, 33, 20, 0.48);
+    --border-color: rgba(184, 147, 75, 0.28);
+    --bubble-bg: linear-gradient(165deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 243, 231, 1) 100%);
+    --bg-glass: rgba(251, 248, 241, 0.78);
+    --glow-color: rgba(184, 147, 75, 0.22);
+    --accent-glow: 0 0 16px rgba(184, 147, 75, 0.12);
+  }
+}
+
 .vibe-classic {
   --bg-primary: #040309;
   --bg-secondary: #08060f;
