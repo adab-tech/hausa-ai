@@ -631,6 +631,23 @@ def test_needs_live_search_ignores_historical():
     assert _needs_live_search("Ka gaya mini tarihin garin Kano") is False
 
 
+def test_needs_live_search_flags_who_is_questions():
+    """Real bug found live 2026-08-23: 'Wanene shugaban Najeriya?' ('Who is
+    the president of Nigeria?') never triggered live search at all -- no
+    'yanzu'/'yau' in that exact phrasing -- so the model answered from stale
+    training data with no honesty guard. This is the same class of bug
+    already caught once for a Ghana question that happened to include
+    'a yanzu'. Covers the Hausa question-word variants, not just the one
+    that happened to slip through."""
+    from routers.chat import _needs_live_search
+
+    assert _needs_live_search("Wanene shugaban Najeriya?") is True
+    assert _needs_live_search("Wa ne shugaban kasar Ghana?") is True
+    assert _needs_live_search("Wace ce firaministar Burtaniya?") is True
+    assert _needs_live_search("Su wanene 'yan wasan Najeriya a gasar?") is True
+    assert _needs_live_search("Who is the president of France?") is True
+
+
 @pytest.mark.anyio
 async def test_chat_injects_search_grounding(client, monkeypatch):
     """With a Tavily key set and a time-sensitive query, the fresh search

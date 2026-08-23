@@ -186,9 +186,17 @@ _LIVE_SEARCH_CUES = (
     # Hausa cues
     "yau", "yanzu", "labari", "labarai", "farashi", "kudin", "yanayi",
     "zabe", "zaɓe", "sakamako", "a wannan",
+    # "Wanene/wa ne/wace ce" ("who is") — real bug found live 2026-08-23:
+    # "Wanene shugaban Najeriya?" ("Who is the president of Nigeria?") never
+    # triggered live search at all (no "yanzu"/"yau" in that phrasing), so
+    # the model answered from stale training data with no honesty guard —
+    # this is the exact class of bug already caught once for a Ghana
+    # question that happened to include "a yanzu"; this closes the gap for
+    # every other "who currently holds X" phrasing that doesn't.
+    "wanene", "wa ne", "wace ce", "su wanene", "su wane ne",
     # English cues
     "today", "now", "current", "latest", "news", "price", "weather",
-    "who is the", "this year",
+    "who is the", "who is", "who are the", "this year",
 )
 # Any explicit year 2024 or later reads as a present-day / recent-events query.
 _RECENT_YEAR_RE = re.compile(r"\b(202[4-9]|20[3-9]\d)\b")
