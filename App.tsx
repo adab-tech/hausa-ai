@@ -56,7 +56,6 @@ const App: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
   const [voiceStatus, setVoiceStatus] = useState<'idle' | 'requesting_permission' | 'connecting' | 'connected' | 'error'>('idle');
-  const [liveTranscripts, setLiveTranscripts] = useState<Array<{ role: 'user' | 'assistant'; text: string }>>([]);
   const [feedbacks, setFeedbacks] = useState<Record<string, 'up' | 'down'>>({});
   const [playingSpeechId, setPlayingSpeechId] = useState<string | null>(null);
   const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -243,7 +242,6 @@ const App: React.FC = () => {
           audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
         });
         setVoiceStatus('connecting');
-        setLiveTranscripts([]);
 
         // Robust context creation. The 16000 for input is only a HINT — older
         // Safari and some Android WebViews throw on (or silently ignore) a
@@ -359,7 +357,6 @@ const App: React.FC = () => {
               }, offDelayMs);
             }
             if (msg.text) {
-              setLiveTranscripts(prev => [...prev, { role: msg.isUser ? 'user' : 'assistant', text: msg.text }]);
               setMessages(prev => [...prev, {
                 id: Date.now().toString(),
                 role: msg.isUser ? Role.user : Role.assistant,
@@ -451,7 +448,6 @@ const App: React.FC = () => {
           <LiveCallPanel
             voiceStatus={voiceStatus}
             callDuration={callDuration}
-            liveTranscripts={liveTranscripts}
             onHangup={toggleLiveVoice}
           />
         )}
