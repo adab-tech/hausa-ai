@@ -557,6 +557,24 @@ _SPEECH_RMS_THRESHOLD = float(os.getenv("MIC_RMS_THRESHOLD", "0.01"))
 # permanently deaf. No real TTS reply + tail should ever run this long.
 _ASSISTANT_SPEAKING_MAX_S = float(os.getenv("ASSISTANT_SPEAKING_MAX_S", "15.0"))
 
+# Whisper's Hausa support is real but shallow (no tonal modeling, thin
+# training coverage vs. high-resource languages) -- it isn't fixable by a
+# parameter. What IS a genuine, low-cost lever: an initial_prompt biases the
+# decoder's vocabulary and orthography toward what it's primed to expect
+# (this is OpenAI's own documented Whisper technique, and both Cloudflare's
+# hosted whisper-large-v3-turbo and local faster-whisper support the same
+# parameter). Written in correct Hausa orthography -- all four hooked
+# consonants (ɗ ɓ ƙ ƴ) present -- in a natural, conversational register
+# matching what a live-voice caller actually says to Murya, so the model is
+# primed for real Hausa spelling instead of defaulting to whatever
+# simplified/incorrect romanization it falls back on without guidance.
+_HAUSA_WHISPER_PROMPT = os.getenv(
+    "WHISPER_INITIAL_PROMPT",
+    "Sannu, yaya kake? Barka da zuwa Murya, ɗan taimakon Hausa na zamani ga "
+    "mu ƴan Hausa. Ina son sanin abin da kake bukata, ko wane ɓangaren "
+    "rayuwa kake son tattaunawa a kai, cikin daidaitacciyar ƙasar Hausa.",
+)
+
 
 async def _transcribe(pcm_bytes: bytes, sample_rate: int = 16000) -> str:
     """Transcribe pcm_bytes to Hausa text. Tries Cloudflare Workers AI's
@@ -573,7 +591,9 @@ async def _transcribe(pcm_bytes: bytes, sample_rate: int = 16000) -> str:
         return ""
 
     if cloudflare_stt_enabled():
-        text = await transcribe_via_cloudflare(_wav_bytes(float_audio, sample_rate))
+        text = await transcribe_via_cloudflare(
+            _wav_bytes(float_audio, sample_rate), initial_prompt=_HAUSA_WHISPER_PROMPT
+        )
         if text is not None:
             # Sanity floor: one or two characters is noise, not Hausa.
             return text if len(text) > 2 else ""
@@ -598,7 +618,11 @@ def _transcribe_local(float_audio: np.ndarray, sample_rate: int) -> str:
             f.write(_wav_bytes(float_audio, sample_rate))
         # vad_filter: Silero VAD inside faster-whisper strips non-speech
         # spans, the main defense against hallucinated transcripts.
-        segments, _ = model.transcribe(tmp_path, language="ha", vad_filter=True)
+        # initial_prompt: see _HAUSA_WHISPER_PROMPT's comment above -- primes
+        # the decoder toward correct Hausa orthography/vocabulary.
+        segments, _ = model.transcribe(
+            tmp_path, language="ha", vad_filter=True, initial_prompt=_HAUSA_WHISPER_PROMPT
+        )
         text = " ".join(seg.text for seg in segments).strip()
         # Sanity floor: one or two characters is noise, not Hausa.
         return text if len(text) > 2 else ""

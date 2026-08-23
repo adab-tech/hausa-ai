@@ -48,22 +48,37 @@ def cloudflare_stt_enabled() -> bool:
     return _get_credentials() is not None
 
 
-async def transcribe_via_cloudflare(wav_bytes: bytes, language: str = "ha") -> str | None:
+async def transcribe_via_cloudflare(
+    wav_bytes: bytes, language: str = "ha", initial_prompt: str | None = None
+) -> str | None:
     """Transcribe `wav_bytes` (a complete WAV file) via Cloudflare Workers AI's
     hosted Whisper. Returns the transcript string, or None on missing
     credentials, timeout, or any error — never raises. An empty-but-successful
     transcription (silence) returns "" (falsy, same as the local-Whisper path),
-    which the caller already treats as "no speech"."""
+    which the caller already treats as "no speech".
+
+    initial_prompt: optional text priming the decoder's vocabulary/
+    orthography (documented Cloudflare input field, mirrors OpenAI Whisper's
+    own API — verified present in Workers AI's whisper-large-v3-turbo model
+    schema, 2026-08-23). Genuinely helps low-resource-language spelling
+    without any retraining; does not fix Whisper's deeper lack of tonal
+    modeling for Hausa."""
     creds = _get_credentials()
     if creds is None:
         return None
     token, account_id = creds
 
     endpoint = f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{_MODEL}"
-    payload = {
+    payload: dict[str, object] = {
         "audio": base64.b64encode(wav_bytes).decode("ascii"),
         "language": language,
+        # Mirrors the local faster-whisper path's vad_filter=True — strips
+        # non-speech spans before decoding, the main defense against
+        # Whisper hallucinating text on silence/noise-only input.
+        "vad_filter": True,
     }
+    if initial_prompt:
+        payload["initial_prompt"] = initial_prompt
 
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT_SECONDS) as client:
