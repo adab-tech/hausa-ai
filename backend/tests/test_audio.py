@@ -202,6 +202,55 @@ async def test_transcribe_falls_back_to_local_when_cloudflare_fails():
     mock_whisper.assert_called()
 
 
+# ---------------------------------------------------------------------------
+# _llm_respond — the live-voice fallback chain. Real bug found 2026-08-23:
+# this chain never had a Groq step at all (unlike /api/chat and
+# /api/document), so with Cerebras down every voice turn paid Ollama's full
+# timeout before falling to Gemini's thin quota or the static fallback.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.anyio
+async def test_llm_respond_falls_back_to_groq_when_cerebras_down(monkeypatch):
+    from unittest.mock import AsyncMock, patch
+    from routers.audio import _llm_respond
+
+    monkeypatch.delenv("CEREBRAS_API_KEY", raising=False)
+    monkeypatch.setenv("GROQ_API_KEY", "fake-key")
+
+    mock_ollama_client = AsyncMock()
+    mock_ollama_client.chat = AsyncMock(side_effect=Exception("ollama should not be called"))
+
+    # _llm_respond imports `ollama` LOCALLY (function-scoped, not module-level
+    # in routers.audio), so the patch target is the real ollama package
+    # itself -- routers.audio.ollama.AsyncClient doesn't exist as an
+    # attribute until the function actually runs its local import.
+    with patch("routers.audio._llm_respond_groq", AsyncMock(return_value="sannu daga Groq")), \
+         patch("ollama.AsyncClient", return_value=mock_ollama_client):
+        result = await _llm_respond("Sannu", [])
+
+    assert result == "sannu daga Groq"
+    mock_ollama_client.chat.assert_not_called()
+
+
+@pytest.mark.anyio
+async def test_llm_respond_falls_back_to_ollama_when_cerebras_and_groq_down(monkeypatch):
+    from unittest.mock import AsyncMock, patch
+    from routers.audio import _llm_respond
+
+    monkeypatch.delenv("CEREBRAS_API_KEY", raising=False)
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+
+    mock_ollama_client = AsyncMock()
+    mock_ollama_client.chat = AsyncMock(return_value={"message": {"content": "sannu daga Ollama"}})
+
+    with patch("ollama.AsyncClient", return_value=mock_ollama_client):
+        result = await _llm_respond("Sannu", [])
+
+    assert result == "sannu daga Ollama"
+    mock_ollama_client.chat.assert_called()
+
+
 def test_synthesize_speech_returns_none_when_piper_unavailable():
     """When Piper and VITS are not installed / models not present, TTS returns None."""
     from unittest.mock import patch

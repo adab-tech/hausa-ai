@@ -558,7 +558,18 @@ async def _llm_respond(transcript: str, history: list[dict], addressee_gender: s
     try:
         return await _llm_respond_cerebras(transcript, history, addressee_gender)
     except Exception as cerebras_err:
-        logger.warning("Cerebras unavailable for voice (%s), switching to Ollama...", cerebras_err)
+        logger.warning("Cerebras unavailable for voice (%s), switching to Groq...", cerebras_err)
+
+    # Groq before Ollama: real bug found 2026-08-23 -- this voice chain never
+    # had a Groq step at all (unlike /api/chat and /api/document, fixed
+    # earlier the same day), so with Cerebras down every live-voice turn was
+    # paying Ollama's full timeout (never once succeeds under current RAM
+    # pressure) before falling to Gemini's thin free quota or the static
+    # fallback -- a real, separate reason live voice could feel broken.
+    try:
+        return await _llm_respond_groq(transcript, history, addressee_gender)
+    except Exception as groq_err:
+        logger.warning("Groq unavailable for voice (%s), switching to Ollama...", groq_err)
 
     import ollama
 
@@ -576,6 +587,29 @@ async def _llm_respond(transcript: str, history: list[dict], addressee_gender: s
     except Exception as ollama_err:
         logger.warning("Ollama unavailable for voice (%s), switching to Gemini...", ollama_err)
         return await _llm_respond_gemini(transcript, history, addressee_gender)
+
+
+async def _llm_respond_groq(transcript: str, history: list[dict], addressee_gender: str = "unspecified") -> str:
+    """Fallback: use Groq (OpenAI-compatible, real free tier) for voice LLM
+    responses. Same model/contract as stream_groq in routers/chat.py."""
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        raise RuntimeError("GROQ_API_KEY not set — cannot use Groq fallback for voice.")
+
+    from groq import AsyncGroq
+
+    client = AsyncGroq(api_key=api_key)
+    model = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
+
+    messages = [{"role": "system", "content": _voice_system_prompt(addressee_gender)}]
+    messages.extend(history[-6:])
+    messages.append({"role": "user", "content": transcript})
+
+    response = await client.chat.completions.create(
+        model=model,
+        messages=cast(Any, messages),
+    )
+    return response.choices[0].message.content.strip()
 
 
 async def _llm_respond_cerebras(transcript: str, history: list[dict], addressee_gender: str = "unspecified") -> str:
