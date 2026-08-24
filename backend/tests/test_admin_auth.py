@@ -39,6 +39,78 @@ def test_password_syncs_from_secret_on_init(tmp_path, monkeypatch):
     assert admin_store.verify_login("adamu", "first-password") is None
 
 
+def test_self_service_password_change_survives_reinit_without_secret_change(tmp_path, monkeypatch):
+    """The bug this whole mechanism exists to prevent: a real user reported
+    being locked out after a self-service-style password change, because
+    the OLD sync logic compared REVIEWER_API_KEY against the CURRENT
+    password_hash on every boot -- once those two diverged (exactly what a
+    self-service change does, on purpose), the very next ordinary redeploy
+    silently reverted the password back to REVIEWER_API_KEY. This project
+    redeploys the backend many times a day, so that window was tiny.
+    synced_secret_hash decouples "did REVIEWER_API_KEY itself change" from
+    "does it currently match the stored hash" -- a self-service change must
+    survive any number of re-inits as long as the secret itself doesn't
+    move."""
+    import admin_store
+
+    monkeypatch.setattr(admin_store, "_DATA_DIR", tmp_path)
+    monkeypatch.setattr(admin_store, "_DB_PATH", tmp_path / "admin.db")
+    monkeypatch.setattr(admin_store, "ADMIN_USERNAME", "adamu")
+    monkeypatch.setenv("REVIEWER_API_KEY", "bootstrap-secret")
+
+    admin_store.init_db()
+    assert admin_store.verify_login("adamu", "bootstrap-secret") is not None
+
+    admin_id = admin_store.change_password("adamu", "bootstrap-secret", "my-own-chosen-password")
+    assert admin_id is not None
+    assert admin_store.verify_login("adamu", "my-own-chosen-password") is not None
+    assert admin_store.verify_login("adamu", "bootstrap-secret") is None
+
+    # Simulate several ordinary redeploys -- REVIEWER_API_KEY unchanged.
+    for _ in range(3):
+        admin_store.init_db()
+    assert admin_store.verify_login("adamu", "my-own-chosen-password") is not None, (
+        "self-service password must survive redeploys when REVIEWER_API_KEY didn't change"
+    )
+
+    # The operator can still force-reset via REVIEWER_API_KEY when actually
+    # needed (e.g. genuinely locked out) -- changing the secret for real
+    # must still take effect.
+    monkeypatch.setenv("REVIEWER_API_KEY", "operator-forced-reset")
+    admin_store.init_db()
+    assert admin_store.verify_login("adamu", "operator-forced-reset") is not None
+    assert admin_store.verify_login("adamu", "my-own-chosen-password") is None
+
+
+def test_change_password_requires_correct_old_password(isolated_admin_store):
+    isolated_admin_store.create_admin("adamu", "correct-horse")
+    result = isolated_admin_store.change_password("adamu", "wrong-old-password", "new-strong-password")
+    assert result is None
+    # Password must be unchanged.
+    assert isolated_admin_store.verify_login("adamu", "correct-horse") is not None
+    assert isolated_admin_store.verify_login("adamu", "new-strong-password") is None
+
+
+def test_change_password_success_updates_credential(isolated_admin_store):
+    isolated_admin_store.create_admin("adamu", "correct-horse")
+    admin_id = isolated_admin_store.change_password("adamu", "correct-horse", "new-strong-password")
+    assert admin_id is not None
+    assert isolated_admin_store.verify_login("adamu", "new-strong-password") is not None
+    assert isolated_admin_store.verify_login("adamu", "correct-horse") is None
+
+
+def test_delete_all_sessions_for_admin_kills_every_session(isolated_admin_store):
+    isolated_admin_store.create_admin("adamu", "correct-horse")
+    admin_id = isolated_admin_store.verify_login("adamu", "correct-horse")
+    token_a = isolated_admin_store.create_session(admin_id)
+    token_b = isolated_admin_store.create_session(admin_id)
+
+    isolated_admin_store.delete_all_sessions_for_admin(admin_id)
+
+    assert isolated_admin_store.get_session_username(token_a) is None
+    assert isolated_admin_store.get_session_username(token_b) is None
+
+
 def test_session_token_stored_hashed_not_plaintext(isolated_admin_store):
     """Regression test for a gap the 2026-08-23 follow-up security-
     architecture review found: sessions.token stored the raw
@@ -118,3 +190,85 @@ async def test_login_success_then_me_then_logout(client, isolated_admin_store):
 
     me_after_logout = await client.get("/api/admin/me")
     assert me_after_logout.status_code == 401
+
+
+@pytest.mark.anyio
+async def test_change_password_endpoint_requires_login(client, isolated_admin_store):
+    resp = await client.post(
+        "/api/admin/change-password",
+        json={"old_password": "whatever", "new_password": "a-new-strong-password"},
+    )
+    assert resp.status_code == 401
+
+
+@pytest.mark.anyio
+async def test_change_password_endpoint_rejects_wrong_old_password(client, isolated_admin_store):
+    isolated_admin_store.create_admin("adamu", "correct-horse")
+    login_resp = await client.post(
+        "/api/admin/login", json={"username": "adamu", "password": "correct-horse"}
+    )
+    assert login_resp.status_code == 200
+
+    resp = await client.post(
+        "/api/admin/change-password",
+        json={"old_password": "not-the-real-password", "new_password": "a-new-strong-password"},
+    )
+    assert resp.status_code == 401
+
+    # Session must still be alive -- a failed change shouldn't log anyone out.
+    me_resp = await client.get("/api/admin/me")
+    assert me_resp.status_code == 200
+
+    await client.post("/api/admin/logout")
+
+
+@pytest.mark.anyio
+async def test_change_password_endpoint_rejects_short_new_password(client, isolated_admin_store):
+    isolated_admin_store.create_admin("adamu", "correct-horse")
+    login_resp = await client.post(
+        "/api/admin/login", json={"username": "adamu", "password": "correct-horse"}
+    )
+    assert login_resp.status_code == 200
+
+    resp = await client.post(
+        "/api/admin/change-password",
+        json={"old_password": "correct-horse", "new_password": "short"},
+    )
+    assert resp.status_code == 422
+
+    await client.post("/api/admin/logout")
+
+
+@pytest.mark.anyio
+async def test_change_password_endpoint_success_logs_out_and_new_password_works(client, isolated_admin_store):
+    isolated_admin_store.create_admin("adamu", "correct-horse")
+    login_resp = await client.post(
+        "/api/admin/login", json={"username": "adamu", "password": "correct-horse"}
+    )
+    assert login_resp.status_code == 200
+
+    change_resp = await client.post(
+        "/api/admin/change-password",
+        json={"old_password": "correct-horse", "new_password": "a-new-strong-password"},
+    )
+    assert change_resp.status_code == 200
+    assert change_resp.json() == {"ok": True}
+
+    # The session that made the change is now dead -- standard "change
+    # password logs you out everywhere" behavior.
+    me_after_change = await client.get("/api/admin/me")
+    assert me_after_change.status_code == 401
+
+    # A fresh login with the OLD password must fail, and with the NEW
+    # password must succeed.
+    old_login = await client.post(
+        "/api/admin/login", json={"username": "adamu", "password": "correct-horse"}
+    )
+    assert old_login.status_code == 401
+
+    new_login = await client.post(
+        "/api/admin/login", json={"username": "adamu", "password": "a-new-strong-password"}
+    )
+    assert new_login.status_code == 200
+
+    await client.post("/api/admin/logout")

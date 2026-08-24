@@ -5,17 +5,30 @@ old REVIEWER_API_KEY-typed-into-sessionStorage pattern with a proper login:
 bcrypt password hashes, HttpOnly session cookies, and a per-admin identity
 so corrections finally carry a real "reviewed by" audit trail.
 
-The REVIEWER_API_KEY secret IS the admin password (single-admin app). It is
-synced to the ADMIN_USERNAME account (default "adamu") on EVERY boot — the
-account is created if absent, or its stored hash is updated if the secret
-changed. So the owner sets/changes their own password by changing the Fly
-secret and restarting, with no DB surgery:
-    flyctl secrets set REVIEWER_API_KEY="<new password>" -a hausa-ai-backend
-Then log in at app.murya.ng/admin/login as ADMIN_USERNAME with that password.
+Two ways to set the admin password, both supported at once:
 
-A single Fly.io machine with a mounted persistent volume is the deployment
-target today (see docs/deployment.md) — SQLite with a fresh connection per
-call is safe under that model. This does not coordinate across multiple
+1. REVIEWER_API_KEY (bootstrap / forced reset). Set the env var and
+   restart -- init_db() syncs it to the ADMIN_USERNAME account (default
+   "adamu"). No DB surgery, useful when locked out and server access is
+   the only channel available:
+       sudo sed -i 's/^REVIEWER_API_KEY=.*/REVIEWER_API_KEY=<new>/' murya.env
+       sudo systemctl restart murya.service
+
+2. Self-service (change_password(), see routers/admin_auth.py's
+   POST /api/admin/change-password). Requires knowing the CURRENT
+   password. This is the one real admins should use day to day.
+
+These two must not fight each other: a self-service change must SURVIVE
+the next redeploy even though REVIEWER_API_KEY didn't change (deploys are
+frequent in this project). init_db() tracks a hash of the REVIEWER_API_KEY
+value it last synced FROM (admins.synced_secret_hash) -- separate from
+whether it still matches the CURRENT password_hash -- so it only re-syncs
+when the secret itself actually changes, never just because a self-service
+change made the two diverge.
+
+A single machine with a mounted persistent volume is the deployment target
+today (see docs/deployment.md) — SQLite with a fresh connection per call is
+safe under that model. This does not coordinate across multiple
 machines/workers; don't scale out without revisiting this.
 """
 
@@ -56,28 +69,40 @@ def _get_conn():
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "adamu").strip() or "adamu"
 
 
+def _hash_secret(secret: str) -> str:
+    """Change-detection only (not a password hash) -- used to tell whether
+    REVIEWER_API_KEY itself has changed since the last sync, independent of
+    whether it still matches the current (possibly self-service-changed)
+    password_hash."""
+    return hashlib.sha256(secret.encode("utf-8")).hexdigest()
+
+
 def init_db() -> None:
     """Create tables if missing, and keep the admin password in sync with the
-    REVIEWER_API_KEY secret.
+    REVIEWER_API_KEY secret -- but ONLY when that secret has actually
+    changed since the last time this ran, so a self-service password
+    change (change_password(), below) isn't silently reverted on the next
+    ordinary redeploy just because REVIEWER_API_KEY didn't move. See the
+    module docstring for the full model.
 
-    Model: the Fly secret REVIEWER_API_KEY IS the admin password. On every
-    boot, the ADMIN_USERNAME account is created (if absent) or its password is
-    updated (if the secret changed). So the owner changes their password by
-    changing the secret and restarting — no DB surgery needed:
-
-        flyctl secrets set REVIEWER_API_KEY="<new password>" -a hausa-ai-backend
-
-    If REVIEWER_API_KEY is unset, nothing is seeded (auth simply can't be used
-    until it is)."""
+    If REVIEWER_API_KEY is unset, nothing is seeded (auth simply can't be
+    used until it is)."""
     with _get_conn() as conn:
         conn.execute(
             """CREATE TABLE IF NOT EXISTS admins (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
-                created_at REAL NOT NULL
+                created_at REAL NOT NULL,
+                synced_secret_hash TEXT
             )"""
         )
+        # Migration for a database created before synced_secret_hash existed
+        # (CREATE TABLE IF NOT EXISTS is a no-op on an already-existing
+        # table, so the column above never gets added to it on its own).
+        existing_columns = {row["name"] for row in conn.execute("PRAGMA table_info(admins)")}
+        if "synced_secret_hash" not in existing_columns:
+            conn.execute("ALTER TABLE admins ADD COLUMN synced_secret_hash TEXT")
         conn.execute(
             """CREATE TABLE IF NOT EXISTS sessions (
                 token TEXT PRIMARY KEY,
@@ -91,24 +116,32 @@ def init_db() -> None:
         secret = os.getenv("REVIEWER_API_KEY", "").strip()
         if not secret:
             return
+        secret_hash = _hash_secret(secret)
 
         existing = conn.execute(
-            "SELECT id, password_hash FROM admins WHERE username = ? COLLATE NOCASE",
+            "SELECT id, password_hash, synced_secret_hash FROM admins WHERE username = ? COLLATE NOCASE",
             (ADMIN_USERNAME,),
         ).fetchone()
         if existing is None:
             _create_admin_locked(conn, ADMIN_USERNAME, secret)
+            conn.execute(
+                "UPDATE admins SET synced_secret_hash = ? WHERE username = ? COLLATE NOCASE",
+                (secret_hash, ADMIN_USERNAME),
+            )
             action = "created"
-        elif not bcrypt.checkpw(secret.encode("utf-8"), existing["password_hash"].encode("utf-8")):
-            # Secret changed since last boot -> update the stored hash.
+        elif existing["synced_secret_hash"] != secret_hash:
+            # REVIEWER_API_KEY itself changed since the last sync (not just
+            # "doesn't match the current password_hash" -- that would also
+            # be true after a self-service change with no secret rotation
+            # at all, which must NOT trigger this branch).
             new_hash = bcrypt.hashpw(secret.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
             conn.execute(
-                "UPDATE admins SET password_hash = ? WHERE id = ?",
-                (new_hash, existing["id"]),
+                "UPDATE admins SET password_hash = ?, synced_secret_hash = ? WHERE id = ?",
+                (new_hash, secret_hash, existing["id"]),
             )
-            action = "password-updated"
+            action = "password-updated (REVIEWER_API_KEY changed)"
         else:
-            action = "unchanged"
+            action = "unchanged (self-service password changes, if any, are preserved)"
         # Diagnostic only — NEVER logs the password itself, only its LENGTH.
         # print() (not logger) so it reaches stdout: uvicorn doesn't wire up
         # arbitrary loggers, so a logger.info here was silently dropped.
@@ -149,6 +182,39 @@ def verify_login(username: str, password: str) -> int | None:
     if bcrypt.checkpw(password.encode("utf-8"), row["password_hash"].encode("utf-8")):
         return row["id"]
     return None
+
+
+def change_password(username: str, old_password: str, new_password: str) -> int | None:
+    """Self-service password change (routers/admin_auth.py's
+    POST /api/admin/change-password). Requires the CURRENT password even
+    though the caller already has a valid session -- defense in depth: a
+    hijacked session cookie alone (stolen from a shared machine, an XSS
+    that never should happen but might, etc.) can't permanently take over
+    the account without also knowing the current password. Returns None
+    (not an exception) on a wrong old_password -- same "don't distinguish
+    valid from invalid by raising" posture as verify_login. On success,
+    returns the admin id so the caller can invalidate existing sessions
+    (see delete_all_sessions_for_admin).
+
+    Does NOT touch synced_secret_hash -- this deliberately decouples the
+    stored password from REVIEWER_API_KEY going forward, so it survives
+    the next ordinary redeploy. See init_db()'s docstring."""
+    admin_id = verify_login(username, old_password)
+    if admin_id is None:
+        return None
+    new_hash = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    with _get_conn() as conn:
+        conn.execute("UPDATE admins SET password_hash = ? WHERE id = ?", (new_hash, admin_id))
+    return admin_id
+
+
+def delete_all_sessions_for_admin(admin_id: int) -> None:
+    """Called after a successful password change -- standard practice is
+    that changing your password logs you out everywhere, including the
+    session that just made the change (the frontend re-prompts for a fresh
+    login with the new password)."""
+    with _get_conn() as conn:
+        conn.execute("DELETE FROM sessions WHERE admin_id = ?", (admin_id,))
 
 
 def _hash_token(token: str) -> str:

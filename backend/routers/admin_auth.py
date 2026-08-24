@@ -15,17 +15,27 @@ from pydantic import BaseModel, Field
 
 import admin_audit_store
 import admin_store
-from auth import verify_admin_session
+from auth import verify_admin_session, verify_csrf_origin
 from rate_limit import ip_limiter, limiter
 
 router = APIRouter()
 
 _IS_PROD = os.getenv("APP_ENV", "development").strip().lower() == "production"
+# Real-world minimum: enough to rule out the trivially-guessable short
+# patterns without imposing a full entropy-scoring UI on a single-admin
+# app. Not a substitute for choosing a genuinely random password, but a
+# floor under it.
+_MIN_PASSWORD_LENGTH = 12
 
 
 class LoginRequest(BaseModel):
     username: str = Field(..., max_length=100)
     password: str = Field(..., max_length=200)
+
+
+class ChangePasswordRequest(BaseModel):
+    old_password: str = Field(..., max_length=200)
+    new_password: str = Field(..., min_length=_MIN_PASSWORD_LENGTH, max_length=200)
 
 
 def _set_session_cookie(response: Response, token: str) -> None:
@@ -80,6 +90,34 @@ async def admin_me(request: Request):
     if username is None:
         raise HTTPException(status_code=401, detail="Not authenticated.")
     return {"username": username}
+
+
+@router.post("/admin/change-password", dependencies=[Depends(verify_csrf_origin)])
+@limiter.limit("5/minute")
+# Same reasoning as admin_login's ip_limiter: exactly one legitimate
+# caller for this endpoint, no CGNAT-fairness downside to a strict cap,
+# and this is the endpoint that would matter most if a session cookie
+# were ever stolen (repeated old_password guesses).
+@ip_limiter.limit("5/minute")
+async def change_password_endpoint(
+    request: Request,
+    body: ChangePasswordRequest,
+    response: Response,
+    admin: str = Depends(verify_admin_session),
+):
+    """Self-service password change (see admin_store.py's change_password
+    docstring for why old_password is required despite the caller already
+    having a valid session). Invalidates every existing session for this
+    admin on success, including the one making this request -- changing
+    your password logs you out everywhere, standard practice -- so the
+    frontend must treat a successful response as needing a fresh login,
+    not as still being logged in."""
+    admin_id = admin_store.change_password(admin, body.old_password, body.new_password)
+    if admin_id is None:
+        raise HTTPException(status_code=401, detail="Current password is incorrect.")
+    admin_store.delete_all_sessions_for_admin(admin_id)
+    response.delete_cookie(admin_store.SESSION_COOKIE_NAME, path="/")
+    return {"ok": True}
 
 
 @router.get("/admin/audit-log")

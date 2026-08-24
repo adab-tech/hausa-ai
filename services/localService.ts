@@ -523,6 +523,35 @@ class LocalService {
     }
   }
 
+  /** Self-service password change (see backend/admin_store.py's
+   * change_password). On success the backend invalidates every session for
+   * this admin, including the one making this call -- the caller must
+   * treat a successful response as "now logged out," not "still logged
+   * in," and redirect to login. */
+  async changePassword(oldPassword: string, newPassword: string): Promise<{ ok: true } | { ok: false; error: string }> {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/admin/change-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }),
+      });
+      if (res.status === 401) {
+        return { ok: false, error: "Kalmar sirri ta yanzu ba daidai ba ce. (Current password is incorrect.)" };
+      }
+      if (res.status === 422) {
+        return { ok: false, error: "Sabuwar kalmar sirri dole ta kai haruffa 12 aƙalla. (New password must be at least 12 characters.)" };
+      }
+      if (!res.ok) {
+        return { ok: false, error: "An samu kuskure. A sake gwadawa. (Something went wrong. Try again.)" };
+      }
+      return { ok: true };
+    } catch (err) {
+      console.error("Change password failed:", err);
+      return { ok: false, error: "An samu kuskure wajen haɗawa da uwar garke. (Could not reach the server.)" };
+    }
+  }
+
   async adminLogout(): Promise<void> {
     try {
       await fetch(`${BACKEND_URL}/api/admin/logout`, { method: "POST", credentials: "include" });

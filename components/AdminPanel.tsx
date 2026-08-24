@@ -7,7 +7,8 @@ import { CorrectionsReview } from './CorrectionsReview.tsx';
 import { PronunciationReview } from './PronunciationReview.tsx';
 import { QAReview } from './QAReview.tsx';
 import { VisitorAnalytics } from './VisitorAnalytics.tsx';
-import { LogOut, FileText, Mic, Globe, MessageSquare, History, RefreshCw, Loader2 } from 'lucide-react';
+import { ChangePasswordDialog } from './ChangePasswordDialog.tsx';
+import { LogOut, KeyRound, FileText, Mic, Globe, MessageSquare, History, RefreshCw, Loader2 } from 'lucide-react';
 
 /** ADMIN: read-only trail of every approve/reject/delete/record action across
  * corrections, pronunciation, and Q&A review — see backend/admin_audit_store.py.
@@ -76,6 +77,7 @@ export const AdminPanel: React.FC = () => {
   const navigate = useNavigate();
   const [username, setUsername] = useState<string | null | 'loading'>('loading');
   const [tab, setTab] = useState<'corrections' | 'pronunciation' | 'qa' | 'visitors' | 'audit'>('corrections');
+  const [showChangePassword, setShowChangePassword] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -116,6 +118,12 @@ export const AdminPanel: React.FC = () => {
         <div className="flex items-center gap-4">
           <span className="text-xs text-dyn-text-secondary font-mono">{username}</span>
           <button
+            onClick={() => setShowChangePassword(true)}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-wider border border-dyn-border text-dyn-text-secondary hover:text-dyn-text-primary hover:bg-white/5 transition-all"
+          >
+            <KeyRound className="w-3.5 h-3.5" /> Kalmar Sirri (Password)
+          </button>
+          <button
             onClick={logout}
             className="flex items-center gap-1.5 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-wider border border-dyn-border text-dyn-text-secondary hover:text-dyn-text-primary hover:bg-white/5 transition-all"
           >
@@ -123,6 +131,12 @@ export const AdminPanel: React.FC = () => {
           </button>
         </div>
       </header>
+
+      <ChangePasswordDialog
+        open={showChangePassword}
+        onClose={() => setShowChangePassword(false)}
+        onSuccess={() => navigate('/admin/login', { replace: true })}
+      />
 
       {/* Tabs: text corrections vs pronunciation (voice) corrections */}
       <div className="px-6 sm:px-10 pt-5">
