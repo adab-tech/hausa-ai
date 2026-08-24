@@ -514,6 +514,19 @@ def test_constitution_declares_capabilities():
     assert "[CAPABILITIES]" in SOVEREIGN_CONSTITUTION
 
 
+def test_constitution_greets_only_on_first_turn():
+    """Regression guard: a real user reported Murya re-greeting ('Barka da
+    ...') on every single reply, even mid-conversation with prior turns
+    already in history -- unnatural, and it buries the actual answer under
+    a formal Gaisuwa every time. The constitution mandates the Gaisuwa
+    greeting whenever 'Barka'/'Sannun' is used, but must also say that
+    belongs on the FIRST reply only, not every turn."""
+    from routers.chat import SOVEREIGN_CONSTITUTION
+
+    assert "first reply" in SOVEREIGN_CONSTITUTION.lower()
+    assert "do NOT greet again" in SOVEREIGN_CONSTITUTION
+
+
 # ---------------------------------------------------------------------------
 # Tutor (learning) mode — mode="tutor" turns Murya into Malamin Hausa.
 # ---------------------------------------------------------------------------

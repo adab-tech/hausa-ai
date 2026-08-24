@@ -39,6 +39,14 @@ export interface Message {
   modelTier?: 'Flash' | 'Pro';
   normalized?: string;
   toneMapped?: string;
+  // Live voice is meant to be pure audio in/audio out ("capture the input,
+  // understand it, process it, provide output" -- not a transcription
+  // tool). Turns from a live call still need to land in `messages` so the
+  // model keeps real conversational memory across a voice->text handoff
+  // (e.g. it shouldn't re-greet on a typed follow-up to something just
+  // discussed by voice), but they must NOT render as visible chat bubbles.
+  // See App.tsx's message-thread filter.
+  fromLiveVoice?: boolean;
 }
 
 export type AspectRatio = '1:1' | '2:3' | '3:2' | '3:4' | '4:3' | '9:16' | '16:9' | '21:9';

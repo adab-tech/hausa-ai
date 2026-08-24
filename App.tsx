@@ -419,7 +419,13 @@ const App: React.FC = () => {
                 // to camelCase (msg.toneMapped) before calling back here --
                 // reading the old snake_case msg.tone_mapped meant the
                 // tonal-melody trace was always empty for live-voice turns.
-                toneMapped: msg.toneMapped
+                toneMapped: msg.toneMapped,
+                // Still added to `messages` (so unifiedExchange's history
+                // param keeps real memory of the call for a later typed
+                // follow-up), but flagged so the visible thread below never
+                // renders it -- live voice should read as a real phone
+                // call, not a chat log with a transcription window.
+                fromLiveVoice: true,
               }]);
             }
           },
@@ -454,6 +460,15 @@ const App: React.FC = () => {
   const dynamicVibeClass = useMemo(() => {
     return `vibe-${vibe.toLowerCase()}`;
   }, [vibe]);
+
+  // Live-voice turns stay in `messages` for conversational memory (see the
+  // fromLiveVoice comment on the Message type) but never render as chat
+  // bubbles -- a live call should read as a real phone call, not a
+  // transcription window.
+  const visibleMessages = useMemo(
+    () => messages.filter(m => !m.fromLiveVoice),
+    [messages]
+  );
 
   return (
     <div className={`h-full w-full flex ${dynamicVibeClass} bg-dyn-bg-primary text-dyn-text-primary selection:bg-dyn-accent/30 font-sans overflow-hidden transition-all duration-700`}>
@@ -532,7 +547,7 @@ const App: React.FC = () => {
         {/* Conversation Thread */}
         <main ref={scrollRef} className="flex-1 overflow-y-auto px-4 sm:px-10 py-6 space-y-16 no-scrollbar relative z-10">
           <div className="max-w-[900px] mx-auto space-y-12">
-            {messages.length === 0 && (
+            {visibleMessages.length === 0 && (
               <div className="h-[60vh] flex flex-col items-center justify-center text-center space-y-8 animate-reveal">
                 <div className="flex justify-center select-none"><ArewaLogo size={100} active={isLoading || isLiveActive} watermark /></div>
                 <div className="space-y-4 max-w-2xl">
@@ -544,7 +559,7 @@ const App: React.FC = () => {
                 </div>
               </div>
             )}
-            {messages.map((m) => (
+            {visibleMessages.map((m) => (
               <MessageItem
                 key={m.id}
                 m={m}
