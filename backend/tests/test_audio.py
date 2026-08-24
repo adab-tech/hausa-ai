@@ -5,6 +5,7 @@ import struct
 import threading
 import time
 import wave
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -302,7 +303,18 @@ def test_waxal_match_returns_none_for_unrelated_text():
 
 
 def test_waxal_match_returns_file_for_near_exact_text():
-    """Text pulled verbatim from a real corpus entry should still match."""
+    """Text pulled verbatim from a real corpus entry should still match.
+
+    Depends on the real WAXAL sample corpus (waxal_hausa/metadata*.jsonl at
+    the repo root) genuinely being present on disk -- a large data
+    directory, deliberately not committed to git, so this can never pass in
+    a clean CI checkout no matter what gets pip-installed. Skips honestly
+    there instead of failing red for a reason no dependency fix can
+    address; still real, enforced coverage on any machine (a contributor's,
+    the production deploy) that actually has the corpus."""
+    metadata_dir = Path(__file__).resolve().parent.parent.parent / "waxal_hausa"
+    if not any((metadata_dir / name).exists() for name in ("metadata_processed.jsonl", "metadata.jsonl")):
+        pytest.skip("WAXAL corpus (waxal_hausa/metadata*.jsonl) not present in this environment")
     result = _find_closest_waxal_sample("Musulmi na zuwa Masallaci ran juma'a", "5")
     assert result is not None
 
