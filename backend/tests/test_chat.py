@@ -885,3 +885,187 @@ def test_gemini_client_is_reused_across_stream_gemini_raw_and_stream_gemini(monk
     assert first is second
     assert len(created) == 1
 
+
+# ---------------------------------------------------------------------------
+# Regression: found live 2026-08-24 -- Cerebras 402'd, Groq hit its real
+# rate limit, Ollama timed out, and Gemini had no key, all on one request.
+# That specific request couldn't be saved, but EVERY subsequent request
+# still retried Cerebras/Groq from scratch and paid full latency to hit the
+# exact same 402/429 again. A per-provider cooldown skips a known-blocked
+# provider instead of re-trying it every request; a short, narrowly-scoped
+# tenacity retry recovers a genuinely transient (not rate-limit) connection
+# failure without re-yielding duplicate content.
+# ---------------------------------------------------------------------------
+class _FakeRateLimitError(Exception):
+    """Stands in for groq.RateLimitError / cerebras.cloud.sdk.RateLimitError
+    -- matched by class NAME in chat.py, not isinstance, since the real
+    classes differ per SDK."""
+    __name__ = "RateLimitError"
+
+    def __init__(self, message, status_code=429, headers=None):
+        super().__init__(message)
+        self.status_code = status_code
+
+        class _Resp:
+            pass
+
+        self.response = _Resp()
+        self.response.headers = headers or {}
+
+
+_FakeRateLimitError.__name__ = "RateLimitError"
+
+
+class _FakeQuotaError(Exception):
+    __name__ = "APIStatusError"
+
+    def __init__(self, message, status_code=402):
+        super().__init__(message)
+        self.status_code = status_code
+
+
+_FakeQuotaError.__name__ = "APIStatusError"
+
+
+class _FakeConnectionError(Exception):
+    __name__ = "APIConnectionError"
+
+
+_FakeConnectionError.__name__ = "APIConnectionError"
+
+
+@pytest.fixture(autouse=True)
+def _reset_provider_cooldowns():
+    from routers import chat as chat_module
+    chat_module._provider_cooldowns.clear()
+    yield
+    chat_module._provider_cooldowns.clear()
+
+
+def test_provider_available_by_default():
+    from routers.chat import _provider_available
+    assert _provider_available("Groq") is True
+
+
+def test_rate_limit_error_sets_cooldown_from_message_text():
+    from routers.chat import _note_provider_failure, _provider_available
+
+    err = _FakeRateLimitError(
+        "Rate limit reached ... Please try again in 25.3575s. Need more tokens?"
+    )
+    _note_provider_failure("Groq", err)
+    assert _provider_available("Groq") is False
+
+
+def test_rate_limit_error_prefers_retry_after_header_over_message_text():
+    from routers.chat import _extract_retry_after
+
+    err = _FakeRateLimitError(
+        "Please try again in 25.3575s.", headers={"retry-after": "5"}
+    )
+    assert _extract_retry_after(err) == 5.0
+
+
+def test_quota_error_sets_longer_default_cooldown_when_no_retry_after():
+    from routers.chat import (
+        _QUOTA_COOLDOWN_SECONDS,
+        _note_provider_failure,
+        _provider_cooldowns,
+    )
+    import time as time_module
+
+    err = _FakeQuotaError("Payment required to access this resource.", status_code=402)
+    before = time_module.monotonic()
+    _note_provider_failure("Cerebras", err)
+    # No retry-after available for a 402 -> falls back to the long quota
+    # cooldown, not the short generic default.
+    assert _provider_cooldowns["Cerebras"] - before == pytest.approx(
+        _QUOTA_COOLDOWN_SECONDS, abs=1.0
+    )
+
+
+def test_plain_connection_error_does_not_set_a_cooldown():
+    """A transient connection blip is retried once (see the tenacity tests
+    below), not cooled down -- the provider is probably fine on the very
+    next request."""
+    from routers.chat import _note_provider_failure, _provider_available
+
+    _note_provider_failure("Groq", _FakeConnectionError("connection reset"))
+    assert _provider_available("Groq") is True
+
+
+@pytest.mark.anyio
+async def test_fetch_stream_skips_provider_in_cooldown_without_calling_it(client, monkeypatch):
+    """End-to-end: once Groq is in cooldown, /api/chat must not invoke it at
+    all for a subsequent request -- straight through to the next provider."""
+    from routers import chat as chat_module
+
+    chat_module._provider_cooldowns["Groq"] = chat_module.time.monotonic() + 60
+
+    groq_called = False
+
+    async def _fake_stream_groq(*_args, **_kwargs):
+        nonlocal groq_called
+        groq_called = True
+        yield "should never run"
+
+    async def _fake_stream_cerebras(*_args, **_kwargs):
+        raise RuntimeError("Cerebras down for this test")
+        yield  # pragma: no cover -- unreachable; makes this an async generator function
+
+    mock_client = AsyncMock()
+    mock_client.chat = AsyncMock(side_effect=_fake_ollama_chat)
+
+    with patch("routers.chat.ollama.AsyncClient", return_value=mock_client), \
+         patch("routers.chat.stream_cerebras", _fake_stream_cerebras), \
+         patch("routers.chat.stream_groq", _fake_stream_groq):
+        response = await client.post("/api/chat", json={"text": "cooldown skip test"})
+
+    assert response.status_code == 200
+    assert groq_called is False
+
+
+@pytest.mark.anyio
+async def test_create_stream_retries_once_on_transient_connection_error():
+    """The narrowly-scoped tenacity retry: a connection error on the
+    stream-establishing call recovers on one fast retry."""
+    from routers.chat import _create_stream
+
+    attempts = []
+
+    class _FakeClient:
+        class chat:
+            class completions:
+                @staticmethod
+                async def create(**kwargs):
+                    attempts.append(kwargs)
+                    if len(attempts) == 1:
+                        raise _FakeConnectionError("dropped mid-handshake")
+                    return "the-real-stream"
+
+    result = await _create_stream(_FakeClient(), model="m", messages=[], stream=True)
+    assert result == "the-real-stream"
+    assert len(attempts) == 2
+
+
+@pytest.mark.anyio
+async def test_create_stream_does_not_retry_rate_limit_errors():
+    """Retrying a rate-limit error would just wait and hit the same limit
+    again -- must fail immediately so the caller can fail over and set a
+    cooldown instead."""
+    from routers.chat import _create_stream
+
+    attempts = []
+
+    class _FakeClient:
+        class chat:
+            class completions:
+                @staticmethod
+                async def create(**kwargs):
+                    attempts.append(kwargs)
+                    raise _FakeRateLimitError("rate limited")
+
+    with pytest.raises(_FakeRateLimitError):
+        await _create_stream(_FakeClient(), model="m", messages=[], stream=True)
+    assert len(attempts) == 1
+

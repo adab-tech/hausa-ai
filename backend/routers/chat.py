@@ -30,6 +30,7 @@ from typing import Any, AsyncGenerator
 import ollama
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
+from tenacity import retry, retry_if_exception, stop_after_attempt, wait_fixed
 
 from rate_limit import ip_limiter, limiter
 from pydantic import BaseModel, Field
@@ -89,6 +90,104 @@ def _get_ollama_client() -> ollama.AsyncClient:
     if _ollama_client is None:
         _ollama_client = ollama.AsyncClient(host=OLLAMA_HOST)
     return _ollama_client
+
+
+# ---------------------------------------------------------------------------
+# Per-provider cooldown -- found live 2026-08-24: Cerebras 402'd, Groq hit
+# its real token-per-minute rate limit under load, Ollama timed out, and
+# Gemini had no key configured, ALL on the same request, so the user got the
+# static fallback. That specific request couldn't have been saved (every
+# provider genuinely was down at that instant), but every request in this
+# window still tried Cerebras and Groq from scratch, paying their full
+# request latency just to hit the exact same 402/429 again. Once a provider
+# says "I'm rate-limited/out of quota," believe it for a while and skip
+# straight past it -- cheaper and faster for every request until it's
+# actually likely to have recovered.
+#
+# In-memory, per-process -- same model as rate_limit.py's limiter and
+# auth.py's live-ticket store; correct for the current single-machine
+# deployment, not multi-instance safe.
+_DEFAULT_COOLDOWN_SECONDS = 30.0
+_QUOTA_COOLDOWN_SECONDS = 300.0  # 402 (payment/quota) doesn't self-heal in seconds; check back every 5 min instead of every request.
+_provider_cooldowns: dict[str, float] = {}
+
+
+def _provider_available(name: str) -> bool:
+    until = _provider_cooldowns.get(name)
+    return until is None or time.monotonic() >= until
+
+
+def _extract_retry_after(err: Exception) -> float | None:
+    """Prefer the API's own Retry-After header; fall back to parsing it out
+    of the error message text (Groq's rate-limit message includes an exact
+    "Please try again in 25.3575s"); None if neither is present."""
+    response = getattr(err, "response", None)
+    header = getattr(response, "headers", {}).get("retry-after") if response is not None else None
+    if header:
+        try:
+            return float(header)
+        except (TypeError, ValueError):
+            pass
+    match = re.search(r"try again in\s+([\d.]+)s", str(err), re.IGNORECASE)
+    if match:
+        try:
+            return float(match.group(1))
+        except ValueError:
+            pass
+    return None
+
+
+def _note_provider_failure(name: str, err: Exception) -> None:
+    """Set a cooldown ONLY for quota/rate-limit-shaped failures (429, or a
+    402/403 APIStatusError) -- never for a plain connection blip or an
+    unrelated error, which should just be tried again next request."""
+    status_code = getattr(err, "status_code", None)
+    is_rate_limit = type(err).__name__ == "RateLimitError"
+    is_quota_block = status_code in (402, 403)
+    if not (is_rate_limit or is_quota_block):
+        return
+    retry_after = _extract_retry_after(err)
+    cooldown = retry_after if retry_after is not None else (
+        _QUOTA_COOLDOWN_SECONDS if is_quota_block else _DEFAULT_COOLDOWN_SECONDS
+    )
+    until = time.monotonic() + cooldown
+    _provider_cooldowns[name] = until
+    print(f"[Murya] {name} rate-limited/quota-blocked ({type(err).__name__}); "
+          f"skipping it for the next {cooldown:.0f}s instead of retrying every request.")
+
+
+def _is_transient_provider_error(err: BaseException) -> bool:
+    """True for a dropped connection or a request timeout establishing the
+    stream -- worth one fast retry, since these often clear immediately.
+    False for rate-limit/quota/auth/bad-request errors, which need
+    immediate failover to the next provider instead of waiting on the same
+    one. Matched by exception class NAME (not isinstance) since Cerebras'
+    and Groq's SDKs each define their own APIConnectionError/APITimeoutError
+    classes -- same shape, different types, both openai-SDK-style
+    generated clients."""
+    return type(err).__name__ in ("APIConnectionError", "APITimeoutError")
+
+
+# Retries ONLY the call that establishes the stream (before any content has
+# been yielded to the client) -- never wraps the streaming generator itself.
+# Retrying mid-stream would re-run the whole request from scratch and
+# re-yield content already sent, duplicating text in the reply. One retry,
+# a short fixed wait: this is for a request that hasn't even connected yet,
+# not a rate limit (see _note_provider_failure for that case), so there's
+# no reason to wait long.
+_transient_retry = retry(
+    retry=retry_if_exception(_is_transient_provider_error),
+    stop=stop_after_attempt(2),
+    wait=wait_fixed(0.5),
+    reraise=True,
+)
+
+
+@_transient_retry
+async def _create_stream(client, **kwargs):
+    """Shared by stream_cerebras/stream_groq -- both SDKs expose the same
+    client.chat.completions.create(..., stream=True) shape."""
+    return await client.chat.completions.create(**kwargs)
 
 
 def _get_gemini_client(api_key: str):
@@ -679,11 +778,7 @@ async def stream_cerebras(messages: list[dict[str, Any]]) -> AsyncGenerator[str,
         {"role": m["role"], "content": m["content"]} for m in messages
     ]
 
-    stream = await client.chat.completions.create(
-        model=model,
-        messages=clean_messages,
-        stream=True,
-    )
+    stream = await _create_stream(client, model=model, messages=clean_messages, stream=True)
     async for chunk in stream:
         delta = chunk.choices[0].delta.content
         if delta:
@@ -715,11 +810,7 @@ async def stream_groq(messages: list[dict[str, Any]]) -> AsyncGenerator[str, Non
         {"role": m["role"], "content": m["content"]} for m in messages
     ]
 
-    stream = await client.chat.completions.create(
-        model=model,
-        messages=clean_messages,
-        stream=True,
-    )
+    stream = await _create_stream(client, model=model, messages=clean_messages, stream=True)
     async for chunk in stream:
         delta = chunk.choices[0].delta.content
         if delta:
@@ -1004,6 +1095,10 @@ async def chat_endpoint(request: Request, req: ChatRequest):
                 ("Gemini", stream_gemini(req)),
             )
             for name, stream in steps:
+                if not _provider_available(name):
+                    print(f"[Murya] {name} still in cooldown from a recent rate-limit/quota "
+                          "error; skipping straight to the next provider.")
+                    continue
                 produced_any = False
                 try:
                     async for delta in stream:
@@ -1011,6 +1106,7 @@ async def chat_endpoint(request: Request, req: ChatRequest):
                             produced_any = True
                             await queue.put(delta)
                 except Exception as err:
+                    _note_provider_failure(name, err)
                     if produced_any:
                         print(f"[Murya] {name} failed mid-reply ({type(err).__name__}: {err}) "
                               "after already producing output -- ending here rather than "

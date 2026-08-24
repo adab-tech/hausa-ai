@@ -75,3 +75,11 @@ groq>=1.6,<2
 # and research (deep-research chat mode). Replaces the hand-rolled httpx calls
 # in search_service.py's basic search with the full, correctly-maintained client.
 tavily-python>=0.7,<0.8
+
+# Bounded retry-with-backoff for the Cerebras/Groq calls in routers/chat.py --
+# scoped narrowly to genuinely transient errors (a dropped connection, a
+# request timeout) where a fast single retry recovers cleanly. Deliberately
+# NOT used for rate-limit/quota errors (429/402), which need immediate
+# failover to the next provider, not a wait -- see the provider-cooldown
+# tracker in chat.py for how those are actually handled.
+tenacity>=9.0,<10

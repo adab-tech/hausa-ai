@@ -62,8 +62,14 @@ def _system_prompt(action: str, target: str) -> str:
 @limiter.limit("10/minute")
 @ip_limiter.limit("50/minute")
 async def document_endpoint(request: Request, req: DocumentRequest):
-    # Reuse the exact same tested provider functions the chat router uses.
+    # Reuse the exact same tested provider functions the chat router uses --
+    # including its per-provider cooldown tracker (_provider_available/
+    # _note_provider_failure), shared as module-level state so a Groq/
+    # Cerebras rate-limit hit via /api/chat also gets skipped here, and
+    # vice versa, instead of each endpoint re-discovering the same outage.
     from routers.chat import (
+        _note_provider_failure,
+        _provider_available,
         stream_cerebras,
         stream_gemini_raw,
         stream_groq,
@@ -93,12 +99,17 @@ async def document_endpoint(request: Request, req: DocumentRequest):
             (stream_ollama(messages), "Ollama"),
             (stream_gemini_raw(messages), "Gemini"),
         ):
+            if not _provider_available(label):
+                print(f"[Murya] document {req.action}: {label} still in cooldown from a recent "
+                      "rate-limit/quota error; skipping straight to the next provider.")
+                continue
             full = ""
             produced_any = False
             try:
                 async for event in try_provider(stream_fn):
                     yield event
             except Exception as exc:
+                _note_provider_failure(label, exc)
                 print(f"[Murya] document {req.action}: {label} failed ({type(exc).__name__}: {exc}), trying next provider...")
                 full = ""
                 continue
