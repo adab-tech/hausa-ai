@@ -106,7 +106,7 @@ async def submit_pronunciation(
             submitted_by=get_contributor_id(request), note=note, status="pending",
         )
     except ValueError as e:
-        raise HTTPException(status_code=413, detail=str(e))
+        raise HTTPException(status_code=413, detail=str(e)) from e
     if row_id is None:
         raise HTTPException(status_code=400, detail="Missing text or audio")
     return {"ok": True, "id": row_id}
@@ -169,7 +169,7 @@ async def admin_create(
             submitted_by=f"reviewer:{admin}", note=note, status="approved",
         )
     except ValueError as e:
-        raise HTTPException(status_code=413, detail=str(e))
+        raise HTTPException(status_code=413, detail=str(e)) from e
     if row_id is None:
         raise HTTPException(status_code=400, detail="Missing text or audio")
     admin_audit_store.log(admin, "create", "pronunciation", row_id, detail=text)
@@ -187,7 +187,7 @@ async def admin_record_against_flag(
     try:
         ok = store.attach_audio(row_id, pcm)
     except ValueError as e:
-        raise HTTPException(status_code=413, detail=str(e))
+        raise HTTPException(status_code=413, detail=str(e)) from e
     if not ok:
         raise HTTPException(status_code=404, detail="Item not found")
     admin_audit_store.log(_admin, "record", "pronunciation", row_id)

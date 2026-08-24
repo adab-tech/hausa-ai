@@ -73,6 +73,17 @@ jobs:
         # handful of lazy-imported packages routers/image.py actually touches
         # at import time even when their calls are mocked (google-genai,
         # imageio); torch / diffusers proper are mocked and not installed.
+        #
+        # This list is hand-maintained separately from requirements.txt and
+        # WILL go stale again -- every package imported at MODULE level
+        # (not lazily inside a function, the way unicodedata2/epitran are)
+        # needs to be added here too, or collection fails on every test
+        # file that transitively imports routers/__init__.py. Found the
+        # hard way 2026-08-24: orjson and sentry-sdk (both added to
+        # requirements.txt as top-level imports the same day) broke this
+        # job while local `pytest` stayed green, because the local dev venv
+        # happened to already have them installed from earlier `pip
+        # install` testing -- CI has no such incidental coverage.
         run: |
           pip install \
             fastapi~=0.115.0 \
@@ -89,7 +100,11 @@ jobs:
             imageio-ffmpeg>=0.5.0 \
             "bcrypt>=4.0,<5" \
             "slowapi>=0.1.9,<1" \
-            requests>=2.31.0
+            requests>=2.31.0 \
+            "orjson>=3.10,<4" \
+            "cachetools>=5.5,<6" \
+            "tenacity>=9.0,<10" \
+            "sentry-sdk[fastapi]>=2.0,<3"
 
       - name: Install dev/test dependencies
         working-directory: backend

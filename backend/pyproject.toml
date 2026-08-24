@@ -23,6 +23,25 @@ ignore = [
 [tool.ruff.lint.isort]
 known-first-party = ["routers", "auth"]
 
+[tool.ruff.lint.flake8-bugbear]
+# B008 ("don't call a function in an argument default") is a real footgun
+# for a genuinely mutable default, but FastAPI's own dependency-injection
+# system is built on exactly this pattern -- File(...)/Form(...)/Body(...)/
+# etc. are inert sentinel markers FastAPI reads via introspection, never
+# actually evaluated as Python default values at call time. Ruff's bugbear
+# already special-cases fastapi.Depends/fastapi.Query out of the box
+# (confirmed: neither ever triggers B008 anywhere in this codebase); the
+# rest of the same family needs the same treatment or every admin
+# multipart-upload route trips a false positive.
+extend-immutable-calls = [
+    "fastapi.File",
+    "fastapi.Form",
+    "fastapi.Body",
+    "fastapi.Cookie",
+    "fastapi.Header",
+    "fastapi.Path",
+]
+
 [tool.mypy]
 python_version = "3.11"
 strict = false

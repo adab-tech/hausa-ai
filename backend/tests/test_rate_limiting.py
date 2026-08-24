@@ -112,7 +112,7 @@ async def test_chat_ip_ceiling_survives_contributor_id_rotation(
             statuses.append(resp.status_code)
 
     assert 429 in statuses, (
-        f"Expected a 429 among the responses — rotating X-Contributor-Id "
+        "Expected a 429 among the responses — rotating X-Contributor-Id "
         "must not bypass /api/chat's per-IP ceiling"
     )
 
@@ -135,7 +135,7 @@ async def test_document_ip_ceiling_survives_contributor_id_rotation(
             statuses.append(resp.status_code)
 
     assert 429 in statuses, (
-        f"Expected a 429 among the responses — rotating X-Contributor-Id "
+        "Expected a 429 among the responses — rotating X-Contributor-Id "
         "must not bypass /api/document's per-IP ceiling"
     )
 
@@ -159,6 +159,6 @@ async def test_tts_ip_ceiling_survives_contributor_id_rotation(
             statuses.append(resp.status_code)
 
     assert 429 in statuses, (
-        f"Expected a 429 among the responses — rotating X-Contributor-Id "
+        "Expected a 429 among the responses — rotating X-Contributor-Id "
         "must not bypass /api/tts's per-IP ceiling"
     )
