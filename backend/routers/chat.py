@@ -20,7 +20,6 @@ The backend responds with Server-Sent Events (text/event-stream):
 """
 
 import asyncio
-import json
 import os
 import re
 import time
@@ -28,6 +27,9 @@ import hashlib
 from typing import Any, AsyncGenerator
 
 import ollama
+import orjson
+import sentry_sdk
+from cachetools import TTLCache
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_fixed
@@ -39,17 +41,32 @@ from routers.fallback import generate_fallback_response
 from orthography import normalize_hausa_orthography, apply_tonal_heuristics, normalize_digits
 from services.search_service import web_search, search_enabled
 from services.you_service import web_search_you, you_enabled
-from services import calc_service, prayer_service, dictionary_service
+from services import calc_service, prayer_service, dictionary_service, phonetics_service
 import corrections_store
 
 # In-memory response cache
 # Key: md5 of request content (vibe + addresseeGender + memoryPrompt + history + text)
-# Value: {"text": str, "timestamp": float}
-_CHAT_CACHE: dict[str, dict[str, Any]] = {}
+# Value: full_text (str)
+# TTLCache handles both expiry (a key silently stops existing once its TTL
+# elapses -- no manual "is this stale?" check needed on read) and the size
+# cap (maxsize evicts the least-recently-used entry once full) in one
+# object; this used to be ~15 lines of hand-rolled eviction bookkeeping
+# (_evict_stale_cache_entries, called once per request) plus a "timestamp"
+# field carried on every cache value purely to support it.
 _CACHE_TTL = 3600  # 1 hour
-_CACHE_MAX_ENTRIES = 500  # bound memory use; evict oldest entries past this
+_CACHE_MAX_ENTRIES = 500  # bound memory use
+_CHAT_CACHE: TTLCache = TTLCache(maxsize=_CACHE_MAX_ENTRIES, ttl=_CACHE_TTL)
 
 router = APIRouter()
+
+
+def _dumps(obj: Any) -> str:
+    """orjson.dumps() returns bytes, not str -- this is the one decode
+    point every call site uses. Faster than stdlib json.dumps() (this runs
+    on every single streamed token, not once per request) and emits real
+    UTF-8 for Hausa's hooked letters instead of \\uXXXX-escaping them --
+    smaller payload, same valid JSON either way."""
+    return orjson.dumps(obj).decode()
 
 # ---------------------------------------------------------------------------
 # SDK client reuse
@@ -743,20 +760,6 @@ def _get_cache_key(req: ChatRequest) -> str:
     return hashlib.md5(raw_str.encode("utf-8")).hexdigest()
 
 
-def _evict_stale_cache_entries(now: float) -> None:
-    """Bound the in-memory cache: drop expired entries, then if still over the
-    cap drop the oldest by timestamp. Without this, _CHAT_CACHE grows forever
-    (one entry per distinct request) for as long as the process lives —
-    unbounded memory growth under real public traffic."""
-    expired = [k for k, v in _CHAT_CACHE.items() if now - v["timestamp"] >= _CACHE_TTL]
-    for k in expired:
-        del _CHAT_CACHE[k]
-    if len(_CHAT_CACHE) > _CACHE_MAX_ENTRIES:
-        oldest = sorted(_CHAT_CACHE.items(), key=lambda kv: kv[1]["timestamp"])
-        for k, _ in oldest[: len(_CHAT_CACHE) - _CACHE_MAX_ENTRIES]:
-            del _CHAT_CACHE[k]
-
-
 async def stream_cerebras(messages: list[dict[str, Any]]) -> AsyncGenerator[str, None]:
     """
     Stream responses via the Cerebras Cloud SDK (OpenAI-compatible chat
@@ -1004,8 +1007,6 @@ async def chat_endpoint(request: Request, req: ChatRequest):
         item.text = normalize_hausa_orthography(item.text)
         
     cache_key = _get_cache_key(req)
-    now = time.time()
-    _evict_stale_cache_entries(now)
 
     # Requests with image attachments are never cached: the cache key is
     # derived from text/history/vibe/gender only, so a cached reply describing
@@ -1020,28 +1021,25 @@ async def chat_endpoint(request: Request, req: ChatRequest):
     # predicate that decides whether to fetch fresh results).
     cacheable = not req.attachments and not _needs_live_search(req.text)
 
-    # Check cache hit
+    # Check cache hit -- TTLCache treats an expired key as simply absent, so
+    # a hit here is guaranteed fresh; no manual timestamp check needed.
     if cacheable and cache_key in _CHAT_CACHE:
-        entry = _CHAT_CACHE[cache_key]
-        if now - entry["timestamp"] < _CACHE_TTL:
-            print("[Murya] Cache hit! Playback cached streaming...")
-            async def generate_cached():
-                yield ": keepalive\n\n"
-                cached_text = entry["text"]
-                words = cached_text.split()
-                accumulated = ""
-                for i, word in enumerate(words):
-                    accumulated += (word + (" " if i < len(words) - 1 else ""))
-                    payload = json.dumps({"text": _sanitize(accumulated), "isDone": False})
-                    yield f"data: {payload}\n\n"
-                    await asyncio.sleep(0.02)  # fast incremental playback
-                
-                manifest_data = _extract_manifest(req.text, cached_text)
+        cached_text = _CHAT_CACHE[cache_key]
+        print("[Murya] Cache hit! Playback cached streaming...")
+        async def generate_cached():
+            yield ": keepalive\n\n"
+            words = cached_text.split()
+            accumulated = ""
+            for i, word in enumerate(words):
+                accumulated += (word + (" " if i < len(words) - 1 else ""))
+                payload = _dumps({"text": _sanitize(accumulated), "isDone": False})
+                yield f"data: {payload}\n\n"
+                await asyncio.sleep(0.02)  # fast incremental playback
 
-                yield f"data: {json.dumps({'text': _sanitize(cached_text), 'isDone': True, 'verified': _calculate_cultural_confidence(cached_text), 'manifest': manifest_data, 'normalized': normalize_hausa_orthography(cached_text), 'tone_mapped': apply_tonal_heuristics(cached_text)})}\n\n"
-            return StreamingResponse(generate_cached(), media_type="text/event-stream")
-        else:
-            del _CHAT_CACHE[cache_key]
+            manifest_data = _extract_manifest(req.text, cached_text)
+
+            yield f"data: {_dumps({'text': _sanitize(cached_text), 'isDone': True, 'verified': _calculate_cultural_confidence(cached_text), 'manifest': manifest_data, 'normalized': normalize_hausa_orthography(cached_text), 'tone_mapped': apply_tonal_heuristics(cached_text)})}\n\n"
+        return StreamingResponse(generate_cached(), media_type="text/event-stream")
 
     # Live web grounding for the primary Cerebras/Ollama path: on a cache miss,
     # if a Tavily key is configured and the question is time-sensitive, fetch
@@ -1119,7 +1117,19 @@ async def chat_endpoint(request: Request, req: ChatRequest):
                 print(f"[Murya] {name} produced no content, trying the next provider...")
             else:
                 # Every provider failed (or produced nothing) with zero
-                # content ever reaching the client.
+                # content ever reaching the client. Found live 2026-08-24
+                # purely by accident (testing something unrelated) --
+                # Cerebras 402'd, Groq was rate-limited, Ollama timed out,
+                # and Gemini had no key configured, all on one request, and
+                # nothing surfaced this except a manual docker logs grep.
+                # capture_message is a no-op when SENTRY_DSN isn't set (see
+                # main.py) -- this is the one event in the whole fallback
+                # chain that actually deserves paging someone, since it
+                # means a real user just got the canned filler reply.
+                sentry_sdk.capture_message(
+                    "All chat providers failed/empty for one request -- static fallback served",
+                    level="warning",
+                )
                 fallback_text = generate_fallback_response(req.text, req.vibe, req.addresseeGender)
                 await queue.put(fallback_text)
             # Signal the end of stream
@@ -1136,11 +1146,11 @@ async def chat_endpoint(request: Request, req: ChatRequest):
                     break
                 first_token = False
                 full_text += token
-                payload = json.dumps({"text": _sanitize(full_text), "isDone": False})
+                payload = _dumps({"text": _sanitize(full_text), "isDone": False})
                 yield f"data: {payload}\n\n"
             except asyncio.TimeoutError:
                 if first_token:
-                    yield f"data: {json.dumps({'text': '', 'isDone': False, 'warmup': True})}\n\n"
+                    yield f"data: {_dumps({'text': '', 'isDone': False, 'warmup': True})}\n\n"
                 else:
                     yield ": keepalive\n\n"
 
@@ -1148,22 +1158,28 @@ async def chat_endpoint(request: Request, req: ChatRequest):
         
         # Store successful result in cache
         if full_text and cacheable:
-            _CHAT_CACHE[cache_key] = {
-                "text": full_text,
-                "timestamp": time.time()
-            }
+            _CHAT_CACHE[cache_key] = full_text
 
-        # Log prosodic tonal trace for successful model generation
+        # Log prosodic tonal trace for successful model generation. IPA
+        # transliteration (services/phonetics_service.py) rides alongside
+        # it purely as a diagnostic: real segmental phonemes to spot-check
+        # the tonal heuristic against, not something the heuristic itself
+        # depends on. None (epitran unavailable, or nothing to say) is
+        # handled by _get_epitran/to_ipa, never raises here.
         try:
             tonal_trace = apply_tonal_heuristics(full_text)
-            print(f"[PROSODIC_TRACE] {tonal_trace}")
+            ipa_trace = phonetics_service.to_ipa(full_text)
+            if ipa_trace:
+                print(f"[PROSODIC_TRACE] {tonal_trace} | IPA: {ipa_trace}")
+            else:
+                print(f"[PROSODIC_TRACE] {tonal_trace}")
         except Exception as tone_err:
             print(f"Failed to calculate prosodic trace: {tone_err}")
 
         # Final done event
         manifest_data = _extract_manifest(req.text, full_text)
 
-        yield f"data: {json.dumps({'text': _sanitize(full_text), 'isDone': True, 'verified': _calculate_cultural_confidence(full_text), 'manifest': manifest_data, 'normalized': normalize_hausa_orthography(full_text), 'tone_mapped': apply_tonal_heuristics(full_text)})}\n\n"
+        yield f"data: {_dumps({'text': _sanitize(full_text), 'isDone': True, 'verified': _calculate_cultural_confidence(full_text), 'manifest': manifest_data, 'normalized': normalize_hausa_orthography(full_text), 'tone_mapped': apply_tonal_heuristics(full_text)})}\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")
 

@@ -17,7 +17,8 @@ POST /api/document
   -> Server-Sent Events: {"text": "...", "isDone": false} ... {"text": "...", "isDone": true}
 """
 
-import json
+import orjson
+import sentry_sdk
 
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
@@ -29,6 +30,14 @@ from orthography import normalize_digits, normalize_hausa_orthography
 router = APIRouter()
 
 _LANG = {"ha": "Hausa", "en": "English"}
+
+
+def _dumps(obj) -> str:
+    """Same _dumps helper as routers/chat.py -- orjson.dumps() returns
+    bytes, decode() once here. Faster than stdlib json.dumps() on this
+    endpoint's per-token streaming path, real UTF-8 for Hausa text instead
+    of \\uXXXX-escaping."""
+    return orjson.dumps(obj).decode()
 
 
 class DocumentRequest(BaseModel):
@@ -91,7 +100,7 @@ async def document_endpoint(request: Request, req: DocumentRequest):
                 if delta:
                     produced_any = True
                 full += delta
-                yield f"data: {json.dumps({'text': normalize_digits(full), 'isDone': False})}\n\n"
+                yield f"data: {_dumps({'text': normalize_digits(full), 'isDone': False})}\n\n"
 
         for stream_fn, label in (
             (stream_cerebras(messages), "Cerebras"),
@@ -124,13 +133,19 @@ async def document_endpoint(request: Request, req: DocumentRequest):
             print(f"[Murya] document {req.action}: {label} produced no content, trying next provider...")
             full = ""
         else:
-            # All three providers failed.
-            yield f"data: {json.dumps({'text': '', 'isDone': True, 'error': 'An kasa aiwatarwa a yanzu. A sake gwadawa. (Could not complete right now.)'})}\n\n"
+            # All three providers failed. Same reasoning as chat.py's
+            # matching capture_message -- see that comment for the finding
+            # that motivated it. No-op when SENTRY_DSN isn't set.
+            sentry_sdk.capture_message(
+                f"All document {req.action} providers failed/empty for one request",
+                level="warning",
+            )
+            yield f"data: {_dumps({'text': '', 'isDone': True, 'error': 'An kasa aiwatarwa a yanzu. A sake gwadawa. (Could not complete right now.)'})}\n\n"
             return
 
         out = normalize_digits(full)
         if req.target == "ha":
             out = normalize_hausa_orthography(out)
-        yield f"data: {json.dumps({'text': out, 'isDone': True})}\n\n"
+        yield f"data: {_dumps({'text': out, 'isDone': True})}\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")

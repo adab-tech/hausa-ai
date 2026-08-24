@@ -312,6 +312,44 @@ async def test_chat_falls_through_when_provider_yields_nothing(client, monkeypat
     mock_client.chat.assert_not_called()
 
 
+@pytest.mark.anyio
+async def test_all_providers_failing_reports_to_sentry(client):
+    """Found live 2026-08-24: Cerebras 402'd, Groq rate-limited, Ollama
+    timed out, Gemini had no key -- ALL on one request -- and nothing
+    surfaced it except a manual docker logs grep. capture_message() on this
+    exact branch is what would have paged someone instead. Sentry itself
+    isn't configured in tests (no SENTRY_DSN), so this checks the call
+    happens, not that it reaches a real Sentry project."""
+    from routers import chat as chat_module
+
+    async def _boom_cerebras(*_a, **_kw):
+        raise RuntimeError("no key")
+        yield  # pragma: no cover
+
+    async def _boom_groq(*_a, **_kw):
+        raise RuntimeError("no key")
+        yield  # pragma: no cover
+
+    async def _boom_ollama(*_a, **_kw):
+        raise RuntimeError("ollama down")
+        yield  # pragma: no cover
+
+    async def _boom_gemini(*_a, **_kw):
+        raise RuntimeError("no key")
+        yield  # pragma: no cover
+
+    with patch.object(chat_module.sentry_sdk, "capture_message") as mock_capture, \
+         patch("routers.chat.stream_cerebras", _boom_cerebras), \
+         patch("routers.chat.stream_groq", _boom_groq), \
+         patch("routers.chat.stream_ollama", _boom_ollama), \
+         patch("routers.chat.stream_gemini", _boom_gemini):
+        response = await client.post("/api/chat", json={"text": "sentry capture regression test"})
+
+    assert response.status_code == 200
+    mock_capture.assert_called_once()
+    assert mock_capture.call_args.kwargs.get("level") == "warning"
+
+
 # ---------------------------------------------------------------------------
 # Auth tests
 # ---------------------------------------------------------------------------
@@ -465,6 +503,43 @@ async def test_chat_time_sensitive_query_not_cached(client):
     # Both time-sensitive requests must reach the model; nothing cached.
     assert mock_client.chat.call_count == 2
     assert _CHAT_CACHE == {}
+
+
+def test_chat_cache_is_configured_with_intended_ttl_and_maxsize():
+    """Regression guard: the hand-rolled eviction function this cache used
+    to need (_evict_stale_cache_entries) was replaced with cachetools.
+    TTLCache, which enforces expiry/size purely from its own constructor
+    args -- if someone changes _CACHE_TTL/_CACHE_MAX_ENTRIES without the
+    cache object actually being built with those values, the numbers
+    become decorative and the cache silently stops honoring them."""
+    from routers.chat import _CACHE_MAX_ENTRIES, _CACHE_TTL, _CHAT_CACHE
+
+    assert _CHAT_CACHE.ttl == _CACHE_TTL
+    assert _CHAT_CACHE.maxsize == _CACHE_MAX_ENTRIES
+
+
+def test_ttlcache_expires_and_evicts_without_manual_bookkeeping():
+    """Not testing cachetools itself (a mature, independently-tested
+    library) -- confirming OUR usage shape (a plain TTLCache(maxsize, ttl)
+    swapped in for the old dict + _evict_stale_cache_entries) actually
+    behaves the way the removed manual code used to guarantee: an expired
+    key reads as absent, and exceeding maxsize evicts rather than growing
+    unbounded."""
+    import time as time_module
+
+    from cachetools import TTLCache
+
+    cache = TTLCache(maxsize=2, ttl=0.05)
+    cache["a"] = "one"
+    assert "a" in cache
+    time_module.sleep(0.1)
+    assert "a" not in cache  # expired -- no manual timestamp check needed
+
+    cache = TTLCache(maxsize=2, ttl=3600)
+    cache["a"] = "one"
+    cache["b"] = "two"
+    cache["c"] = "three"  # over maxsize -- evicts rather than growing to 3
+    assert len(cache) == 2
 
 
 @pytest.mark.anyio

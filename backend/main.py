@@ -16,6 +16,14 @@ API_KEY
     Optional shared secret.  When set, callers must supply the header
     ``X-API-Key: <value>`` on every request.  Leave unset to disable auth
     (suitable for a local, firewalled deployment).
+
+SENTRY_DSN
+    Optional. When set, backend errors and explicit capture_message() calls
+    (e.g. the whole LLM provider chain failing on one request -- see
+    routers/chat.py's fetch_stream) are reported to Sentry instead of only
+    existing in docker logs someone has to think to grep. Leave unset to
+    disable entirely (the default) -- no behavior change, no dependency on
+    an external service for a purely self-hosted deployment.
 """
 
 import os
@@ -25,6 +33,7 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
+import sentry_sdk
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi.errors import RateLimitExceeded
@@ -98,6 +107,24 @@ def _validate_runtime_config() -> None:
 
 
 _validate_runtime_config()
+
+# ---------------------------------------------------------------------------
+# Error tracking (optional -- see SENTRY_DSN in the module docstring)
+# ---------------------------------------------------------------------------
+_sentry_dsn = os.getenv("SENTRY_DSN", "").strip()
+if _sentry_dsn:
+    sentry_sdk.init(
+        dsn=_sentry_dsn,
+        environment=os.getenv("APP_ENV", "development"),
+        # Error tracking only -- no performance/trace sampling. This is a
+        # single small self-hosted box; the free tier's event quota should
+        # go to actual errors, not request traces.
+        traces_sample_rate=0.0,
+        # Self-hosted, privacy-conscious project (see rate_limit.py's own
+        # reasoning about not over-collecting from users) -- don't attach
+        # request IPs/cookies/headers to error reports by default.
+        send_default_pii=False,
+    )
 
 # ---------------------------------------------------------------------------
 # CORS configuration

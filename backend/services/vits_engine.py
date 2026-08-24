@@ -155,7 +155,7 @@ class VitsEngine:
         would compose 'a'+acute into 'á', which is not in the map, and the
         whole vowel would vanish. Hooked letters (ɓ ɗ ƙ ƴ) have no
         decomposition and pass through unchanged."""
-        import unicodedata
+        import unicodedata2 as unicodedata  # newer Unicode tables than stdlib; same API
 
         text = unicodedata.normalize("NFD", text).casefold()
         for a, b in {"’": "'", "‘": "'", "`": "'", "–": "-", "—": "-", "\xa0": " "}.items():

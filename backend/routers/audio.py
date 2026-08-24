@@ -30,6 +30,8 @@ import tempfile
 import threading
 import time
 from contextlib import suppress
+
+import orjson
 from pathlib import Path
 from typing import Any, cast
 
@@ -46,6 +48,15 @@ import corrections_store
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+def _dumps(obj) -> str:
+    """Same _dumps helper as routers/chat.py -- orjson.dumps() returns
+    bytes, decode() once here. Scoped to outbound WebSocket sends, the
+    actual hot path (one per streamed reply chunk); json.loads() for the
+    client's infrequent control frames is left on stdlib json, not worth
+    touching."""
+    return orjson.dumps(obj).decode()
 
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://ollama:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "aya-expanse:8b")
@@ -1061,7 +1072,7 @@ async def live_endpoint(
         if not transcript:
             return
 
-        await ws.send_text(json.dumps({"type": "user_transcript", "data": transcript}))
+        await ws.send_text(_dumps({"type": "user_transcript", "data": transcript}))
 
         # 2. LLM
         try:
@@ -1077,7 +1088,7 @@ async def live_endpoint(
         from orthography import normalize_hausa_orthography, apply_tonal_heuristics
         normalized = normalize_hausa_orthography(reply_text)
         tone_mapped = apply_tonal_heuristics(reply_text)
-        await ws.send_text(json.dumps({
+        await ws.send_text(_dumps({
             "type": "text",
             "data": reply_text,
             "normalized": normalized,
@@ -1091,7 +1102,7 @@ async def live_endpoint(
             )
             if pcm_out:
                 b64 = base64.b64encode(pcm_out).decode()
-                await ws.send_text(json.dumps({"type": "audio", "data": b64}))
+                await ws.send_text(_dumps({"type": "audio", "data": b64}))
         except Exception:
             logger.exception("TTS failed")
 
@@ -1285,7 +1296,7 @@ async def live_endpoint(
     except Exception as exc:
         logger.exception("Live session error: %s", exc)
         with suppress(Exception):
-            await ws.send_text(json.dumps({"type": "error", "data": str(exc)}))
+            await ws.send_text(_dumps({"type": "error", "data": str(exc)}))
     finally:
         remaining = _live_connections_by_ip.get(client_ip, 1) - 1
         if remaining <= 0:

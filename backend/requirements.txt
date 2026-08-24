@@ -83,3 +83,37 @@ tavily-python>=0.7,<0.8
 # failover to the next provider, not a wait -- see the provider-cooldown
 # tracker in chat.py for how those are actually handled.
 tenacity>=9.0,<10
+
+# Faster JSON serialization for the chat/document/live-voice hot paths --
+# json.dumps() runs on every single streamed token, not once per request.
+# orjson also outputs real UTF-8 for non-ASCII text (Hausa's hooked letters)
+# instead of stdlib's \uXXXX escaping, a smaller wire payload for the same
+# content. dumps() returns bytes, not str -- see the _dumps() wrapper in
+# each router that calls .decode() once at the call site.
+orjson>=3.10,<4
+
+# Newer Unicode tables than the stdlib unicodedata module ships with (which
+# lags behind the current Unicode standard) -- used in vits_engine.py's
+# NFD-normalize-and-casefold step before matching a TTS request against the
+# WAXAL sample bank. Same API as stdlib unicodedata, drop-in.
+unicodedata2>=15.1,<16
+
+# TTLCache backs the in-memory /api/chat response cache (chat.py) --
+# replaced ~15 lines of hand-rolled expiry/max-size eviction bookkeeping
+# with one object that handles both automatically.
+cachetools>=5.5,<6
+
+# Optional error tracking (see SENTRY_DSN in main.py's module docstring).
+# Fully inert with zero external calls when SENTRY_DSN isn't set -- imported
+# unconditionally (cheap import, no network/init cost) so routers/chat.py
+# and routers/document.py can call capture_message() on the "every LLM
+# provider failed" event without an if-SENTRY_DSN guard at every call site.
+sentry-sdk[fastapi]>=2.0,<3
+
+# Hausa (hau-Latn) grapheme-to-IPA transliteration -- see
+# services/phonetics_service.py. Diagnostic only (feeds the
+# [PROSODIC_TRACE] log line), verified live against real Hausa
+# hooked-consonant words inside a python:3.11-slim container matching this
+# image before adding. Pulls in panphon (phonological feature vectors) as
+# its own dependency.
+epitran>=1.24,<2
