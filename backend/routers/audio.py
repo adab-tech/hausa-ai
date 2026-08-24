@@ -36,7 +36,7 @@ from typing import Any, cast
 import numpy as np
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, Response, HTTPException, Request
 
-from auth import api_key_valid, verify_api_key
+from auth import consume_live_ticket, issue_live_ticket, verify_api_key
 
 from rate_limit import ip_limiter, limiter
 from routers.fallback import generate_fallback_response
@@ -959,17 +959,37 @@ class _TurnState:
         self.reset_turn()
 
 
+@router.post("/live/ticket", dependencies=[Depends(verify_api_key)])
+async def live_ticket_endpoint():
+    """Mint a short-lived, single-use ticket for the /api/live WebSocket
+    handshake below -- see auth.issue_live_ticket's docstring for why this
+    exists instead of passing API_KEY itself as a query param. A normal
+    HTTP call, so it uses the same header-based verify_api_key as every
+    other endpoint (no-op when API_KEY isn't configured); the frontend
+    calls this unconditionally before opening the WebSocket, in both
+    modes."""
+    return {"ticket": issue_live_ticket()}
+
+
 @router.websocket("/live")
 async def live_endpoint(
-    ws: WebSocket, speaker_id: int = 0, addressee_gender: str = "unspecified", api_key: str | None = None
+    ws: WebSocket, speaker_id: int = 0, addressee_gender: str = "unspecified", ticket: str | None = None
 ):
     # WebSocket-native equivalent of the router-level _auth other product
-    # endpoints get -- see auth.py's api_key_valid docstring for why this
-    # can't be a Security(APIKeyHeader) dependency like the rest. No-op
-    # (always allows) when API_KEY isn't configured, matching every other
-    # endpoint's self-hosted-default behavior.
-    if not api_key_valid(api_key):
-        await ws.close(code=1008, reason="Invalid or missing API key.")
+    # endpoints get -- a router-level Security(APIKeyHeader) dependency
+    # can't work on a WebSocket route (FastAPI can't supply the HTTP Request
+    # object it requires during a WS handshake), and a browser's native
+    # WebSocket API can't set custom headers at all regardless. Rather than
+    # passing the standing API_KEY itself as a query param (see
+    # auth.issue_live_ticket's docstring for why that was a real gap: a
+    # long-lived secret in every Caddy/proxy access log for as long as the
+    # deployment runs), the frontend exchanges it for a single-use,
+    # 30-second ticket over a normal header-authenticated HTTP call first.
+    # No-op (always allows) when API_KEY isn't configured, matching every
+    # other endpoint's self-hosted-default behavior -- issue_live_ticket()
+    # still mints a ticket in that case, just gated by nothing.
+    if not consume_live_ticket(ticket):
+        await ws.close(code=1008, reason="Invalid, expired, or missing live-session ticket.")
         return
 
     if addressee_gender not in ("masculine", "feminine", "unspecified"):

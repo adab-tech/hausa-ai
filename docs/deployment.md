@@ -82,17 +82,20 @@ vector. So `backend/main.py::_validate_runtime_config` enforces, in production:
 - **`API_KEY` (optional).** Only for a *private/firewalled* deployment. Do **not**
   rely on it as a secret for the public app — a single-page frontend bundle would
   expose it. Public endpoints (chat/tts/feedback) stay open by design.
-  `/api/live` (a WebSocket) enforces it via a `?api_key=` query param instead
-  of the `X-API-Key` header every other endpoint uses — browsers can't set
-  custom headers on a WebSocket handshake at all, so a query param is the
-  only place it can travel. Known consequence, not yet fixed: unlike the
-  header-based key, this one will appear in plaintext in Caddy's/any
-  upstream proxy's access logs (and potentially browser history) for as
-  long as `API_KEY` is configured. Only live today for operators who
-  explicitly opt into private mode — the public default deployment doesn't
-  set `API_KEY` at all. See `docs/security_architecture_review_2026-08-23.md`
-  finding #5 for the fix direction (short-lived, single-use WS ticket
-  exchanged over an authenticated HTTP call instead of the standing secret).
+  `/api/live` (a WebSocket) can't use the `X-API-Key` header every other
+  endpoint uses — browsers can't set custom headers on a WebSocket handshake
+  at all — so a query param is the only place *something* can travel. Fixed
+  2026-08-23 (`docs/security_architecture_review_2026-08-23.md` finding #5):
+  rather than the standing key itself, the frontend calls
+  `POST /api/live/ticket` (header-authenticated, same as every other
+  endpoint) and gets back a random, single-use, 30-second ticket
+  (`auth.issue_live_ticket`/`consume_live_ticket`) — `?ticket=<ticket>`
+  is what actually appears in the WS URL/access logs, and it's already
+  worthless a few seconds (or one connection) after being issued. No-op
+  when `API_KEY` isn't configured — the public default deployment never
+  calls the ticket endpoint at all, so this adds zero latency to the common
+  case. A private deployment enables the flow by setting `VITE_API_KEY` at
+  frontend build time (matching the value of the backend's `API_KEY`).
 - **HTTPS** is forced by Caddy's automatic HTTPS (production) / `fly.toml`'s
   `force_https = true` (if ever redeployed to Fly). Caddy also sends HSTS
   and a strict CSP on the API domain (`deploy/Caddyfile`, a reference copy
@@ -121,10 +124,13 @@ vector. So `backend/main.py::_validate_runtime_config` enforces, in production:
   distributed attacker opening a couple of connections from each of many
   source IPs, since each `/api/live` connection runs a genuinely expensive
   Whisper+LLM+VITS pipeline on the single CPU-only VM.
-- **Still open (not yet implemented):** per-private-mode frontend `X-API-Key`
-  wiring (only needed if you choose `API_KEY` mode); an admin UI for
-  creating/removing delegate reviewer accounts (currently a one-off Python
-  call).
+- **Still open (not yet implemented):** `/api/live`'s private-mode auth is
+  wired end to end (`VITE_API_KEY` → ticket exchange, see above), but the
+  equivalent `X-API-Key` header wiring for `/api/chat`/`/api/document`/
+  `/api/tts` in private mode is not — those calls don't currently send
+  `VITE_API_KEY` at all, so a private deployment would need to add that
+  itself for now. Also still open: an admin UI for creating/removing
+  delegate reviewer accounts (currently a one-off Python call).
 
 ### Cloud Run (fallback, not currently used)
 1. **CI** ([`.github/workflows/backend-ci.yml`](../.github/workflows/backend-ci.yml)) — lint, type-check, `pytest` with coverage. Runs on every push/PR to `main`.

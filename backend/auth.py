@@ -12,6 +12,8 @@ authentication is disabled and all requests are allowed through.
 
 import hmac
 import os
+import secrets
+import time
 from urllib.parse import urlparse
 
 from fastapi import HTTPException, Request, Security, status
@@ -49,6 +51,65 @@ def api_key_valid(candidate: str | None) -> bool:
     if _CONFIGURED_KEY is None:
         return True
     return candidate is not None and hmac.compare_digest(candidate, _CONFIGURED_KEY)
+
+
+_LIVE_TICKET_TTL_SECONDS = 30
+# In-memory, per-process -- correct for the current single-machine
+# deployment (matches rate_limit.py's own documented model), not
+# multi-instance safe.
+_live_tickets: dict[str, float] = {}
+
+
+def _prune_expired_live_tickets() -> None:
+    now = time.time()
+    expired = [t for t, exp in _live_tickets.items() if exp < now]
+    for t in expired:
+        _live_tickets.pop(t, None)
+
+
+def issue_live_ticket() -> str:
+    """Mint a short-lived, single-use ticket for /api/live's WebSocket auth.
+
+    Found in the 2026-08-23 follow-up security-architecture review: the
+    standing API_KEY, when an operator configures one, had no way to reach
+    /api/live except as a literal ?api_key=<key> query param (browsers can't
+    set custom headers on a WebSocket handshake) -- so the long-lived shared
+    secret itself would appear in plaintext in Caddy's/any upstream proxy's
+    access logs and potentially browser history, for as long as API_KEY
+    stayed configured. This endpoint is a normal, header-authenticated HTTP
+    call (verify_api_key, same as every other endpoint); it hands back a
+    random, single-use, 30-second ticket instead. /api/live then takes
+    ?ticket=<ticket>, not the standing key -- what ends up in a log is a
+    value that's already useless a few seconds after being issued, rather
+    than the one secret every future session depends on. Called
+    unconditionally by the frontend regardless of whether API_KEY is
+    actually configured, so the flow (and this endpoint's own gate) is
+    identical in both modes and there's no separate code path to keep in
+    sync."""
+    _prune_expired_live_tickets()
+    ticket = secrets.token_urlsafe(24)
+    _live_tickets[ticket] = time.time() + _LIVE_TICKET_TTL_SECONDS
+    return ticket
+
+
+def consume_live_ticket(ticket: str | None) -> bool:
+    """Validate AND invalidate a ticket in one step (single-use -- a replayed
+    or logged ticket is worthless after its first successful connection,
+    same as after it expires). True means the connection may proceed.
+
+    No-op (always allows, no ticket required at all) when API_KEY isn't
+    configured -- matching every other endpoint's self-hosted-default
+    behavior, and just as importantly, sparing the public default
+    deployment an extra HTTP round-trip before every live-voice session for
+    a secret that doesn't exist in that mode. The frontend only needs to
+    fetch a ticket at all when it already knows it's talking to a
+    private/API_KEY-configured deployment."""
+    if _CONFIGURED_KEY is None:
+        return True
+    if not ticket:
+        return False
+    expires_at = _live_tickets.pop(ticket, None)
+    return expires_at is not None and expires_at >= time.time()
 
 
 _REVIEWER_KEY_NAME = "X-Reviewer-Key"

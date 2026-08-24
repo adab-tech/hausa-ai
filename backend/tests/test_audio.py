@@ -666,14 +666,18 @@ def test_live_endpoint_falls_back_to_fixed_chunking_when_vad_unavailable():
     mock_transcribe.assert_called_once()
 
 
-def test_live_endpoint_rejects_wrong_or_missing_api_key_when_configured(monkeypatch):
+def test_live_endpoint_rejects_wrong_or_missing_ticket_when_configured(monkeypatch):
     """Regression test for a real gap found in a 2026-08-23 security review:
     /api/live had no API_KEY enforcement at all, unlike every other product
     endpoint. Since a Security(APIKeyHeader) router-level dependency doesn't
     work on a WebSocket route (confirmed empirically -- FastAPI can't supply
     the Request object it needs for a WS handshake), the check is a plain
-    query-param comparison (auth.api_key_valid) done manually inside
-    live_endpoint before ws.accept()."""
+    query-param comparison done manually inside live_endpoint before
+    ws.accept(). A follow-up review found the first fix (a raw ?api_key=
+    query param) leaked the standing secret into every access log -- this
+    now checks the ticket-exchange replacement instead (auth.
+    consume_live_ticket): no ticket, an unknown ticket, and an already-used
+    ticket must all be rejected the same as a wrong key was before."""
     import auth
     from starlette.testclient import TestClient
     from starlette.websockets import WebSocketDisconnect as ClientWSDisconnect
@@ -682,20 +686,27 @@ def test_live_endpoint_rejects_wrong_or_missing_api_key_when_configured(monkeypa
 
     monkeypatch.setattr(auth, "_CONFIGURED_KEY", "the-real-secret")
 
-    # No key at all.
+    # No ticket at all.
     with pytest.raises(ClientWSDisconnect):
         with TestClient(app).websocket_connect("/api/live"):
             pass
 
-    # Wrong key.
+    # Unknown/forged ticket.
     with pytest.raises(ClientWSDisconnect):
-        with TestClient(app).websocket_connect("/api/live?api_key=wrong"):
+        with TestClient(app).websocket_connect("/api/live?ticket=not-a-real-ticket"):
+            pass
+
+    # A real ticket, but already spent (consume_live_ticket is single-use).
+    ticket = auth.issue_live_ticket()
+    assert auth.consume_live_ticket(ticket) is True
+    with pytest.raises(ClientWSDisconnect):
+        with TestClient(app).websocket_connect(f"/api/live?ticket={ticket}"):
             pass
 
 
-def test_live_endpoint_allows_connection_with_correct_api_key(monkeypatch):
-    """The other half of the regression test above: a correct key must still
-    connect normally, not just reject bad ones."""
+def test_live_endpoint_allows_connection_with_valid_ticket(monkeypatch):
+    """The other half of the regression test above: a freshly issued ticket
+    must still connect normally, not just reject bad ones."""
     import json as _json
     from unittest.mock import AsyncMock, patch
 
@@ -706,16 +717,58 @@ def test_live_endpoint_allows_connection_with_correct_api_key(monkeypatch):
     from routers.audio import CHUNK_SAMPLES
 
     monkeypatch.setattr(auth, "_CONFIGURED_KEY", "the-real-secret")
+    ticket = auth.issue_live_ticket()
     chunk = b"\x22\x22" * CHUNK_SAMPLES
 
     with patch("routers.audio.new_vad_stream", return_value=None), \
          patch("routers.audio._transcribe", AsyncMock(return_value="sannu")), \
          patch("routers.audio._llm_respond", AsyncMock(return_value="Sannu")), \
          patch("routers.audio._synthesize_speech", return_value=None):
-        with TestClient(app).websocket_connect("/api/live?api_key=the-real-secret") as ws:
+        with TestClient(app).websocket_connect(f"/api/live?ticket={ticket}") as ws:
             ws.send_bytes(chunk)
             msg = _json.loads(ws.receive_text())
             assert msg["type"] == "user_transcript"
+
+
+def test_live_endpoint_open_without_ticket_when_no_api_key_configured():
+    """No API_KEY configured (the public default) must stay fully open with
+    NO ticket required at all -- the ticket exchange must not add an extra
+    round trip to every live-voice session in the common case where there's
+    no secret to protect."""
+    import json as _json
+    from unittest.mock import AsyncMock, patch
+
+    from starlette.testclient import TestClient
+
+    from main import app
+    from routers.audio import CHUNK_SAMPLES
+
+    chunk = b"\x22\x22" * CHUNK_SAMPLES
+    with patch("routers.audio.new_vad_stream", return_value=None), \
+         patch("routers.audio._transcribe", AsyncMock(return_value="sannu")), \
+         patch("routers.audio._llm_respond", AsyncMock(return_value="Sannu")), \
+         patch("routers.audio._synthesize_speech", return_value=None):
+        with TestClient(app).websocket_connect("/api/live") as ws:
+            ws.send_bytes(chunk)
+            msg = _json.loads(ws.receive_text())
+            assert msg["type"] == "user_transcript"
+
+
+@pytest.mark.anyio
+async def test_live_ticket_endpoint_requires_api_key_when_configured(client, monkeypatch):
+    """POST /api/live/ticket is a normal header-authenticated HTTP call
+    (unlike the WebSocket itself) -- verify_api_key gates it the same as
+    every other endpoint."""
+    import auth
+
+    monkeypatch.setattr(auth, "_CONFIGURED_KEY", "the-real-secret")
+
+    resp = await client.post("/api/live/ticket")
+    assert resp.status_code == 401
+
+    resp2 = await client.post("/api/live/ticket", headers={"X-API-Key": "the-real-secret"})
+    assert resp2.status_code == 200
+    assert "ticket" in resp2.json()
 
 
 def test_live_endpoint_rejects_beyond_global_connection_ceiling(monkeypatch):

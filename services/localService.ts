@@ -267,7 +267,7 @@ class LocalService {
    *
    * The frontend sends raw PCM-16 binary frames (16 kHz, mono) — same as before.
    */
-  connectLive(
+  async connectLive(
     speakerId: number | null,
     callbacks: {
       onopen?: () => void;
@@ -287,6 +287,29 @@ class LocalService {
     // Browser WebSocket can't set custom headers, so the contributor id rides
     // as a query param (backend reads it from either place, see contributor.py).
     params.set("contributor_id", getContributorId());
+
+    // A build-time API key means this is talking to a private/firewalled
+    // deployment (see backend/auth.py, backend/docs/deployment.md). The
+    // public default (this key unset) skips this entirely -- no extra round
+    // trip before every live-voice session for a secret that doesn't exist
+    // in that mode. When it IS set, exchange it for a short-lived, single-
+    // use ticket over a normal header-authenticated HTTP call rather than
+    // putting the standing key itself in the WebSocket URL, where it would
+    // sit in plaintext in every proxy access log for as long as the
+    // deployment runs (see auth.issue_live_ticket's docstring).
+    const privateApiKey = (import.meta as any).env?.VITE_API_KEY;
+    if (privateApiKey) {
+      const ticketRes = await fetch(`${BACKEND_URL}/api/live/ticket`, {
+        method: "POST",
+        headers: { "X-API-Key": privateApiKey },
+      });
+      if (!ticketRes.ok) {
+        throw new Error("Could not obtain a live-session ticket (check VITE_API_KEY).");
+      }
+      const { ticket } = await ticketRes.json();
+      params.set("ticket", ticket);
+    }
+
     const wsUrl = BACKEND_URL.replace(/^http/, "ws") + `/api/live?${params.toString()}`;
     const ws = new WebSocket(wsUrl);
     ws.binaryType = "arraybuffer";
@@ -345,7 +368,7 @@ class LocalService {
       close: () => ws.close(),
     };
 
-    return Promise.resolve(session);
+    return session;
   }
 
   // ── WAXAL Dataset endpoints ──────────────────────────────────────────────
