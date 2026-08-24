@@ -1,0 +1,31 @@
+name: Deploy landing page
+
+# The landing page (landing/) is a single static HTML file with no build
+# step, served from Cloudflare Pages (project "murya", custom domains
+# murya.ng/www.murya.ng). Cloudflare Pages' own Git integration requires a
+# one-time interactive OAuth authorization in the dashboard between GitHub
+# and Cloudflare that can't be scripted -- this workflow gets the same
+# end result (push to main deploys automatically) without needing that,
+# using wrangler directly with an API token stored as a repo secret.
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - "landing/**"
+      - ".github/workflows/deploy-landing.yml"
+
+jobs:
+  deploy:
+    name: Deploy to Cloudflare Pages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy
+        run: npx wrangler pages deploy landing/ --project-name=murya --commit-dirty=true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
