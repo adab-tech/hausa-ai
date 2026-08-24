@@ -1,0 +1,6 @@
+# Cloudflare Pages redirects file: https://developers.cloudflare.com/pages/configuration/redirects/
+# murya.ng/login -> app.murya.ng/admin/login (the actual admin app lives on
+# Vercel, not this static Pages site) -- a memorable starting point for the
+# one legitimate admin, without needing a reverse-proxy layer to keep the
+# URL bar on murya.ng.
+/login  https://app.murya.ng/admin/login  302
