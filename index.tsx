@@ -23,3 +23,13 @@ if (container) {
 } else {
   console.error("Critical Failure: Root mount point not found.");
 }
+
+
+// Register Murya Sovereign PWA Service Worker
+if (typeof window !== 'undefined' && 'serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch((err) => {
+      console.warn('Murya PWA SW registration failed:', err);
+    });
+  });
+}

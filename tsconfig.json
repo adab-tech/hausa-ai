@@ -25,5 +25,13 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  }
+  },
+  "exclude": [
+    "node_modules",
+    "New folder",
+    ".venv",
+    "output_tests",
+    ".claude",
+    "dist"
+  ]
 }

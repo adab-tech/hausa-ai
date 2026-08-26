@@ -8,10 +8,17 @@
       "port": 5174
     },
     {
+      "name": "imodoye-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "C:/Users/Adamu/Downloads/imodoye-web_1/imodoye-web", "run", "dev"],
+      "port": 3000
+    },
+    {
       "name": "frontend",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
-      "port": 3000
+      "port": 3000,
+      "autoPort": true
     },
     {
       "name": "backend",

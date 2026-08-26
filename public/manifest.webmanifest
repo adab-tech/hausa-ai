@@ -1,0 +1,56 @@
+{
+  "name": "Murya — Sovereign Hausa AI",
+  "short_name": "Murya",
+  "description": "A sovereign, native-speaker-built Hausa AI voice and chat assistant. Ingantaccen harshe, martabar al'ada, da zurfin tunanin ilimi.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#030303",
+  "theme_color": "#030303",
+  "icons": [
+    {
+      "src": "/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Bincika Ƙamus",
+      "short_name": "Ƙamus",
+      "description": "Search the 30k Hausa-English dictionary",
+      "url": "/?mode=kamus",
+      "icons": [
+        {
+          "src": "/icon-192.svg",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Muryar Hausa",
+      "short_name": "Murya",
+      "description": "Start voice conversation with Malama Asabe",
+      "url": "/?mode=voice",
+      "icons": [
+        {
+          "src": "/icon-192.svg",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ],
+  "categories": [
+    "education",
+    "productivity",
+    "utilities"
+  ],
+  "lang": "ha"
+}

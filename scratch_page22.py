@@ -1,0 +1,75 @@
+import json
+
+entries = [
+("really?, is that so?","ashe","excl.",22),
+("expresses confirmation of sth.","ashe","excl.",22),
+("twenty","ashirin","n.f. and adj.",22),
+("hospital, dispensary, clinic","asibiti","n.f. (pl. asibitoci)",22),
+("secret, sth. private","asiri","n.m. (pl. asirai)",22),
+("magic charm or spell, usu. harmful","asiri","n.m. (pl. asirai)",22),
+("confide","asirta","v.t.",22),
+("keep sth. secret","asirta","v.t.",22),
+("straight razor, scalpel, pen-knife","aska","n.f. (pl. asakè)",22),
+("marks on face or body which identify person by tribe or profession","aska","n.f. (pl. asakè)",22),
+("shave","askè","v.t.",22),
+("shaving","aski","n.m.",22),
+("pruning (tree, bush)","aski","n.m.",22),
+("dawn, very early morning","assalatù","n.f.",22),
+("what a pity!, how distressing!","assha","excl.",22),
+("first prayer of the day","asubà","n.f.",22),
+("time of day before the first light of dawn","asubà","n.f.",22),
+("general term for morning","asubà","n.f.",22),
+("money box","asusù","n.m.",22),
+("treasury, funds, savings","asusù","n.m.",22),
+("ginned cotton","atafa","n.f.",22),
+("printed manufactured cloth","atamfa","n.f. (pl. atamfofi)",22),
+("physical exercises, esp. of horses or soldiers","atasayè","n.m.",22),
+("dysentery","atini","n.m.",22),
+("sneezing","atishawà","n.f.",22),
+("atom","atòm","n.m.",22),
+("attorney-general","atonè-janar","n.m.",22),
+("wealthy person","attajìri","n.m. (f. attajìra, pl. attàjìrai)",22),
+("old testament","Attaura","n.f.",22),
+("throwing handful of dust or ash (by children) to shame s.o.","aturè","n.m.",22),
+("either...or","au...au","conj.",22),
+("cotton","audùga","n.f.",22),
+("attack, fall upon s.o.","aukà","v.t. (with i.o.)",22),
+("befall","aukà","v.t. (with i.o.)",22),
+("collapse, cave in (e.g. house or well)","aukà","v.i.",22),
+("expansion, progress","auki","n.m.",22),
+("sth. which lasts longer than expected","auki","n.m.",22),
+("happen, occur, arise","aukù","v.i.",22),
+("buy sth. by measureful","auna","v.t. (i/e)",22),
+("weigh, measure","aunà","v.t. (vn. àwò)",22),
+("test, examine","aunà","v.t. (vn. àwò)",22),
+("aim at sth.","aunà","v.t. (vn. àwò)",22),
+("awareness, realization","aune","n.m.",22),
+("marry s.o.","aura","v.t. (i/e) (vn. aure)",22),
+("arrange for s.o. to marry s.o.","aurà","v.t.",22),
+("intermarriage","auràtayyà","n.f.",22),
+("marriage","aure","n.m. (pl. aurè-aurè)",22),
+("pair of birds or animals for breeding","aure","n.m. (pl. aurè-aurè)",22),
+("grafting of plants","aure","n.m. (pl. aurè-aurè)",22),
+("last-born or youngest child","auta","n.m. or f.",22),
+("hour","awà","n.f. (pl. awoyi)",22),
+("pincers, pliers","awàrtaki","n.m.",22),
+("rib","awàzà","n.m. (pl. awàzu)",22),
+("measure, measurement","awò","n.m. (pl. aunè-aunè)",22),
+("standard measure, measure of one pound weight","awò","n.m. (pl. aunè-aunè)",22),
+("buying daily needs at market","awò","n.m. (pl. aunè-aunè)",22),
+("aiming (of a weapon)","awò","n.m. (pl. aunè-aunè)",22),
+("metre of a poem","awò","n.m. (pl. aunè-aunè)",22),
+("verse (esp. of koran)","ayà","n.f. (pl. ayoyi)",22),
+("punctuation mark","ayà","n.f. (pl. ayoyi)",22),
+("stop, pause","ayà","n.f. (pl. ayoyi)",22),
+]
+
+with open(r"C:\Users\Adamu\Desktop\Hausa AI\data\processed\newman_1977\ha_en_pairs_chunk2.jsonl", "a", encoding="utf-8") as f:
+    for en, ha, ctx, pg in entries:
+        obj = {"source_en": en, "target_ha": ha, "context": ctx, "provenance": "newman_1977", "page": pg}
+        f.write(json.dumps(obj, ensure_ascii=False) + "\n")
+
+with open(r"C:\Users\Adamu\Desktop\Hausa AI\data\processed\newman_1977\progress_chunk2.txt", "a", encoding="utf-8") as f:
+    f.write(f"page 22: {len(entries)} entries\n")
+
+print("wrote", len(entries))

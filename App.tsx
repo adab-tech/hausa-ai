@@ -1,3 +1,4 @@
+import { OfflineBanner } from './components/OfflineBanner.tsx';
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { gemini, BACKEND_URL } from './services/localService.ts';
 import { learning } from './services/learningService.ts';
