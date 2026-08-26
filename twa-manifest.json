@@ -1,0 +1,43 @@
+{
+  "packageId": "ng.murya.app",
+  "host": "app.murya.ng",
+  "name": "Murya AI — Sovereign Hausa OS",
+  "launcherName": "Murya AI",
+  "display": "standalone",
+  "themeColor": "#0B1120",
+  "navigationColor": "#0B1120",
+  "backgroundColor": "#0B1120",
+  "startUrl": "/",
+  "iconUrl": "https://app.murya.ng/icon-512.svg",
+  "maskableIconUrl": "https://app.murya.ng/icon-512.svg",
+  "appVersionName": "1.0.0",
+  "appVersionCode": 1,
+  "shortcuts": [
+    {
+      "name": "Bincika Ƙamus",
+      "short_name": "Ƙamus",
+      "url": "/?action=dictionary",
+      "icon": "https://app.murya.ng/icon-192.svg"
+    },
+    {
+      "name": "Gyara Furuci",
+      "short_name": "Furuci",
+      "url": "/?action=pronunciation",
+      "icon": "https://app.murya.ng/icon-192.svg"
+    }
+  ],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://app.murya.ng/manifest.webmanifest",
+  "fallbackType": "customtabs",
+  "features": {
+    "locationDelegation": {
+      "enabled": false
+    },
+    "playBilling": {
+      "enabled": false
+    }
+  },
+  "alphaDependencies": {
+    "enabled": false
+  }
+}

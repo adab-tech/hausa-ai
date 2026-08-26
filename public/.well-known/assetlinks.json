@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "ng.murya.app",
+      "sha256_cert_fingerprints": [
+        "14:6D:E9:7F:0F:7A:B4:4D:42:3E:68:57:9B:F3:AE:32:02:6A:BD:96:A8:BA:E5:8B:2A:7C:3A:9C:12:34:56:78"
+      ]
+    }
+  }
+]
