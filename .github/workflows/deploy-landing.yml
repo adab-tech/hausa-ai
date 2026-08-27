@@ -22,7 +22,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Deploy
         run: npx wrangler pages deploy landing/ --project-name=murya --commit-dirty=true
