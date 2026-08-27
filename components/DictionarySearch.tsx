@@ -1,4 +1,3 @@
-import { offlineKamus } from '../services/offlineKamusService.ts';
 import React, { useEffect, useRef, useState } from 'react';
 import { gemini } from '../services/localService.ts';
 import { BookOpen, X, Loader2, Search, ArrowRight } from 'lucide-react';

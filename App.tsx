@@ -1,6 +1,7 @@
 import { OfflineBanner } from './components/OfflineBanner.tsx';
+import { InstallPromptBanner } from './components/InstallPromptBanner.tsx';
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { gemini, BACKEND_URL } from './services/localService.ts';
+import { gemini } from './services/localService.ts';
 import { learning } from './services/learningService.ts';
 import { Message, Role, Attachment, SovereignVibe, AddresseeGender } from './types.ts';
 import { ArewaLogo } from './components/ArewaLogo.tsx';
@@ -617,6 +618,11 @@ const App: React.FC = () => {
       {showDictionary && (
         <DictionarySearch onClose={() => setShowDictionary(false)} />
       )}
+
+      <OfflineBanner />
+      <div className="fixed top-3 inset-x-0 z-40 flex justify-center px-4 pointer-events-none [&>*]:pointer-events-auto">
+        <InstallPromptBanner />
+      </div>
 
       <ToastHost toasts={toasts} onDismiss={dismissToast} />
     </div>

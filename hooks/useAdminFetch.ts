@@ -45,7 +45,6 @@ export function useAdminFetch<T>(
 
   useEffect(() => {
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [load]);
 
   return { data, loading, denied, reload: load };

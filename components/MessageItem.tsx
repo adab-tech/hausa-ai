@@ -162,13 +162,13 @@ export const MessageItem = memo(({
                     />
                     <div className="flex items-center justify-end flex-wrap gap-2">
                       <button
-                        onClick={() => { setShowCorrectionInput(false); setCorrectionText(''); onFeedback(m.id, 'down', undefined); }}
+                        onClick={() => { setShowCorrectionInput(false); setCorrectionText(''); onFeedback?.(m.id, 'down', undefined); }}
                         className="px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider whitespace-nowrap text-dyn-text-secondary hover:text-dyn-text-primary hover:bg-white/5 transition-colors"
                       >
                         Tsallake (Skip)
                       </button>
                       <button
-                        onClick={() => { const c = correctionText.trim(); setShowCorrectionInput(false); setCorrectionText(''); onFeedback(m.id, 'down', c || undefined); }}
+                        onClick={() => { const c = correctionText.trim(); setShowCorrectionInput(false); setCorrectionText(''); onFeedback?.(m.id, 'down', c || undefined); }}
                         className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider whitespace-nowrap shrink-0 bg-dyn-accent/15 text-dyn-accent border border-dyn-accent/30 hover:bg-dyn-accent/25 transition-colors"
                       >
                         <Send className="w-3.5 h-3.5 shrink-0" />

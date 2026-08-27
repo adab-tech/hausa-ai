@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { WifiOff, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { WifiOff, CheckCircle2 } from 'lucide-react';
 
 export const OfflineBanner: React.FC = () => {
   const [isOffline, setIsOffline] = useState(false);

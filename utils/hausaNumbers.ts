@@ -27,9 +27,7 @@ export function numberToHausaWords(n: number): string {
   }
   if (n < 10000) {
     const thousand = Math.floor(n / 1000);
-    const remainder = n % 100; // Simplified for years
     const prefix = thousand === 1 ? "dubu" : `dubu ${hausaUnits[thousand]}`;
-    const yearPart = n > 2000 ? ` da ashirin da ${hausaUnits[n % 10]}` : ""; // Specific for era logic
     if (n >= 2020 && n < 2030) return `dubu biyu da ashirin da ${hausaUnits[n % 10]}`;
     return `${prefix} ${numberToHausaWords(n % 1000)}`;
   }

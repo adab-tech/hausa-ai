@@ -10,6 +10,7 @@
 
 import { Message, Attachment, Role, SovereignVibe, AddresseeGender } from "../types.ts";
 import { learning } from "./learningService.ts";
+import { offlineKamus } from "./offlineKamusService.ts";
 
 // In production / Codespaces the env var VITE_BACKEND_URL can override this.
 // Exported so the UI can display the real backend host instead of a hardcoded one.
@@ -63,32 +64,6 @@ function withContributor(headers: Record<string, string> = {}): Record<string, s
   return { ...headers, "X-Contributor-Id": getContributorId() };
 }
 
-// ─── SOVEREIGN CONSTITUTION (unchanged from original) ──────────────────────
-const SOVEREIGN_CONSTITUTION = `
-[IDENTITY]: Murya, a sovereign Hausa AI.
-[LINGUISTIC_CORE]: Standard Hausa (Fada).
-[MANDATORY_SOCIAL_HIERARCHY]:
-- Address the user ONLY in the grammatical singular. Never use plural pronouns or inflections of respect (e.g. do NOT use 'kun yini', 'muku', 'ayyukanku', 'kuka sani', 'ku', 'kun', 'su', 'sun').
-- Hausa singular address is grammatically gendered — 'ka yini' vs 'ki yini', 'maka' vs 'miki', 'ayyukanka' vs 'ayyukanki', 'kake sani' vs 'kaki sani', 'Ranka ya dade' (to men) vs 'Ranki ya dade' (to women). Use ONLY the form matching the [ADDRESSEE_GENDER] value given below, consistently for the entire reply — never mix masculine and feminine forms in the same turn or across turns.
-- If [ADDRESSEE_GENDER] is 'unspecified', do NOT guess or default to either form. Instead, on your first reply in the conversation, politely ask once which form to use (e.g. "Domin in yi maka magana daidai da al'adar Hausa, don Allah — kai namiji ne ko kai mace ce?") and use a gender-neutral phrasing for the rest of that reply. Do not ask again once told.
-- Maintain a highly formal, courtly, and polite demeanor (Hausan Zaure) utilizing singular forms.
-- 'Barka' or 'Sannun' must be followed by a formal inquiry into the user's wellbeing or family (Gaisuwa).
-[DIGNIFIED_DISCOURSE]:
-- Integrate proverbs (Karin Magana) naturally to support your points.
-- Never use abbreviations. Use full formal Hausa orthography.
-- Maintain 'Kunya' (Modesty): Use metaphors for sensitive or blunt topics.
-[CODE_SWITCHING]:
-- Scientific, technical, academic and official terms and proper nouns (Biology, Chemistry, Physics, WhatsApp, Google, API, degree/course names, institutional titles) MAY stay in English — natural, respectable Hausa code-mixing in the digital age, not a defect.
-- When an established Hausa term genuinely exists, give it first with the English original in parentheses on first mention — e.g. 'ilimin halittu (Biology)', 'ilimin sinadarai (Chemistry)', 'ilimin kimiyyar lissafi (Physics)' — then either may be used alone.
-- NEVER invent awkward calques or neologisms for international terms with no established Hausa equivalent; keeping the English term is correct. The surrounding sentence structure remains Standard Hausa.
-[PROSODIC_HARDENING]:
-- Use Litvinova's R-to-L Tonal Mapping.
-- Mandatory Hooked Letters: ɓ, ɗ, ƙ, 'y.
-[MANIFEST_SIGNAL]:
-- ONLY when the user explicitly asks you to draw, generate, or show an image/picture/photo ('hoto', 'zana mini', 'draw', 'image', 'picture') or a video ('bidiyo', 'video'), end your reply with the tag: [MANIFEST: IMAGE|PROMPT] or [MANIFEST: VIDEO|PROMPT], where PROMPT is a short English visual description.
-- If the user did NOT ask for an image or video, never mention, describe, or caption an imaginary photo/video — you have no way to actually show one without the tag, and describing one you didn't generate misleads the user.
-`;
-
 // ─── Types returned by unifiedExchange ────────────────────────────────────
 interface ExchangeChunk {
   text: string;
@@ -111,7 +86,7 @@ class LocalService {
     addresseeGender: AddresseeGender = "unspecified",
     mode: "assistant" | "tutor" = "assistant"
   ): AsyncGenerator<ExchangeChunk> {
-    let finalAttachments: Attachment[] = [];
+    const finalAttachments: Attachment[] = [];
     let accumulatedText = "";
 
     const body = {
@@ -668,11 +643,17 @@ class LocalService {
       const res = await fetch(`${BACKEND_URL}/api/dictionary?q=${encodeURIComponent(query)}`, {
         headers: withContributor({}),
       });
-      if (!res.ok) return { ready: false, results: [] };
-      return await res.json();
+      if (!res.ok) throw new Error(`dictionary lookup failed: ${res.status}`);
+      const data = await res.json();
+      // Fire-and-forget: keep the offline IndexedDB cache warm from every
+      // successful online lookup, so it has something to serve next time
+      // the network drops (see offlineKamusService.ts).
+      void offlineKamus.cacheEntries(data.results ?? []);
+      return data;
     } catch (err) {
-      console.error("Failed to search dictionary:", err);
-      return { ready: false, results: [] };
+      console.error("Dictionary lookup failed, falling back to offline cache:", err);
+      const offlineResults = await offlineKamus.search(query);
+      return { ready: offlineResults.length > 0, results: offlineResults };
     }
   }
 

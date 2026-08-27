@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Download, X, Smartphone, Sparkles } from 'lucide-react';
+import { X, Smartphone, Sparkles } from 'lucide-react';
 
 export const InstallPromptBanner: React.FC = () => {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
