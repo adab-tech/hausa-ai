@@ -128,6 +128,8 @@
     font-size: clamp(38px, 10vw, 76px); color: var(--gold); margin-top: 14px; }
   .hero .sub { color: var(--secondary); font-size: clamp(16px, 3.8vw, 21px); margin: clamp(20px,4vw,26px) auto 0;
     max-width: 620px; font-style: italic; }
+  .hero-actions { margin-top: clamp(28px,5vw,36px); }
+  .hero-actions .btn { padding: 17px 42px; font-size: 12.5px; box-shadow: 0 18px 40px -16px rgba(var(--gold-rgb),0.45); }
   .rule { width: 88px; height: 1px; background: linear-gradient(90deg, transparent, var(--gold), transparent);
     margin: clamp(26px,5vw,34px) auto; opacity: 0.6; }
 
@@ -151,8 +153,37 @@
   .play-btn svg { width: 18px; height: 18px; }
   .play-btn:hover { transform: scale(1.06); }
   .play-btn.is-playing { background: #c0392b; color: #fff; animation: pulse 1.2s ease-in-out infinite; }
+  .play-btn:disabled { opacity: 0.5; cursor: default; transform: none; }
   @keyframes pulse { 0%,100%{ box-shadow:0 0 0 0 rgba(192,57,43,0.5);} 50%{ box-shadow:0 0 0 9px rgba(192,57,43,0);} }
   .hero-caption { color: var(--muted); font-size: clamp(12px,3vw,13.5px); margin-top: 16px; font-style: italic; }
+  .hero-caption.is-error { color: #e08a7a; font-style: normal; }
+  .hero-caption a { color: var(--gold); text-decoration: underline; text-underline-offset: 3px; }
+
+  /* Live typed-text demo */
+  .demo {
+    display: flex; align-items: center; gap: 10px; margin: 0 auto; max-width: 560px;
+    background: linear-gradient(165deg, rgba(14,14,14,0.96), rgba(5,5,5,1));
+    border: 1px solid var(--border); border-radius: 44px; padding: 8px 8px 8px 22px;
+    box-shadow: 0 20px 50px -18px rgba(0,0,0,0.85);
+    transition: border-color .3s; flex-wrap: wrap;
+  }
+  .demo:focus-within { border-color: rgba(var(--gold-rgb),0.5); }
+  .demo-input {
+    flex: 1 1 180px; min-width: 0; background: none; border: none; outline: none;
+    color: var(--ivory); font-family: var(--serif); font-style: italic; font-size: 16px;
+    padding: 10px 0;
+  }
+  .demo-input::placeholder { color: var(--muted); opacity: 0.75; }
+  .demo-voice {
+    flex: none; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 30px;
+    color: var(--secondary); font-family: var(--mono); font-size: 11px; letter-spacing: .5px;
+    padding: 8px 12px; cursor: pointer;
+  }
+  @media (max-width: 520px) {
+    .demo { border-radius: 26px; padding: 14px 16px; justify-content: center; }
+    .demo-input { flex-basis: 100%; text-align: center; padding: 6px 0 10px; }
+    .demo-voice { flex: 1 1 auto; }
+  }
 
   section { padding: clamp(48px, 9vw, 66px) 0; }
   h3 { font-style: italic; font-weight: 400; color: var(--gold);
@@ -319,15 +350,28 @@
     <p class="eyebrow"><span lang="ha">&ldquo;Murya&rdquo;</span> — &ldquo;voice,&rdquo; in Hausa</p>
     <h2>Built by Hausa,<br/>for Hausa.</h2>
     <p class="sub">The first open, multi-speaker Hausa text-to-speech — trained on native recordings, judged by a native ear, owned by the community it serves.</p>
+    <div class="hero-actions">
+      <a class="btn" href="https://app.murya.ng" target="_blank" rel="noopener">Fara yanzu · Try the app</a>
+    </div>
     <div class="rule" aria-hidden="true"></div>
-    <button class="player" data-src="samples/hero.wav" aria-pressed="false"
-      aria-label="Play the welcome sample: Barka da zuwa cibiyar Muryar Hausa">
-      <span class="play-btn" aria-hidden="true">
+    <form class="demo" id="tts-demo" aria-label="Gwada Murya — type Hausa text and hear it spoken">
+      <input type="text" id="demo-text" class="demo-input" maxlength="200" autocomplete="off"
+        placeholder="Rubuta wani abu... sannu, yaya kake?" aria-label="Rubuta rubutun Hausa (Hausa text to speak)" />
+      <select id="demo-voice" class="demo-voice" aria-label="Zaɓi murya (voice)">
+        <option value="5" selected>F1 · Mace</option>
+        <option value="0">F2 · Mace</option>
+        <option value="7">F3 · Mace</option>
+        <option value="3">F4 · Mace</option>
+        <option value="6">M1 · Namiji</option>
+        <option value="2">M2 · Namiji</option>
+        <option value="1">M3 · Namiji</option>
+        <option value="4">M4 · Namiji</option>
+      </select>
+      <button type="submit" class="play-btn" id="demo-submit" aria-label="Yi magana · Speak">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-      </span>
-      <span class="label">Ji Murya · Hear the voice</span>
-    </button>
-    <p class="hero-caption" lang="ha">&ldquo;Barka da zuwa cibiyar Muryar Hausa&rdquo;</p>
+      </button>
+    </form>
+    <p class="hero-caption" id="demo-status" aria-live="polite">Rubuta jimla ka ji Murya · Type a sentence and hear Murya say it, live.</p>
   </div>
 
   <section class="wrap" id="voices" aria-labelledby="voices-h">
@@ -463,6 +507,64 @@
     }
     document.querySelectorAll('[data-src]').forEach(function(el){
       el.addEventListener('click', function(){ playFrom(el); });
+    });
+  })();
+
+  // Live typed-text demo — calls the production TTS API directly and plays
+  // the result through the same <audio id="au"> element the sample players
+  // use. Requires api.murya.ng to allow the murya.ng origin in CORS; if that
+  // hasn't been applied yet (or the API is briefly unreachable), fails
+  // gracefully to a status message pointing at the full app instead of a
+  // silently broken button.
+  (function () {
+    var TTS_ENDPOINT = 'https://api.murya.ng/api/tts';
+    var form = document.getElementById('tts-demo');
+    var input = document.getElementById('demo-text');
+    var voice = document.getElementById('demo-voice');
+    var submitBtn = document.getElementById('demo-submit');
+    var status = document.getElementById('demo-status');
+    var au = document.getElementById('au');
+    var DEFAULT_STATUS = status.textContent;
+
+    function setStatus(text, isError) {
+      status.textContent = text;
+      status.classList.toggle('is-error', !!isError);
+    }
+    function setStatusHTML(html, isError) {
+      status.innerHTML = html;
+      status.classList.toggle('is-error', !!isError);
+    }
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var text = input.value.trim();
+      if (!text) { input.focus(); return; }
+
+      submitBtn.disabled = true;
+      submitBtn.classList.add('is-playing');
+      setStatus('Ana yin magana… · Synthesizing…');
+
+      var url = TTS_ENDPOINT + '?text=' + encodeURIComponent(text) + '&speaker_id=' + encodeURIComponent(voice.value);
+      fetch(url)
+        .then(function (res) {
+          if (!res.ok) throw new Error('status ' + res.status);
+          return res.blob();
+        })
+        .then(function (blob) {
+          au.src = URL.createObjectURL(blob);
+          return au.play();
+        })
+        .then(function () {
+          setStatus('Ana kunnawa… · Playing…');
+          au.onended = function () { setStatus(DEFAULT_STATUS); submitBtn.classList.remove('is-playing'); submitBtn.disabled = false; };
+        })
+        .catch(function () {
+          setStatusHTML('Ba za a iya haɗawa yanzu — gwada ' +
+            '<a href="https://app.murya.ng" target="_blank" rel="noopener">app ɗin</a> kai tsaye. · ' +
+            'Could not reach Murya right now — try the app directly.', true);
+          submitBtn.disabled = false;
+          submitBtn.classList.remove('is-playing');
+        });
     });
   })();
 
