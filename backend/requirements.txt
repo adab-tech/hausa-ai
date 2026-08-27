@@ -1,4 +1,8 @@
-fastapi>=0.115,<1
+# floor raised to 0.134: fastapi<0.134 caps its own starlette dependency
+# below 1.0, which conflicts with the starlette floor below (needed for
+# PYSEC-2026-248/249) -- pip's resolver can't satisfy both at once on an
+# older fastapi.
+fastapi>=0.134,<1
 # starlette is a transitive fastapi dependency, not listed directly upstream
 # -- pinned explicitly here since fastapi's own range let a vulnerable
 # starlette resolve. Floor raised: PYSEC-2026-248/249 fixed in 1.3.0/1.3.1.
