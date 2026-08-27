@@ -435,6 +435,29 @@ def _get_piper():
     return _piper_voice
 
 
+def _piper_write_wav(voice, text: str, wav_buf: io.BytesIO) -> None:
+    """Synthesize `text` into `wav_buf` as a WAV file, compatible with both
+    piper-tts's pre-1.3 API (voice.stream_to_file(text, file_obj), a context
+    manager) and 1.3+'s (voice.synthesize_wav(text, wave.Wave_write)).
+
+    piper-tts 1.3 dropped the piper-phonemize C++ dependency, which never
+    shipped Windows wheels -- requirements.txt pins ~=1.2.0 because that's
+    what the Linux production container resolves fine, but that exact pin
+    is literally uninstallable on a Windows dev machine, which is why local
+    envs land on 1.4.x instead. Handling both here means local dev and
+    production can each run whatever their platform actually supports
+    without the code silently breaking on one of them.
+    """
+    if hasattr(voice, "stream_to_file"):
+        with voice.stream_to_file(text, wav_buf):
+            pass
+    else:
+        import wave
+
+        with wave.open(wav_buf, "wb") as wav_file:
+            voice.synthesize_wav(text, wav_file)
+
+
 # ---------------------------------------------------------------------------
 # Audio helpers
 # ---------------------------------------------------------------------------
@@ -590,8 +613,7 @@ def _synthesize_speech_raw(
     # 22 050 Hz native — returning its PCM unresampled made clients play
     # it at 24 kHz: ~9% too fast and audibly pitched up.
     wav_buf = io.BytesIO()
-    with voice.stream_to_file(text, wav_buf):
-        pass
+    _piper_write_wav(voice, text, wav_buf)
     wav_buf.seek(44)
     pcm = wav_buf.read()
 

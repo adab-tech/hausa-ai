@@ -394,6 +394,60 @@ def test_get_piper_serializes_concurrent_download_attempts(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# Regression: piper-tts 1.3+ dropped voice.stream_to_file() (the pre-1.3 API)
+# in favor of voice.synthesize_wav(text, wave.Wave_write). requirements.txt
+# pins ~=1.2.0 (what the Linux production container resolves), but that pin
+# is literally uninstallable on Windows (its piper-phonemize dependency
+# never shipped Windows wheels), so local dev lands on 1.4.x -- and hitting
+# the removed stream_to_file crashed every local TTS call with
+# "'PiperVoice' object has no attribute 'stream_to_file'". Verify
+# _piper_write_wav handles both API shapes correctly, independent of
+# whichever piper-tts version actually happens to be installed here.
+# ---------------------------------------------------------------------------
+def test_piper_write_wav_uses_old_stream_to_file_api_when_present():
+    from contextlib import contextmanager
+
+    from routers import audio
+
+    calls = []
+
+    class FakeOldVoice:
+        @contextmanager
+        def stream_to_file(self, text, wav_file):
+            calls.append((text, wav_file))
+            yield
+
+    buf = io.BytesIO()
+    audio._piper_write_wav(FakeOldVoice(), "sannu", buf)
+    assert calls == [("sannu", buf)]
+
+
+def test_piper_write_wav_falls_back_to_new_synthesize_wav_api():
+    from routers import audio
+
+    calls = []
+
+    class FakeNewVoice:
+        def synthesize_wav(self, text, wav_file):
+            calls.append(text)
+            # Write a minimal valid frame so wave.open's context manager
+            # exit (which finalizes the header) doesn't blow up.
+            wav_file.setnchannels(1)
+            wav_file.setsampwidth(2)
+            wav_file.setframerate(22050)
+            wav_file.writeframes(b"\x00\x00")
+
+    buf = io.BytesIO()
+    audio._piper_write_wav(FakeNewVoice(), "sannu", buf)
+    assert calls == ["sannu"]
+    # A real WAV header was written (RIFF/WAVE magic bytes), proving this
+    # path produces a file the rest of _synthesize_speech_raw can parse
+    # (it seeks past byte 44 and reads raw PCM after).
+    assert buf.getvalue()[:4] == b"RIFF"
+    assert buf.getvalue()[8:12] == b"WAVE"
+
+
+# ---------------------------------------------------------------------------
 # /api/live -- VAD-driven turn detection helpers.
 #
 # live_endpoint no longer chunks on a fixed ~2s timer; it feeds every
