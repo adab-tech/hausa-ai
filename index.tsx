@@ -5,19 +5,22 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import App from './App.tsx';
 import { AdminLogin } from './components/AdminLogin.tsx';
 import { AdminPanel } from './components/AdminPanel.tsx';
+import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 
 const container = document.getElementById('root');
 if (container) {
   const root = createRoot(container);
   root.render(
     <React.StrictMode>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/admin/login" element={<AdminLogin />} />
-          <Route path="/admin" element={<AdminPanel />} />
-          <Route path="/*" element={<App />} />
-        </Routes>
-      </BrowserRouter>
+      <ErrorBoundary>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/admin/login" element={<AdminLogin />} />
+            <Route path="/admin" element={<AdminPanel />} />
+            <Route path="/*" element={<App />} />
+          </Routes>
+        </BrowserRouter>
+      </ErrorBoundary>
     </React.StrictMode>
   );
 } else {
