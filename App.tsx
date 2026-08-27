@@ -1,17 +1,12 @@
 import { OfflineBanner } from './components/OfflineBanner.tsx';
 import { InstallPromptBanner } from './components/InstallPromptBanner.tsx';
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, Suspense, lazy } from 'react';
 import { gemini } from './services/localService.ts';
 import { learning } from './services/learningService.ts';
 import { Message, Role, Attachment, SovereignVibe, AddresseeGender } from './types.ts';
 import { ArewaLogo } from './components/ArewaLogo.tsx';
 import { Waveform } from './components/Waveform.tsx';
-import { NeuralReview } from './components/NeuralReview.tsx';
-import { WhitePaper } from './components/WhitePaper.tsx';
-import { DocumentTool } from './components/DocumentTool.tsx';
-import { ContributePronunciation } from './components/ContributePronunciation.tsx';
-import { ContributeQA } from './components/ContributeQA.tsx';
-import { DictionarySearch } from './components/DictionarySearch.tsx';
+import { LazyFallback } from './components/LazyFallback.tsx';
 import { Sidebar } from './components/Sidebar.tsx';
 import { LiveCallPanel } from './components/LiveCallPanel.tsx';
 import { InputConsole } from './components/InputConsole.tsx';
@@ -19,6 +14,19 @@ import { MessageItem, AXIOM_PHRASES } from './components/MessageItem.tsx';
 import { ToastHost, ToastItem } from './components/Toast.tsx';
 import { decodeAudioData, decode, createBlob, makeAudioContext, resampleLinear } from './utils/audio.ts';
 import { Menu } from 'lucide-react';
+
+// Lazy-loaded: these are full-screen overlays gated behind a boolean toggle,
+// not part of the initial chat view -- most visitors never open any of
+// them, so they shouldn't ship in the first-load bundle. Each also pulls in
+// its own dependents (NeuralReview alone brings PronunciationReview +
+// VisitorAnalytics), which is exactly the weight this keeps out of the
+// critical path.
+const NeuralReview = lazy(() => import('./components/NeuralReview.tsx').then(m => ({ default: m.NeuralReview })));
+const WhitePaper = lazy(() => import('./components/WhitePaper.tsx').then(m => ({ default: m.WhitePaper })));
+const DocumentTool = lazy(() => import('./components/DocumentTool.tsx').then(m => ({ default: m.DocumentTool })));
+const ContributePronunciation = lazy(() => import('./components/ContributePronunciation.tsx').then(m => ({ default: m.ContributePronunciation })));
+const ContributeQA = lazy(() => import('./components/ContributeQA.tsx').then(m => ({ default: m.ContributeQA })));
+const DictionarySearch = lazy(() => import('./components/DictionarySearch.tsx').then(m => ({ default: m.DictionarySearch })));
 
 const App: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -594,29 +602,43 @@ const App: React.FC = () => {
         />
       </div>
 
-      {/* Modals overlay */}
+      {/* Modals overlay -- each lazy chunk gets its own Suspense boundary
+          since they're independently toggleable, not mutually exclusive
+          (WhitePaper can open from inside NeuralReview). */}
       {showReview && (
-        <NeuralReview
-          onClose={() => setShowReview(false)}
-          onOpenWhitePaper={() => setShowWhitePaper(true)}
-        />
+        <Suspense fallback={<LazyFallback />}>
+          <NeuralReview
+            onClose={() => setShowReview(false)}
+            onOpenWhitePaper={() => setShowWhitePaper(true)}
+          />
+        </Suspense>
       )}
       {showWhitePaper && (
-        <WhitePaper
-          onClose={() => setShowWhitePaper(false)}
-        />
+        <Suspense fallback={<LazyFallback />}>
+          <WhitePaper
+            onClose={() => setShowWhitePaper(false)}
+          />
+        </Suspense>
       )}
       {showDocumentTool && (
-        <DocumentTool onClose={() => setShowDocumentTool(false)} />
+        <Suspense fallback={<LazyFallback />}>
+          <DocumentTool onClose={() => setShowDocumentTool(false)} />
+        </Suspense>
       )}
       {showContribute && (
-        <ContributePronunciation onClose={() => setShowContribute(false)} />
+        <Suspense fallback={<LazyFallback />}>
+          <ContributePronunciation onClose={() => setShowContribute(false)} />
+        </Suspense>
       )}
       {showContributeQA && (
-        <ContributeQA onClose={() => setShowContributeQA(false)} />
+        <Suspense fallback={<LazyFallback />}>
+          <ContributeQA onClose={() => setShowContributeQA(false)} />
+        </Suspense>
       )}
       {showDictionary && (
-        <DictionarySearch onClose={() => setShowDictionary(false)} />
+        <Suspense fallback={<LazyFallback />}>
+          <DictionarySearch onClose={() => setShowDictionary(false)} />
+        </Suspense>
       )}
 
       <OfflineBanner />

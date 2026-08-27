@@ -1,11 +1,16 @@
 
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import App from './App.tsx';
-import { AdminLogin } from './components/AdminLogin.tsx';
-import { AdminPanel } from './components/AdminPanel.tsx';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
+import { LazyFallback } from './components/LazyFallback.tsx';
+
+// Regular chat users never visit /admin -- keep the whole admin surface
+// (login form, review dashboards, analytics) out of the bundle everyone
+// else downloads.
+const AdminLogin = lazy(() => import('./components/AdminLogin.tsx').then(m => ({ default: m.AdminLogin })));
+const AdminPanel = lazy(() => import('./components/AdminPanel.tsx').then(m => ({ default: m.AdminPanel })));
 
 const container = document.getElementById('root');
 if (container) {
@@ -14,11 +19,13 @@ if (container) {
     <React.StrictMode>
       <ErrorBoundary>
         <BrowserRouter>
-          <Routes>
-            <Route path="/admin/login" element={<AdminLogin />} />
-            <Route path="/admin" element={<AdminPanel />} />
-            <Route path="/*" element={<App />} />
-          </Routes>
+          <Suspense fallback={<LazyFallback />}>
+            <Routes>
+              <Route path="/admin/login" element={<AdminLogin />} />
+              <Route path="/admin" element={<AdminPanel />} />
+              <Route path="/*" element={<App />} />
+            </Routes>
+          </Suspense>
         </BrowserRouter>
       </ErrorBoundary>
     </React.StrictMode>
