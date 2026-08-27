@@ -1,7 +1,11 @@
 fastapi>=0.115,<1
+# starlette is a transitive fastapi dependency, not listed directly upstream
+# -- pinned explicitly here since fastapi's own range let a vulnerable
+# starlette resolve. Floor raised: PYSEC-2026-248/249 fixed in 1.3.0/1.3.1.
+starlette>=1.3.1,<2
 uvicorn[standard]>=0.30,<1
 httpx>=0.27,<1
-python-multipart>=0.0.18,<1  # floor raised: CVE-2024-53981 (multipart DoS) fixed in 0.0.18
+python-multipart>=0.0.31,<1  # floor raised: PYSEC-2026-3040 fixed in 0.0.31
 websockets>=12,<17
 
 # Admin login (bcrypt password hashing for admin_store.py)
@@ -49,7 +53,7 @@ onnxruntime>=1.18,<2
 # ran, and was the reason the production image exceeded Fly's unpacked-size
 # limit and silently reverted every deploy. Re-add torch/diffusers only if
 # a real local generation path is actually wired up and called.
-Pillow>=11.3,<13  # floor raised: CVE-2025-48379 heap overflow fixed in 11.3.0
+Pillow>=12.3,<13  # floor raised: PYSEC-2026-2253..3496 (multiple) fixed in 12.3.0
 
 # Video export (used by generate_video's Ken Burns pan/zoom, routers/image.py)
 imageio>=2.34,<3
@@ -59,6 +63,11 @@ imageio-ffmpeg>=0.5,<1
 # routers/chat.py / routers/audio.py) and GCP auth
 google-genai>=1.0.0,<2
 google-auth>=2.30,<3
+# cryptography is a transitive google-auth dependency, not listed directly
+# upstream -- pinned explicitly since google-auth's own range let a
+# vulnerable version resolve. Floor raised: PYSEC-2026-3552/3553/3554 +
+# GHSA-537c-gmf6-5ccf, all fixed by 50.0.0.
+cryptography>=50.0.0,<51
 requests>=2.32.4,<3  # floor raised: CVE-2024-35195 (verify bypass) + CVE-2024-47081 (netrc leak)
 
 # Cerebras Cloud SDK (hosted low-latency inference — primary in the chat/
