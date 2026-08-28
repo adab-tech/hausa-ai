@@ -76,7 +76,7 @@ requests>=2.32.4,<3  # floor raised: CVE-2024-35195 (verify bypass) + CVE-2024-4
 
 # Cerebras Cloud SDK (hosted low-latency inference — primary in the chat/
 # voice fallback chain in routers/chat.py / routers/audio.py)
-cerebras-cloud-sdk>=1.0,<2
+cerebras-cloud-sdk>=1.91.0,<2
 
 # Groq SDK (OpenAI-compatible, LPU hardware — sits between Cerebras and Ollama
 # in the fallback chain; real free tier, unlike local Ollama on this box which
