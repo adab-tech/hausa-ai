@@ -66,7 +66,7 @@ imageio-ffmpeg>=0.6.0,<1
 # Gemini SDK (image generation + the Ollama-unavailable fallback chain in
 # routers/chat.py / routers/audio.py) and GCP auth
 google-genai>=1.0.0,<2
-google-auth>=2.30,<3
+google-auth>=2.56.3,<3
 # cryptography is a transitive google-auth dependency, not listed directly
 # upstream -- pinned explicitly since google-auth's own range let a
 # vulnerable version resolve. Floor raised: PYSEC-2026-3552/3553/3554 +
