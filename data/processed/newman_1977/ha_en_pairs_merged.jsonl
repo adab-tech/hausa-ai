@@ -35,7 +35,7 @@
 {"source_en": "advance of money, down-payment", "target_ha": "àdibàs", "context": "n.m.", "provenance": "newman_1977"}
 {"source_en": "woman's kerchief, headtie", "target_ha": "àdiko", "context": "n.m.", "provenance": "newman_1977"}
 {"source_en": "bale of cloth, hides, etc.", "target_ha": "àdilà", "context": "n.f. (pl. adilu, adiloli)", "provenance": "newman_1977"}
-{"source_en": "tie-dyed cloth", "target_ha": "àdifç", "context": "n.m.", "provenance": "newman_1977"}
+{"source_en": "tie-dyed cloth", "target_ha": "àdir̃ȩ", "context": "n.m.", "provenance": "newman_1977", "note": "Corrected from transcription misread \"adifc-cedilla\" -- confirmed against a 600dpi render of the source page: the real character is r + trill-tilde (matches the adjacent entry adireshi/address), not f; final vowel is e + short-cedilla, not c-cedilla. Matches the real Hausa word adire (tie-dye), a well-known loanword."}
 {"source_en": "address", "target_ha": "àdifeshi", "context": "n.m.", "provenance": "newman_1977"}
 {"source_en": "adornment, ornamentation, decoration", "target_ha": "ado", "context": "n.m.", "provenance": "newman_1977"}
 {"source_en": "steering wheel", "target_ha": "sitiyafi", "context": "n.m.", "provenance": "newman_1977"}
