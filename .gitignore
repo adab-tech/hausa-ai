@@ -39,6 +39,12 @@ htmlcov/
 .coverage
 coverage.xml
 
+# Frontend test artifacts (Vitest coverage, Playwright reports/traces)
+coverage/
+test-results/
+playwright-report/
+blob-report/
+
 # Project-specific ignored folders/files
 waxal_hausa/
 models/
