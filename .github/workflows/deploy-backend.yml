@@ -1,0 +1,59 @@
+name: Deploy Backend
+
+# Replaces the manual SSH -> git pull -> docker build -> systemctl restart
+# sequence -- see deploy/README.md for the one-time VM setup this depends
+# on and why the deploy key is scoped to exactly one forced command.
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - "backend/**"
+      # Only these three are actually COPY'd into the image (see
+      # backend/Dockerfile) -- data/processed/ has other corpora (WAXAL
+      # training data, etc.) that don't belong to the running backend at
+      # all and shouldn't trigger a redeploy.
+      - "data/processed/robinson/**"
+      - "data/processed/hausa_en_open/**"
+      - "data/processed/newman_1977/**"
+      - "deploy/murya-deploy.sh"
+      - ".github/workflows/deploy-backend.yml"
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    name: Deploy to murya-vm
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Run the deploy
+        env:
+          DEPLOY_KEY: ${{ secrets.MURYA_DEPLOY_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          install -m 600 -D /dev/null ~/.ssh/deploy_key
+          echo "$DEPLOY_KEY" > ~/.ssh/deploy_key
+          # authorized_keys on the VM forces this connection to run
+          # murya-deploy.sh regardless of what's sent here -- the command
+          # itself is a placeholder, not what actually executes.
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new \
+            -o ConnectTimeout=15 adamu@20.220.217.53 "true"
+
+      # Independent of the remote script's own self-check: confirm from
+      # THIS runner, not just trusting the VM's report, that the live
+      # commit actually matches what was just pushed.
+      - name: Verify the live commit matches what was pushed
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 10); do
+            LIVE_SHA=$(curl -sf https://api.murya.ng/health | grep -o '"commit":"[^"]*"' | cut -d'"' -f4 || echo "")
+            if [ "$LIVE_SHA" = "${{ github.sha }}" ]; then
+              echo "Verified: api.murya.ng is running ${{ github.sha }}"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "::error::api.murya.ng did not converge on ${{ github.sha }} (saw: ${LIVE_SHA:-<no response>})"
+          exit 1

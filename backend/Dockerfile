@@ -9,6 +9,16 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# The commit this image was built from, surfaced at /health -- lets a
+# deploy pipeline verify the NEW code is actually serving traffic instead
+# of just checking that *some* process answers on the port (a stale,
+# never-restarted container returns the exact same {"status":"sovereign"}
+# as a freshly deployed one; this is what made a real deploy failure
+# invisible until manually checked). Passed via --build-arg at build time;
+# defaults to "unknown" for a local build that doesn't set it.
+ARG GIT_SHA=unknown
+ENV GIT_SHA=$GIT_SHA
+
 # Install system dependencies for faster-whisper and piper-tts.
 # zstd is required by Ollama's own install.sh to extract its release archive.
 RUN apt-get update && apt-get install -y --no-install-recommends \

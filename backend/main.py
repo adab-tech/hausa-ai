@@ -317,11 +317,20 @@ app.include_router(dictionary.router, prefix="/api", dependencies=_auth)
 @app.get("/health")
 async def health():
     # Existing shape ({"status": "sovereign", "version": ...}) is preserved
-    # unconditionally for other callers -- "degraded"/"degraded_reason" are
-    # additive fields, only present when the startup model preload actually
-    # failed (see lifespan() above), so this doesn't change behavior for any
-    # caller that only checks "status"/"version".
-    payload = {"status": "sovereign", "version": "1.0.0"}
+    # unconditionally for other callers -- "degraded"/"degraded_reason"/
+    # "commit" are additive fields, so this doesn't change behavior for any
+    # caller that only checks "status"/"version". "commit" is the git SHA
+    # baked into the image at build time (Dockerfile's GIT_SHA build arg) --
+    # a deploy pipeline diffs this against the commit it just pushed to
+    # confirm the NEW code is actually running, not just that some process
+    # answers on the port (see Dockerfile's comment on GIT_SHA for why this
+    # exists: a stale, never-restarted container returns this exact same
+    # payload otherwise, indistinguishable from a real deploy).
+    payload = {
+        "status": "sovereign",
+        "version": "1.0.0",
+        "commit": os.getenv("GIT_SHA", "unknown"),
+    }
     if not getattr(app.state, "model_preload_ok", True):
         payload["degraded"] = True
         payload["degraded_reason"] = getattr(
