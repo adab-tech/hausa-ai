@@ -1,5 +1,10 @@
 # Security architecture review — 2026-08-23
 
+> **Addendum — 2026-08-31: all six findings below are now fixed, each
+> re-verified against current source AND, where applicable, live production —
+> not just trusted from a prior fix claim. See "Addendum" section at the
+> bottom of this document.**
+
 A fresh, broader architecture-level pass, run *after* and separate from
 `docs/deep_scan_2026-08-23.md`'s file-by-file bug hunt. That doc's four
 "Critical — security" fixes (rate-limit bypass, `/api/live`/`/api/tts` auth
@@ -349,3 +354,91 @@ immediately, since it's only live today for operators who explicitly opt
 into `API_KEY` mode. Everything under Low/informational is either already
 fine (SQL, XSS, secrets-in-storage, dependency hygiene, CORS/CSRF coherence)
 or genuinely low-urgency.
+
+---
+
+## Addendum — 2026-08-31: full re-verification, all six findings closed
+
+Re-checked every Critical/High/Medium finding above against current source
+and, where the fix's effect is externally observable, against live
+production — not assumed fixed just because time had passed.
+
+1. **Critical — chat/document/tts rate-limit gap: FIXED.**
+   `grep -n "ip_limiter" backend/routers/{chat,document,audio}.py` — all
+   three now import and apply it: `chat.py:1002`
+   (`@ip_limiter.limit("100/minute")`), `document.py:72`
+   (`@ip_limiter.limit("50/minute")`), `audio.py:900`
+   (`@ip_limiter.limit("100/minute")`). Matches the fix direction exactly
+   (generous per-IP multiple, not a strict cap, to protect CGNAT-sharing
+   real users).
+2. **High — Caddy HSTS/CSP: FIXED, and verified LIVE, not just in a
+   checked-in reference file.** `deploy/Caddyfile` now exists (with an
+   explicit note that it must be manually applied to `murya-vm` — not
+   auto-deployed). Confirmed the headers are actually being served:
+   ```
+   $ curl -sS -D - -o /dev/null https://api.murya.ng/health
+   Strict-Transport-Security: max-age=63072000; includeSubDomains
+   Content-Security-Policy: default-src 'none'; frame-ancestors 'none'
+   ```
+3. **Medium — `/api/live` global WS ceiling: FIXED.** `audio.py:954` defines
+   `_MAX_LIVE_CONNECTIONS_TOTAL` (default 40, env-overridable), checked
+   alongside the pre-existing per-IP cap at `audio.py:1037` before
+   `ws.accept()`.
+4. **Medium — corrections prompt-injection surface: FIXED.**
+   `corrections_store.py` now has `_sanitize_for_prompt`, applied before
+   `originalText`/`correction` are spliced into the
+   `[HUMAN_VALIDATED_CORRECTIONS]` block — a submission can no longer forge
+   fake `[CORRECTION]:`/`[HUMAN_VALIDATED_CORRECTIONS]:` structure. The
+   suggested review-UI heuristic flag for instruction-like language was not
+   part of this fix; still a reasonable future addition, now lower-urgency
+   given the structural injection vector itself is closed.
+5. **Medium — `API_KEY` in the `/api/live` WS URL: FIXED**, via the cleaner
+   option the original fix direction named rather than the log-scrubbing
+   fallback. `auth.py` now has `issue_live_ticket`/`consume_live_ticket`,
+   wired into `audio.py:41` — a short-lived, single-use ticket is exchanged
+   before the socket opens, so the standing `API_KEY` secret itself no
+   longer appears in the WS URL/logs.
+6. **Medium — plaintext session tokens: FIXED.** `admin_store.py:223,228`
+   — `create_session`'s own docstring now states directly: "sha256(token)
+   is persisted to sessions.token, not the raw value," and the lookup path
+   compares by hash, not raw equality. A DB-only read (backup leak,
+   operator pasting `sqlite3` output, a future path-traversal bug) no
+   longer hands out a directly-usable session.
+
+**Net effect:** every finding from the original review — Critical through
+Medium — is closed, most verified against live production behavior rather
+than code alone. Nothing from this review remains open. The Low/informational
+items were already assessed as fine or genuinely low-urgency and weren't
+re-checked individually here, since none described an active gap.
+
+### Two new items found and fixed the same week, same rigor
+
+Not part of the original review's scope, but surfaced and closed while
+building the MOS listening test (`docs/mos_listening_test.md`) and are
+recorded here for the same reason everything above is — a security-relevant
+fix belongs in this document, not just a commit message:
+
+- **`rate_limit.py`'s `ip_limiter` had no guard for a missing
+  `request.client`.** slowapi's own `get_remote_address` already handles
+  `None` safely (confirmed by reading its source directly, not assumed) —
+  but the fix adds an explicit `_safe_get_remote_address` wrapper anyway,
+  used by both `ip_limiter` and the primary `limiter`'s IP fallback, so
+  neither can ever raise into a request regardless of what a future slowapi
+  version or an unusual proxy path does. Found via a real (if
+  environment-specific) connection failure on `/api/admin/login` — the sole
+  login path into the admin dashboard — while testing in a sandboxed browser
+  tool; the true cause of that specific symptom was never conclusively
+  pinned down, but the hardening is correct and tested regardless
+  (`backend/tests/test_rate_limiting.py`).
+- **Not a security bug, but adjacent: a new startup step blocked `/health`
+  long enough to break the deploy pipeline's own verification.** The MOS
+  feature's one-time stimulus seeding (64 real TTS synthesis calls) was
+  originally awaited directly in the FastAPI lifespan, which blocks uvicorn
+  from serving ANY request — including the deploy pipeline's own
+  commit-verification check — until it finishes. Fast enough locally to go
+  unnoticed; slow enough on the production VM's CPU to trip a false deploy
+  failure. Fixed by firing it as a background executor task instead. Relevant
+  here because it's a direct example of `docs/CHANGELOG.md`'s commit-in-
+  `/health` deploy-verification pattern (2026-08-31) actually doing its job:
+  it caught a real regression immediately, instead of the silent-stale-
+  container failure mode it was built to catch a week earlier.
