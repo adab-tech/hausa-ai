@@ -8,6 +8,40 @@ from unittest.mock import patch
 import pytest
 
 
+class _FakeRequestNoClient:
+    """Minimal stand-in for a Starlette Request whose ASGI transport never
+    populated scope["client"] -- some reverse-proxy paths don't. Real slowapi
+    Request objects have far more attributes; the fix under test only
+    touches .client, so nothing else needs to exist here."""
+    client = None
+
+
+def test_safe_get_remote_address_falls_back_when_client_missing():
+    """Regression test: slowapi's own get_remote_address does
+    request.client.host unguarded, which raised AttributeError on a None
+    client and crashed the request with an opaque, unlogged connection
+    error -- found live on /api/admin/login, the ONLY login path into the
+    admin dashboard, when called through a proxy that didn't set
+    request.client. Must return a fallback key, never raise."""
+    import rate_limit
+
+    key = rate_limit._safe_get_remote_address(_FakeRequestNoClient())
+    assert key == rate_limit._NO_CLIENT_KEY
+
+
+def test_safe_get_remote_address_uses_real_ip_when_present():
+    import rate_limit
+
+    class _FakeAddr:
+        host = "203.0.113.7"
+
+    class _FakeRequestWithClient:
+        client = _FakeAddr()
+
+    key = rate_limit._safe_get_remote_address(_FakeRequestWithClient())
+    assert key == "203.0.113.7"
+
+
 @pytest.fixture
 def _rate_limiting_enabled():
     import rate_limit

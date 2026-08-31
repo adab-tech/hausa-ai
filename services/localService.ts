@@ -14,6 +14,7 @@ import * as feedback from "./feedbackService.ts";
 import * as visitorAnalytics from "./visitorAnalyticsService.ts";
 import * as waxal from "./waxalService.ts";
 import * as admin from "./adminService.ts";
+import * as mos from "./mosService.ts";
 
 export { BACKEND_URL, getContributorId } from "./apiConfig.ts";
 
@@ -64,4 +65,12 @@ export const gemini = {
   deletePronunciation: admin.deletePronunciation,
   exportPronunciationCorpus: admin.exportPronunciationCorpus,
   pronunciationAudioUrl: admin.pronunciationAudioUrl,
+
+  // mosService (MOS listening test)
+  getMosSession: mos.getMosSession,
+  mosAudioUrl: mos.mosAudioUrl,
+  submitMosSession: mos.submitMosSession,
+  getMosResults: mos.getMosResults,
+  recordMosDecision: mos.recordMosDecision,
+  exportMosRatings: mos.exportMosRatings,
 };

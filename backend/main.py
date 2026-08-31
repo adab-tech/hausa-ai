@@ -43,12 +43,14 @@ from slowapi import _rate_limit_exceeded_handler
 from auth import verify_api_key, verify_admin_session
 from rate_limit import limiter
 from routers import (admin_auth, analytics, audio, chat, dictionary, document,
-                     feedback, image, pronunciation, qa, waxal)
+                     feedback, image, mos, pronunciation, qa, waxal)
 import admin_audit_store
 import admin_store
 import analytics_store
+import mos_store
 import pronunciation_store
 import qa_store
+import seed_mos_stimuli
 
 
 def _validate_runtime_config() -> None:
@@ -150,6 +152,13 @@ async def lifespan(app: FastAPI):
     # Startup: create the pronunciation-corrections DB (human-in-the-loop TTS
     # loop — see pronunciation_store.py)
     pronunciation_store.init_db()
+
+    # Startup: create + seed the MOS listening-test DB (naturalness eval
+    # gate before a voice/correction batch feeds the next retrain — see
+    # mos_store.py / seed_mos_stimuli.py). Seeding is idempotent (no-op once
+    # stimuli already exist) so this is cheap on every restart after the first.
+    mos_store.init_db()
+    seed_mos_stimuli.seed_if_empty()
 
     # Startup: create the community Q&A DB (native-written instruction data for
     # the LLM training mix — see qa_store.py / docs/murya_roadmap.md)
@@ -295,6 +304,11 @@ app.include_router(admin_auth.router, prefix="/api")
 # every page load), so it is NOT placed behind the optional API-key _auth
 # dependency; /admin/analytics self-gates via verify_admin_session.
 app.include_router(analytics.router, prefix="/api")
+# mos.router: /mos/session and /mos/audio/* are public, anonymous, rate-limited
+# (a login wall would kill volunteer participation); /admin/mos/* self-gates
+# via verify_admin_session. Same split as pronunciation.
+app.include_router(mos.router, prefix="/api")
+
 # pronunciation.router: /pronunciation/flag is a public user report (rate-limited,
 # contributor-id); the /admin/pronunciation/* endpoints self-gate via
 # verify_admin_session. Same public/admin split as analytics, so no global _auth.

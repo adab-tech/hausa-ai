@@ -15,6 +15,23 @@ from slowapi.util import get_remote_address
 
 from contributor import get_contributor_id
 
+# Fallback key when the ASGI transport never populated request.client (some
+# proxy paths don't) -- slowapi's own get_remote_address does request.client.host
+# unguarded, which throws AttributeError on None and crashes the request with
+# an opaque, unlogged connection error instead of a normal response. Found on
+# admin_login: the ONLY login path into the admin dashboard, so a proxy
+# misconfiguration that leaves request.client unset would lock the owner out
+# with no error message to debug from. A single shared fallback key here is
+# fine -- worst case a burst of such requests share one rate-limit bucket,
+# which is strictly safer than crashing every one of them.
+_NO_CLIENT_KEY = "no-client-info"
+
+
+def _safe_get_remote_address(request) -> str:
+    if request.client is None:
+        return _NO_CLIENT_KEY
+    return get_remote_address(request)
+
 
 def _rate_limit_key(request) -> str:
     """Key limits on the anonymous per-device contributor token when present,
@@ -29,7 +46,7 @@ def _rate_limit_key(request) -> str:
     applied alongside this (a second limiter), not replacing it.
     """
     cid = get_contributor_id(request)
-    return f"cid:{cid}" if cid else get_remote_address(request)
+    return f"cid:{cid}" if cid else _safe_get_remote_address(request)
 
 
 limiter = Limiter(key_func=_rate_limit_key)
@@ -57,4 +74,4 @@ limiter = Limiter(key_func=_rate_limit_key)
 #   - /api/tts: same review, same gap -- not a paid-API cost like the above,
 #     but CPU/model-inference cost on the one shared VM, which a rotating-
 #     token script could still burn unbounded.
-ip_limiter = Limiter(key_func=get_remote_address)
+ip_limiter = Limiter(key_func=_safe_get_remote_address)

@@ -16,6 +16,11 @@ on:
       - "data/processed/robinson/**"
       - "data/processed/hausa_en_open/**"
       - "data/processed/newman_1977/**"
+      # Real human WAXAL recordings baked into the image as the MOS
+      # listening test's ground-truth anchor (see backend/Dockerfile,
+      # backend/seed_mos_stimuli.py) -- same reasoning as the three
+      # dictionary sources above.
+      - "data/mos_ground_truth/**"
       - "deploy/murya-deploy.sh"
       - ".github/workflows/deploy-backend.yml"
   workflow_dispatch: {}

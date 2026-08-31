@@ -5,10 +5,11 @@ import { useAdminFetch } from '../hooks/useAdminFetch.ts';
 import { ArewaLogo } from './ArewaLogo.tsx';
 import { CorrectionsReview } from './CorrectionsReview.tsx';
 import { PronunciationReview } from './PronunciationReview.tsx';
+import { MosReview } from './MosReview.tsx';
 import { QAReview } from './QAReview.tsx';
 import { VisitorAnalytics } from './VisitorAnalytics.tsx';
 import { ChangePasswordDialog } from './ChangePasswordDialog.tsx';
-import { LogOut, KeyRound, FileText, Mic, Globe, MessageSquare, History, RefreshCw, Loader2 } from 'lucide-react';
+import { LogOut, KeyRound, FileText, Mic, Headphones, Globe, MessageSquare, History, RefreshCw, Loader2 } from 'lucide-react';
 
 /** ADMIN: read-only trail of every approve/reject/delete/record action across
  * corrections, pronunciation, and Q&A review — see backend/admin_audit_store.py.
@@ -76,7 +77,7 @@ const AuditLogView: React.FC = () => {
 export const AdminPanel: React.FC = () => {
   const navigate = useNavigate();
   const [username, setUsername] = useState<string | null | 'loading'>('loading');
-  const [tab, setTab] = useState<'corrections' | 'pronunciation' | 'qa' | 'visitors' | 'audit'>('corrections');
+  const [tab, setTab] = useState<'corrections' | 'pronunciation' | 'mos' | 'qa' | 'visitors' | 'audit'>('corrections');
   const [showChangePassword, setShowChangePassword] = useState(false);
 
   useEffect(() => {
@@ -144,6 +145,7 @@ export const AdminPanel: React.FC = () => {
           {([
             { id: 'corrections', label: 'Gyaran Rubutu', sub: 'Text', icon: FileText },
             { id: 'pronunciation', label: 'Gyaran Furuci', sub: 'Voice', icon: Mic },
+            { id: 'mos', label: 'Kimanta Murya', sub: 'TTS Eval', icon: Headphones },
             { id: 'qa', label: 'Tambaya', sub: 'Q&A', icon: MessageSquare },
             { id: 'visitors', label: 'Ziyara', sub: 'Visitors', icon: Globe },
             { id: 'audit', label: 'Tarihi', sub: 'Audit log', icon: History },
@@ -169,6 +171,7 @@ export const AdminPanel: React.FC = () => {
       <main className="flex-1 overflow-y-auto p-6 sm:p-10 max-w-4xl w-full mx-auto">
         {tab === 'corrections' && <CorrectionsReview />}
         {tab === 'pronunciation' && <PronunciationReview />}
+        {tab === 'mos' && <MosReview />}
         {tab === 'qa' && <QAReview />}
         {tab === 'visitors' && <VisitorAnalytics />}
         {tab === 'audit' && <AuditLogView />}

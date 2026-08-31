@@ -82,6 +82,13 @@ COPY data/processed/robinson/en_ha_pairs.jsonl /app/dictionaries/robinson/en_ha_
 COPY data/processed/hausa_en_open/ha_en_pairs.jsonl /app/dictionaries/hausa_en_open/ha_en_pairs.jsonl
 COPY data/processed/newman_1977/ha_en_pairs_merged.jsonl /app/dictionaries/newman_1977/ha_en_pairs_merged.jsonl
 
+# Bake in the 2 real human WAXAL recordings used as the MOS listening test's
+# naturalness ceiling ("ground_truth" condition — see mos_store.py /
+# seed_mos_stimuli.py). Same /app/<name> pattern as dictionaries above, kept
+# OUT of /app/data for the same reason: that path is the persistent volume's
+# mount point and would shadow anything baked in at build time.
+COPY data/mos_ground_truth/gt0.wav data/mos_ground_truth/gt1.wav /app/mos_ground_truth/
+
 RUN chmod +x /app/start.sh
 
 # Expose port

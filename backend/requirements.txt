@@ -39,6 +39,15 @@ ollama~=0.3.0
 # Audio processing
 numpy>=1.26,<3
 
+# Decodes the known-format (WAV) MOS ground-truth clips (seed_mos_stimuli.py)
+# directly via libsndfile (already installed system-wide, see Dockerfile) --
+# no ffmpeg/ffprobe subprocess involved, unlike pydub's BytesIO decode path
+# (pydub.utils.mediainfo_json always shells out to a real `ffprobe`/`avprobe`
+# on PATH for non-file-path input, ignoring AudioSegment.converter entirely;
+# confirmed by reading pydub's source while wiring this up -- not worth
+# depending on for two files whose format we already know exactly).
+soundfile>=0.12,<1
+
 # Speech-to-Text — Whisper (Hausa supported)
 faster-whisper~=1.0.3
 

@@ -12,6 +12,11 @@ import { LazyFallback } from './components/LazyFallback.tsx';
 const AdminLogin = lazy(() => import('./components/AdminLogin.tsx').then(m => ({ default: m.AdminLogin })));
 const AdminPanel = lazy(() => import('./components/AdminPanel.tsx').then(m => ({ default: m.AdminPanel })));
 
+// Same reasoning as AdminLogin/AdminPanel above -- most chat users never
+// follow the /listen link, so keep the MOS listening-test page out of the
+// bundle everyone else downloads.
+const MosListen = lazy(() => import('./components/MosListen.tsx').then(m => ({ default: m.MosListen })));
+
 const container = document.getElementById('root');
 if (container) {
   const root = createRoot(container);
@@ -23,6 +28,7 @@ if (container) {
             <Routes>
               <Route path="/admin/login" element={<AdminLogin />} />
               <Route path="/admin" element={<AdminPanel />} />
+              <Route path="/listen" element={<MosListen />} />
               <Route path="/*" element={<App />} />
             </Routes>
           </Suspense>

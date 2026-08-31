@@ -54,6 +54,11 @@ venv/
 *.mp3
 *.onnx
 *.onnx.json
+# Real human WAXAL recordings (CC-BY-4.0/CC-BY-SA-4.0), baked into the
+# backend Docker image as the MOS listening test's ground-truth anchor -- see
+# data/mos_ground_truth/ATTRIBUTION.md. Small (~2.7MB total), unlike the
+# scratch/training audio the blanket *.wav rule above exists to keep out.
+!data/mos_ground_truth/*.wav
 
 # Pitch and Proposals (kept local only)
 docs/project_proposal_hpc_ua.md

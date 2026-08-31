@@ -4,7 +4,46 @@ All notable changes to the backend and frontend. Newest first. Dates are the
 day the change went live in production (backend on the self-hosted Azure VM
 as of 2026-08-22 / Vercel `app.murya.ng`).
 
-## 2026-08-23 (latest)
+## 2026-08-31 (latest)
+
+### Added — MOS listening test (TTS naturalness eval)
+- New human-in-the-loop eval gate before a voice checkpoint or correction
+  batch feeds the next retrain, mirroring the pronunciation-correction
+  loop's storage/auth patterns exactly. Full writeup:
+  `docs/mos_listening_test.md`.
+- Backend: `backend/mos_store.py` (SQLite: stimuli, ratings, and an explicit
+  `mos_decisions` table for the admin's auditable sign-off),
+  `backend/routers/mos.py` (public session/audio/submit, admin
+  results/export/decision), `backend/seed_mos_stimuli.py` (self-seeds 64
+  Murya clips across all 8 production voices + 2 real WAXAL human
+  recordings as ground truth, baked into the Docker image at
+  `data/mos_ground_truth/`).
+- Frontend: public `app.murya.ng/listen` ([components/MosListen.tsx](../components/MosListen.tsx)),
+  a new **Kimanta Murya** admin dashboard tab
+  ([components/MosReview.tsx](../components/MosReview.tsx)) with a synthesized
+  headline verdict (not just raw numbers) and the three-way decision record,
+  and a one-time in-app nudge toward the test after a couple of TTS plays
+  ([components/MosPrompt.tsx](../components/MosPrompt.tsx)).
+- New backend dependency: `soundfile` (decodes the known-format ground-truth
+  WAV files directly via libsndfile — already installed system-wide — no
+  ffmpeg/ffprobe subprocess needed for a format already known exactly).
+- Verified end-to-end for real: a full 20-clip session run through the
+  actual browser against the actual backend, real audio played, real
+  submission landed in SQLite, real aggregation returned. Full backend
+  suite: 336 passed, 1 skipped.
+
+### Fixed — rate limiter could crash a request instead of returning a normal response
+- `backend/rate_limit.py`'s `ip_limiter` used slowapi's bare
+  `get_remote_address`, and the (separate) primary `limiter`'s IP fallback
+  path did too — found while testing the MOS feature, when `/api/admin/login`
+  (the only route stacking both limiters, and the only login path into the
+  admin dashboard) failed with an opaque, unlogged connection error from a
+  client whose request never populated `request.client`. Added
+  `_safe_get_remote_address`, used by both limiters, so a missing
+  `request.client` falls back to a fixed key instead of ever raising.
+  Regression tests in `backend/tests/test_rate_limiting.py`.
+
+## 2026-08-23
 
 ### Fixed — Live voice: self-echo and the wrong-transcription bug behind it
 - **Root cause found in three layers, not one.** Reported live: "the app is

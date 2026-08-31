@@ -10,6 +10,7 @@ import { LiveCallPanel } from './components/LiveCallPanel.tsx';
 import { InputConsole } from './components/InputConsole.tsx';
 import { MessageItem } from './components/MessageItem.tsx';
 import { ToastHost } from './components/Toast.tsx';
+import { MosPrompt } from './components/MosPrompt.tsx';
 import { Menu } from 'lucide-react';
 import { useToasts } from './hooks/useToasts.ts';
 import { useChat } from './hooks/useChat.ts';
@@ -73,6 +74,28 @@ const App: React.FC = () => {
     useLiveVoice(speakerId, addresseeGender, setMessages, showToast);
 
   const { playingSpeechId, handlePlaySpeech } = useTtsPlayback(speakerId, showToast);
+
+  // A one-time nudge toward the MOS listening test (/listen), shown only
+  // after someone has actually heard the voice a couple of times this
+  // session -- not on first load, and never again once seen or dismissed
+  // (see components/MosPrompt.tsx). Channel 2 of the two agreed distribution
+  // channels for the listening test; channel 1 is direct outreach.
+  const MOS_PROMPT_SEEN_KEY = 'murya_mos_prompt_seen';
+  const [showMosPrompt, setShowMosPrompt] = useState(false);
+  const ttsPlayCountRef = useRef(0);
+  const handlePlaySpeechWithMosPrompt = (...args: Parameters<typeof handlePlaySpeech>) => {
+    handlePlaySpeech(...args);
+    ttsPlayCountRef.current += 1;
+    if (ttsPlayCountRef.current >= 2) {
+      try {
+        if (!localStorage.getItem(MOS_PROMPT_SEEN_KEY)) setShowMosPrompt(true);
+      } catch { /* localStorage blocked -- skip the prompt, not worth erroring over */ }
+    }
+  };
+  const dismissMosPrompt = () => {
+    setShowMosPrompt(false);
+    try { localStorage.setItem(MOS_PROMPT_SEEN_KEY, '1'); } catch { /* ignore */ }
+  };
 
   const handleSendMessage = () => sendMessage(inputText, attachments, () => {
     setInputText('');
@@ -187,7 +210,7 @@ const App: React.FC = () => {
                 currentAxiomIndex={currentAxiomIndex}
                 onFeedback={handleFeedback}
                 feedback={feedbacks[m.id]}
-                onPlaySpeech={handlePlaySpeech}
+                onPlaySpeech={handlePlaySpeechWithMosPrompt}
                 playingSpeechId={playingSpeechId}
               />
             ))}
@@ -258,6 +281,7 @@ const App: React.FC = () => {
       </div>
 
       <ToastHost toasts={toasts} onDismiss={dismissToast} />
+      {showMosPrompt && <MosPrompt onDismiss={dismissMosPrompt} />}
     </div>
   );
 };
