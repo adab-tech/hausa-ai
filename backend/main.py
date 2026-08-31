@@ -153,12 +153,27 @@ async def lifespan(app: FastAPI):
     # loop — see pronunciation_store.py)
     pronunciation_store.init_db()
 
-    # Startup: create + seed the MOS listening-test DB (naturalness eval
-    # gate before a voice/correction batch feeds the next retrain — see
-    # mos_store.py / seed_mos_stimuli.py). Seeding is idempotent (no-op once
-    # stimuli already exist) so this is cheap on every restart after the first.
+    # Startup: create the MOS listening-test DB (naturalness eval gate before
+    # a voice/correction batch feeds the next retrain — see mos_store.py /
+    # seed_mos_stimuli.py). Table creation is fast and stays synchronous;
+    # the actual SEEDING (64 real synthesis calls) does NOT — awaiting it
+    # here blocked the whole lifespan startup, which blocked uvicorn from
+    # serving ANY request including /health, until all 64 clips finished.
+    # On the production VM that alone pushed boot time past the deploy
+    # pipeline's health-check budget and reported a false deploy failure
+    # (2026-08-31) even though the new code was, a few seconds later,
+    # running correctly. Fired as a background task instead: /health comes
+    # up immediately, and /api/mos/session simply returns empty until this
+    # one-time (idempotent, no-op on every later restart) seed finishes.
     mos_store.init_db()
-    seed_mos_stimuli.seed_if_empty()
+    import asyncio as _asyncio
+    # run_in_executor already returns a schedulable Future (the executor
+    # starts running seed_if_empty the moment this line executes, not
+    # lazily) -- wrapping it in create_task() is wrong, create_task() needs
+    # a coroutine, not a Future, and raises TypeError on one.
+    app.state.mos_seed_task = _asyncio.get_event_loop().run_in_executor(
+        None, seed_mos_stimuli.seed_if_empty
+    )
 
     # Startup: create the community Q&A DB (native-written instruction data for
     # the LLM training mix — see qa_store.py / docs/murya_roadmap.md)
