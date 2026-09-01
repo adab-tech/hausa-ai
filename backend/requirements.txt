@@ -79,7 +79,7 @@ onnxruntime>=1.18,<2
 Pillow>=12.3,<13  # floor raised: PYSEC-2026-2253..3496 (multiple) fixed in 12.3.0
 
 # Video export (used by generate_video's Ken Burns pan/zoom, routers/image.py)
-imageio>=2.34,<3
+imageio>=2.37.4,<3
 imageio-ffmpeg>=0.6.0,<1
 
 # Gemini SDK (image generation + the Ollama-unavailable fallback chain in
