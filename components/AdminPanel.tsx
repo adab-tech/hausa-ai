@@ -108,7 +108,12 @@ export const AdminPanel: React.FC = () => {
 
   return (
     <div className="vibe-classic h-screen w-full flex flex-col bg-dyn-bg-primary text-dyn-text-primary font-sans">
-      <header className="px-6 sm:px-10 py-5 flex items-center justify-between border-b border-dyn-border/40">
+      {/* flex-wrap + wrapping right-hand group: username + two full-label
+          buttons genuinely don't fit a phone's width on one row. Letting
+          the group wrap to its own line (instead of the page scrolling
+          sideways) plus hiding the English gloss below sm: keeps every
+          control reachable without a horizontal scroll anywhere. */}
+      <header className="px-6 sm:px-10 py-5 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-b border-dyn-border/40">
         <div className="flex items-center gap-3">
           <ArewaLogo size={36} active />
           <div>
@@ -116,19 +121,19 @@ export const AdminPanel: React.FC = () => {
             <p className="text-[9px] uppercase tracking-[0.3em] text-dyn-text-muted mt-0.5">Review &amp; Corrections</p>
           </div>
         </div>
-        <div className="flex items-center gap-4">
-          <span className="text-xs text-dyn-text-secondary font-mono">{username}</span>
+        <div className="flex items-center flex-wrap gap-2 sm:gap-4">
+          <span className="text-xs text-dyn-text-secondary font-mono truncate max-w-[140px] sm:max-w-none">{username}</span>
           <button
             onClick={() => setShowChangePassword(true)}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-wider border border-dyn-border text-dyn-text-secondary hover:text-dyn-text-primary hover:bg-white/5 transition-all"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-wider border border-dyn-border text-dyn-text-secondary hover:text-dyn-text-primary hover:bg-white/5 transition-all whitespace-nowrap"
           >
-            <KeyRound className="w-3.5 h-3.5" /> Kalmar Sirri (Password)
+            <KeyRound className="w-3.5 h-3.5" /> Kalmar Sirri<span className="hidden sm:inline">&nbsp;(Password)</span>
           </button>
           <button
             onClick={logout}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-wider border border-dyn-border text-dyn-text-secondary hover:text-dyn-text-primary hover:bg-white/5 transition-all"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-wider border border-dyn-border text-dyn-text-secondary hover:text-dyn-text-primary hover:bg-white/5 transition-all whitespace-nowrap"
           >
-            <LogOut className="w-3.5 h-3.5" /> Fita (Logout)
+            <LogOut className="w-3.5 h-3.5" /> Fita<span className="hidden sm:inline">&nbsp;(Logout)</span>
           </button>
         </div>
       </header>
@@ -139,9 +144,14 @@ export const AdminPanel: React.FC = () => {
         onSuccess={() => navigate('/admin/login', { replace: true })}
       />
 
-      {/* Tabs: text corrections vs pronunciation (voice) corrections */}
-      <div className="px-6 sm:px-10 pt-5">
-        <div className="flex gap-1 bg-dyn-bg-tertiary/60 p-1 rounded-full w-full sm:w-auto sm:inline-flex border border-dyn-border">
+      {/* Tabs: text corrections vs pronunciation (voice) corrections, etc.
+          Six tabs of icon+label+sub each need more width than a narrow
+          phone has -- whitespace-nowrap on each pill means they can't wrap,
+          so without this the row overflows the page itself. overflow-x-auto
+          here keeps that scroll contained to the tab bar (page body never
+          scrolls sideways), same pattern as any wide-content container. */}
+      <div className="px-6 sm:px-10 pt-5 overflow-x-auto">
+        <div className="flex gap-1 bg-dyn-bg-tertiary/60 p-1 rounded-full w-max sm:w-auto sm:inline-flex border border-dyn-border">
           {([
             { id: 'corrections', label: 'Gyaran Rubutu', sub: 'Text', icon: FileText },
             { id: 'pronunciation', label: 'Gyaran Furuci', sub: 'Voice', icon: Mic },
@@ -155,7 +165,7 @@ export const AdminPanel: React.FC = () => {
               <button
                 key={t.id}
                 onClick={() => setTab(t.id)}
-                className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${
+                className={`shrink-0 flex items-center justify-center gap-2 px-5 py-2.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${
                   tab === t.id
                     ? 'bg-dyn-accent text-dyn-bg-primary shadow-lg'
                     : 'text-dyn-text-secondary hover:text-dyn-text-primary hover:bg-white/5'
