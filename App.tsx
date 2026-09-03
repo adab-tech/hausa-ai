@@ -231,6 +231,7 @@ const App: React.FC = () => {
           setAttachments={setAttachments}
           isLoading={isLoading}
           isLiveActive={isLiveActive}
+          voiceStatus={voiceStatus}
           onSendMessage={handleSendMessage}
           onToggleLiveVoice={toggleLiveVoice}
         />

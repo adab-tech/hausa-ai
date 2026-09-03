@@ -255,6 +255,79 @@ async def test_llm_respond_falls_back_to_ollama_when_cerebras_and_groq_down(monk
     mock_ollama_client.chat.assert_called()
 
 
+# ---------------------------------------------------------------------------
+# Regression: _llm_respond_gemini already capped max_output_tokens=512, but
+# Cerebras and Groq (tried FIRST in _llm_respond's fallback chain, so they're
+# what actually runs whenever either is up) had no cap at all. An unbounded
+# reply fed straight into _synthesize_speech -- the same OOM-prone path as
+# the 2026-09-03 /api/tts outage (see tts_endpoint's own max_length=2000),
+# just reached via LLM output length instead of a directly attacker-
+# controlled query param.
+# ---------------------------------------------------------------------------
+def _fake_openai_compatible_response(text: str):
+    class _Message:
+        content = text
+    class _Choice:
+        message = _Message()
+    class _Response:
+        choices = [_Choice()]
+    return _Response()
+
+
+@pytest.mark.anyio
+async def test_llm_respond_cerebras_caps_max_tokens(monkeypatch):
+    import sys
+    from routers.audio import _llm_respond_cerebras
+
+    monkeypatch.setenv("CEREBRAS_API_KEY", "fake-key")
+    captured = {}
+
+    async def _fake_create(**kwargs):
+        captured.update(kwargs)
+        return _fake_openai_compatible_response("sannu")
+
+    class _FakeAsyncCerebras:
+        def __init__(self, api_key=None):
+            self.chat = type("_C", (), {"completions": type("_P", (), {"create": staticmethod(_fake_create)})()})()
+
+    monkeypatch.setitem(
+        sys.modules, "cerebras.cloud.sdk",
+        type("_FakeSdkModule", (), {"AsyncCerebras": _FakeAsyncCerebras})(),
+    )
+
+    result = await _llm_respond_cerebras("Sannu", [])
+
+    assert result == "sannu"
+    assert captured.get("max_tokens") == 512
+
+
+@pytest.mark.anyio
+async def test_llm_respond_groq_caps_max_tokens(monkeypatch):
+    import sys
+    from routers.audio import _llm_respond_groq
+
+    monkeypatch.setenv("GROQ_API_KEY", "fake-key")
+    captured = {}
+
+    async def _fake_create(**kwargs):
+        captured.update(kwargs)
+        return _fake_openai_compatible_response("sannu")
+
+    class _FakeAsyncGroq:
+        def __init__(self, api_key=None):
+            self.chat = type("_C", (), {"completions": type("_P", (), {"create": staticmethod(_fake_create)})()})()
+
+    monkeypatch.setitem(
+        sys.modules, "groq",
+        type("_FakeGroqModule", (), {"AsyncGroq": _FakeAsyncGroq})(),
+    )
+
+    result = await _llm_respond_groq("Sannu", [])
+
+    assert result == "sannu"
+    assert captured.get("max_tokens") == 512
+
+
 def test_synthesize_speech_returns_none_when_piper_unavailable():
     """When Piper and VITS are not installed / models not present, TTS returns None."""
     from unittest.mock import patch

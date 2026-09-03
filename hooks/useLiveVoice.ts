@@ -86,6 +86,20 @@ export function useLiveVoice(
       return;
     }
 
+    // Idempotency guard: isLiveActive only flips to true inside onopen
+    // below, once getUserMedia + the WebSocket handshake both complete --
+    // so a second tap of the mic button while still 'requesting_permission'
+    // or 'connecting' re-enters this whole branch a second time. That opened
+    // a second MediaStream and a second live session concurrently, with
+    // liveAudioNodesRef overwritten by whichever onopen fired last --
+    // orphaning the first call's stream/source/scriptProcessor exactly like
+    // the redial bug teardownLiveAudio exists to prevent (see its comment
+    // above), just triggered by an impatient double-tap instead of a
+    // hangup-then-redial.
+    if (voiceStatus === 'requesting_permission' || voiceStatus === 'connecting') {
+      return;
+    }
+
     // Microphone requires a secure context (HTTPS or localhost) and a browser
     // that exposes getUserMedia. Over plain http on a network IP, or inside a
     // sandboxed iframe, navigator.mediaDevices is undefined — surface that
@@ -265,6 +279,29 @@ export function useLiveVoice(
             setVoiceStatus('error');
           }
         }, addresseeGender);
+
+        // connectLive() can reject before the WebSocket is even constructed
+        // (the ticket-fetch step, private/firewalled deployments only --
+        // see its own comment) -- none of onopen/onclose/onerror above ever
+        // get wired in that case, so nothing else recovers voiceStatus out
+        // of 'connecting'. Uncaught here, that left the mic button
+        // permanently stuck (worse now that the idempotency guard above
+        // refuses to re-enter this branch while 'connecting'/
+        // 'requesting_permission'), an unhandled promise rejection in the
+        // console, and the already-acquired MediaStream never released
+        // (mic-in-use indicator stays lit) since liveAudioNodesRef, which
+        // teardownLiveAudio relies on, is only populated inside onopen.
+        sessionPromiseRef.current.catch((err: any) => {
+          console.error("Live voice connection failed:", err);
+          stream.getTracks().forEach(t => t.stop());
+          teardownLiveAudio();
+          setIsLiveActive(false);
+          setVoiceStatus('error');
+          showToast(
+            "An kasa haɗawa da murya kai-tsaye. A sake gwadawa.\n" +
+            "(Could not start the live voice connection: " + (err?.message || 'unknown error') + ")"
+          );
+        });
     } catch (e: any) {
         const name = e?.name || '';
         console.error("Live voice mic error:", name, e);

@@ -60,9 +60,24 @@ def _dumps(obj) -> str:
 
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://ollama:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "aya-expanse:8b")
-# See routers/chat.py's _OLLAMA_OPTIONS comment for why this is hardcoded
-# rather than left to Ollama's own thread auto-detection.
-_OLLAMA_OPTIONS = {"num_thread": int(os.getenv("OLLAMA_INFERENCE_THREADS", "2"))}
+# See routers/chat.py's _OLLAMA_OPTIONS comment for why num_thread is
+# hardcoded rather than left to Ollama's own thread auto-detection.
+# num_predict caps generation length -- see _VOICE_REPLY_MAX_TOKENS below for
+# why voice replies specifically need this bound.
+_OLLAMA_OPTIONS = {
+    "num_thread": int(os.getenv("OLLAMA_INFERENCE_THREADS", "2")),
+    "num_predict": 512,
+}
+
+# _llm_respond_gemini already capped its own output at max_output_tokens=512
+# -- deliberately short, since a voice reply gets read aloud, not skimmed.
+# Cerebras and Groq (tried FIRST in _llm_respond, so they're what actually
+# runs whenever either is up) had no such cap, which meant the common case
+# could hand _synthesize_speech an arbitrarily long reply_text with nothing
+# to stop it -- the same OOM-prone unbounded-TTS-input path as the 2026-09-03
+# /api/tts outage (see tts_endpoint's own max_length), just reached through
+# LLM output length instead of a directly attacker-controlled query param.
+_VOICE_REPLY_MAX_TOKENS = 512
 
 # Same rationale as routers/chat.py: a slow-but-not-erroring Ollama never
 # trips the except-based fallback on its own, so bound how long voice
@@ -792,6 +807,7 @@ async def _llm_respond_groq(transcript: str, history: list[dict], addressee_gend
     response = await client.chat.completions.create(
         model=model,
         messages=cast(Any, messages),
+        max_tokens=_VOICE_REPLY_MAX_TOKENS,
     )
     return response.choices[0].message.content.strip()
 
@@ -815,6 +831,7 @@ async def _llm_respond_cerebras(transcript: str, history: list[dict], addressee_
     response = await client.chat.completions.create(
         model=model,
         messages=cast(Any, messages),
+        max_tokens=_VOICE_REPLY_MAX_TOKENS,
     )
     return response.choices[0].message.content.strip()
 
@@ -1125,9 +1142,16 @@ async def live_endpoint(
         }))
 
         # 3. TTS → send PCM back if available
+        # Hard backstop, independent of the max_tokens/num_predict caps on
+        # every provider above: those bound the LLM's own output, but a
+        # provider or SDK version that doesn't fully honor its cap must never
+        # be able to hand _synthesize_speech something long enough to
+        # reproduce the 2026-09-03 OOM (see tts_endpoint's own max_length=2000
+        # for the same reasoning against direct /api/tts input).
+        tts_text = reply_text[:2000]
         try:
             pcm_out = await asyncio.get_event_loop().run_in_executor(
-                None, _synthesize_speech, reply_text, speaker_id
+                None, _synthesize_speech, tts_text, speaker_id
             )
             if pcm_out:
                 b64 = base64.b64encode(pcm_out).decode()

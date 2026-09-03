@@ -9,6 +9,7 @@ interface InputConsoleProps {
   setAttachments: React.Dispatch<React.SetStateAction<Attachment[]>>;
   isLoading: boolean;
   isLiveActive: boolean;
+  voiceStatus: 'idle' | 'requesting_permission' | 'connecting' | 'connected' | 'error';
   onSendMessage: () => void;
   onToggleLiveVoice: () => void;
 }
@@ -20,6 +21,7 @@ export const InputConsole: React.FC<InputConsoleProps> = ({
   setAttachments,
   isLoading,
   isLiveActive,
+  voiceStatus,
   onSendMessage,
   onToggleLiveVoice,
 }) => {
@@ -118,8 +120,11 @@ export const InputConsole: React.FC<InputConsoleProps> = ({
               aria-label={isLiveActive ? "Kashe murya (Stop live voice)" : "Kunna murya (Start live voice)"}
               // isLoading guard: without it, a user could start a live-voice
               // session while a text chat reply is still streaming, running
-              // two concurrent chat streams at once.
-              disabled={isLoading}
+              // two concurrent chat streams at once. The voiceStatus check
+              // is the visual half of useLiveVoice's own idempotency guard --
+              // without it, a double-tap while still connecting looked like
+              // nothing happened rather than being visibly disabled.
+              disabled={isLoading || voiceStatus === 'requesting_permission' || voiceStatus === 'connecting'}
               className={`p-3 sm:p-4 rounded-full transition-all active:scale-90 disabled:opacity-20 disabled:cursor-not-allowed ${isLiveActive ? 'bg-red-600 text-white shadow-[0_0_20px_rgba(220,38,38,0.5)] animate-pulse' : 'text-dyn-text-secondary hover:text-dyn-accent hover:bg-white/5'}`}
             >
               {isLiveActive ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
