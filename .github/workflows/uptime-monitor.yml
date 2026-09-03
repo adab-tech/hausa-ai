@@ -19,11 +19,17 @@ jobs:
     name: Ping production surfaces
     runs-on: ubuntu-latest
     steps:
-      - name: Backend (hausa-ai-backend.fly.dev)
+      - name: Backend (api.murya.ng)
+        # Was checking hausa-ai-backend.fly.dev -- a stale target left over from
+        # an earlier deployment approach. The live app.murya.ng bundle actually
+        # calls api.murya.ng (confirmed straight from the deployed JS, not
+        # assumed); fly.dev being up proved nothing about whether the real
+        # backend was reachable. Found the hard way on 2026-09-03: api.murya.ng
+        # was down for 5+ minutes while this check kept reporting green.
         run: |
           curl -fsS --retry 3 --retry-delay 5 --max-time 20 \
             -o /dev/null -w "backend: HTTP %{http_code} in %{time_total}s\n" \
-            https://hausa-ai-backend.fly.dev/
+            https://api.murya.ng/health
 
       - name: App (app.murya.ng)
         run: |
@@ -39,7 +45,7 @@ jobs:
 
       - name: TTS smoke check (confirms the voice pipeline, not just the process)
         run: |
-          SIZE=$(curl -fsS --max-time 30 -G "https://hausa-ai-backend.fly.dev/api/tts" \
+          SIZE=$(curl -fsS --max-time 30 -G "https://api.murya.ng/api/tts" \
             --data-urlencode "text=Gwaji" --data-urlencode "speaker_id=0" \
             -o /tmp/tts.wav -w "%{size_download}")
           echo "tts: ${SIZE} bytes"
