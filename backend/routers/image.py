@@ -1,6 +1,20 @@
 """
-/api/generate-image  — image generation via Diffusers (FLUX.1-schnell or SD).
-/api/generate-video  — text-to-video generation via Diffusers (ModelScope T2V).
+/api/generate-image  — image generation via Google Imagen 3
+  (imagen-3.0-fast-generate-001, google.genai SDK). NOT the local
+  Diffusers/FLUX.1-schnell/SD pipeline the project once used -- that was
+  removed for blowing out the Docker image past Fly's unpacked-size limit
+  (see the no-torch-policy comment in services/vad_service.py and
+  backend/requirements.txt). This means image generation is currently the
+  one modality with no self-hosted fallback: if GEMINI_API_KEY is unset or
+  Imagen's quota is exhausted, generation fails outright rather than
+  degrading to a local model, unlike text (4-provider fallback chain) or
+  speech (self-hosted VITS/Piper + faster-whisper).
+/api/generate-video  — NOT real text-to-video. Generates one Imagen still
+  (via _generate_image_impl) and animates it with a Ken Burns pan/zoom
+  (imageio) into an MP4 -- honest about this in behavior (fails outright
+  rather than faking motion if the still fails), but the endpoint name
+  invites the wrong expectation. Also not the project's former Diffusers
+  ModelScope T2V pipeline, removed for the same reason as FLUX above.
 
 POST /api/generate-image
   { "prompt": "...", "vibe": "Classic" }

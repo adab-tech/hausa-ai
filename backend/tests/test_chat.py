@@ -89,8 +89,20 @@ async def test_chat_streams_sse(client):
 
 
 @pytest.mark.anyio
-async def test_chat_with_image_attachment(client):
-    """Attachments are forwarded to Ollama as images."""
+async def test_chat_with_image_attachment(client, monkeypatch):
+    """Attachments are forwarded to Ollama as images.
+
+    Gemini is tried FIRST whenever an image is attached (see
+    has_image_attachments in chat_endpoint) since it's the only provider in
+    the fallback chain that can actually see the image -- explicitly
+    disabling it here so this test deterministically reaches Ollama, the
+    thing it's actually asserting about, instead of depending on whether a
+    real GEMINI_API_KEY happens to be configured in whatever environment
+    runs this test."""
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("CEREBRAS_API_KEY", raising=False)
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+
     mock_client = AsyncMock()
     mock_client.chat = AsyncMock(side_effect=_fake_ollama_chat)
 
@@ -120,6 +132,52 @@ async def test_chat_with_image_attachment(client):
     messages = call_kwargs.kwargs.get("messages") or call_kwargs.args[0]
     user_msg = next(m for m in messages if m["role"] == "user")
     assert "images" in user_msg
+
+
+@pytest.mark.anyio
+async def test_chat_prioritizes_gemini_when_image_attached(client, monkeypatch):
+    """Regression: Cerebras/Groq strip the images key entirely (OpenAI-shaped
+    SDKs, and neither configured model is vision-capable), and Ollama's
+    configured model (aya-expanse:8b) is text-only too -- Gemini is the only
+    provider in the chain that actually receives image data. Before this
+    fix, Cerebras/Groq/Ollama were tried first regardless, so an attached
+    image was silently ignored any time one of them succeeded (the common
+    case). Verifies Gemini is reached, and reached BEFORE the others, when
+    an image is attached -- not just that some provider eventually answers."""
+    monkeypatch.setenv("GEMINI_API_KEY", "fake-key")
+    monkeypatch.delenv("CEREBRAS_API_KEY", raising=False)
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+
+    async def _fake_stream_gemini(req):
+        yield "Na ga hoton."
+
+    mock_ollama_client = AsyncMock()
+    mock_ollama_client.chat = AsyncMock(side_effect=Exception("Ollama must not be called -- Gemini should win"))
+
+    tiny_png_b64 = (
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk"
+        "YPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+    )
+
+    with patch("routers.chat.stream_gemini", _fake_stream_gemini), \
+         patch("routers.chat.ollama.AsyncClient", return_value=mock_ollama_client):
+        response = await client.post(
+            "/api/chat",
+            json={
+                "text": "Me ke cikin wannan hoton?",
+                "attachments": [
+                    {
+                        "mimeType": "image/png",
+                        "data": f"data:image/png;base64,{tiny_png_b64}",
+                    }
+                ],
+            },
+        )
+
+    assert response.status_code == 200
+    events = _iter_sse(response.content)
+    assert any("Na ga hoton" in e.get("text", "") for e in events)
+    mock_ollama_client.chat.assert_not_called()
 
 
 @pytest.mark.anyio
@@ -445,11 +503,22 @@ async def test_chat_cache_key_includes_addressee_gender(client):
 
 
 @pytest.mark.anyio
-async def test_chat_with_attachments_not_cached(client):
+async def test_chat_with_attachments_not_cached(client, monkeypatch):
     """Requests carrying image attachments must never be served from (or
     written to) the cache — the cache key doesn't cover attachment bytes, so
     caching could leak one user's image-derived reply to a different user
-    who happens to send the same caption text."""
+    who happens to send the same caption text.
+
+    Gemini is tried first whenever an image is attached (see
+    has_image_attachments in chat_endpoint) since it's the only provider
+    that can actually see it -- explicitly disabled here so this
+    deterministically reaches the mocked Ollama client this test actually
+    asserts against, instead of depending on whether a real GEMINI_API_KEY
+    happens to be configured wherever this test runs."""
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("CEREBRAS_API_KEY", raising=False)
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+
     from routers.chat import _CHAT_CACHE
     _CHAT_CACHE.clear()
 

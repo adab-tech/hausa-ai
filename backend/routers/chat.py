@@ -1051,6 +1051,20 @@ async def chat_endpoint(request: Request, req: ChatRequest):
     tools_context = _tools_context(req.text)
     messages = _build_messages(req, search_context=search_context, tools_context=tools_context)
 
+    # _build_messages attaches images in Ollama's flat "images" key -- the
+    # ONE shared message list below also feeds Cerebras/Groq, whose
+    # OpenAI-shaped SDKs don't understand that key at all (stream_cerebras/
+    # stream_groq strip it via their own clean_messages) and whose
+    # configured models (gemma-4-31b, openai/gpt-oss-120b) aren't
+    # vision-capable regardless. Ollama's configured model (aya-expanse:8b)
+    # is text-only too. Gemini (stream_gemini, built from req.attachments
+    # directly via types.Part.from_bytes) is the only provider in this whole
+    # chain that actually receives image data.
+    has_image_attachments = any(
+        att.data and "base64," in att.data and att.mimeType.startswith("image/")
+        for att in req.attachments
+    )
+
     async def generate():
         # Heartbeat: emit a keepalive comment immediately
         yield ": keepalive\n\n"
@@ -1081,17 +1095,35 @@ async def chat_endpoint(request: Request, req: ChatRequest):
             # successful, complete reply -- the empty/near-empty "success"
             # skipped the rest of the fallback chain entirely instead of
             # continuing to Gemini/static.
-            steps = (
-                ("Cerebras", stream_cerebras(messages)),
-                # Groq is tried before Ollama because local Ollama on this
-                # box has never once succeeded in production under current
-                # RAM pressure (see stream_ollama's docstring); trying it
-                # first would just waste its first-token timeout on every
-                # request.
-                ("Groq", stream_groq(messages)),
-                ("Ollama", stream_ollama(messages)),
-                ("Gemini", stream_gemini(req)),
-            )
+            if has_image_attachments:
+                # Without this reorder, an attached image was silently
+                # ignored by whichever text-only provider happened to
+                # answer first (see has_image_attachments's own comment
+                # above) -- the system prompt promises "understand images
+                # the user attaches", but that only actually happened when
+                # Cerebras, Groq, AND Ollama all failed/were unavailable on
+                # the same request. Gemini goes first so a real look at the
+                # image is what's actually tried; the text-only providers
+                # stay as a fallback (an on-topic-but-blind answer beats
+                # none) if Gemini's quota is exhausted.
+                steps = (
+                    ("Gemini", stream_gemini(req)),
+                    ("Cerebras", stream_cerebras(messages)),
+                    ("Groq", stream_groq(messages)),
+                    ("Ollama", stream_ollama(messages)),
+                )
+            else:
+                steps = (
+                    ("Cerebras", stream_cerebras(messages)),
+                    # Groq is tried before Ollama because local Ollama on this
+                    # box has never once succeeded in production under current
+                    # RAM pressure (see stream_ollama's docstring); trying it
+                    # first would just waste its first-token timeout on every
+                    # request.
+                    ("Groq", stream_groq(messages)),
+                    ("Ollama", stream_ollama(messages)),
+                    ("Gemini", stream_gemini(req)),
+                )
             for name, stream in steps:
                 if not _provider_available(name):
                     print(f"[Murya] {name} still in cooldown from a recent rate-limit/quota "
