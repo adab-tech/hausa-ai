@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <meta name="theme-color" content="#030303" />
 <title>Murya — Sovereign Hausa AI Voice</title>
-<meta name="description" content="Murya: a sovereign, native-speaker-built Hausa AI voice. The first open, multi-speaker Hausa text-to-speech, trained on native recordings and judged by a native ear." />
+<meta name="description" content="Murya: a sovereign, native-speaker-built Hausa AI voice. Trained on native recordings and judged by a native ear. Try Malama Asabe and Malam Garba." />
 <meta property="og:title" content="Murya — Sovereign Hausa AI Voice" />
-<meta property="og:description" content="A native-speaker-built Hausa AI voice. Hear the first open, multi-speaker Hausa TTS." />
+<meta property="og:description" content="A native-speaker-built Hausa AI voice. Hear Malama Asabe and Malam Garba." />
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://murya.ng" />
 <!-- Inline SVG favicon: octagon (8 speakers · Arewa geometry) + voice waves -->
@@ -175,7 +175,7 @@
   }
   .demo-input::placeholder { color: var(--muted); opacity: 0.75; }
   .demo-voice {
-    flex: none; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 30px;
+    flex: none; max-width: 100%; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 30px;
     color: var(--secondary); font-family: var(--mono); font-size: 11px; letter-spacing: .5px;
     padding: 8px 12px; cursor: pointer;
   }
@@ -350,7 +350,7 @@
   <div class="wrap hero">
     <p class="eyebrow"><span lang="ha">&ldquo;Murya&rdquo;</span> — &ldquo;voice,&rdquo; in Hausa</p>
     <h2>Built by Hausa,<br/>for Hausa.</h2>
-    <p class="sub">The first open, multi-speaker Hausa text-to-speech — trained on native recordings, judged by a native ear, owned by the community it serves.</p>
+    <p class="sub">A native-speaker-built Hausa text-to-speech — trained on native recordings, judged by a native ear, owned by the community it serves.</p>
     <div class="hero-actions">
       <a class="btn" href="https://app.murya.ng" target="_blank" rel="noopener">Fara yanzu · Try the app</a>
     </div>
@@ -359,14 +359,9 @@
       <input type="text" id="demo-text" class="demo-input" maxlength="200" autocomplete="off"
         placeholder="Rubuta wani abu... sannu, yaya kake?" aria-label="Rubuta rubutun Hausa (Hausa text to speak)" />
       <select id="demo-voice" class="demo-voice" aria-label="Zaɓi murya (voice)">
-        <option value="5" selected>F1 · Mace</option>
-        <option value="0">F2 · Mace</option>
-        <option value="7">F3 · Mace</option>
-        <option value="3">F4 · Mace</option>
-        <option value="6">M1 · Namiji</option>
-        <option value="2">M2 · Namiji</option>
-        <option value="1">M3 · Namiji</option>
-        <option value="4">M4 · Namiji</option>
+        <option value="6" selected>Malama Asabe (Mace)</option>
+        <option value="0">Malam Garba (Namiji)</option>
+        <option value="" disabled>More voices — coming with sign-in</option>
       </select>
       <button type="submit" class="play-btn" id="demo-submit" aria-label="Yi magana · Speak">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
@@ -377,24 +372,24 @@
 
   <section class="wrap" id="voices" aria-labelledby="voices-h">
     <p class="eyebrow"><span lang="ha">Muryoyi</span> · The Voices</p>
-    <h3 id="voices-h">Eight native speakers</h3>
-    <p class="body">One model, eight distinct Hausa voices — men and women — articulating the full sound system of the language, hooked consonants and all.</p>
+    <h3 id="voices-h">Malama Asabe and Malam Garba</h3>
+    <p class="body">Hear two named voices here — Malama Asabe (Mace) and Malam Garba (Namiji). More voices are coming with sign-in. The model underneath is still trained on eight native Hausa speakers, articulating the full sound system of the language, hooked consonants and all.</p>
     <div class="voices">
-      <!-- Mace (female) on the left, Namiji (male) on the right -->
+      <!-- Featured user voices: Asabe (Mace) left, Garba (Namiji) right. Underlying ONNX remains 8-speaker. -->
       <div class="voice">
         <button class="play-btn" data-src="samples/female.wav" aria-pressed="false"
-          aria-label="Play female voice (Mace) saying: Gaskiya ta fi ƙarfin takobi, in ji magabata">
+          aria-label="Play Malama Asabe (Mace) saying: Gaskiya ta fi ƙarfin takobi, in ji magabata">
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
         </button>
-        <span class="meta"><span class="name" lang="ha">Mace · Female</span>
+        <span class="meta"><span class="name" lang="ha">Malama Asabe · Mace</span>
           <span class="txt" lang="ha">&ldquo;Gaskiya ta fi ƙarfin takobi, in ji magabata.&rdquo;</span></span>
       </div>
       <div class="voice">
         <button class="play-btn" data-src="samples/male.wav" aria-pressed="false"
-          aria-label="Play male voice (Namiji) saying: Sannu da zuwa, ina fatan kana lafiya">
+          aria-label="Play Malam Garba (Namiji) saying: Sannu da zuwa, ina fatan kana lafiya">
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
         </button>
-        <span class="meta"><span class="name" lang="ha">Namiji · Male</span>
+        <span class="meta"><span class="name" lang="ha">Malam Garba · Namiji</span>
           <span class="txt" lang="ha">&ldquo;Sannu da zuwa, ina fatan kana lafiya.&rdquo;</span></span>
       </div>
     </div>
@@ -453,7 +448,7 @@
     <h3 id="why-h">The sounds that make Hausa, Hausa</h3>
     <p class="body">Hausa's hooked consonants — <strong lang="ha" style="color:var(--ivory)">ɓ, ɗ, ƙ, ƴ</strong> — are not decoration; they change meaning. <em lang="ha">ɗa</em> (son) is not <em lang="ha">da</em> (with). Existing systems flatten them. Murya was built to preserve them, because a voice that loses them is not, fully, a Hausa voice.</p>
     <div class="facts">
-      <div class="fact"><div class="n">8</div><div class="l">Native voices</div></div>
+      <div class="fact"><div class="n">8</div><div class="l">Speakers in the model</div></div>
       <div class="fact"><div class="n">4</div><div class="l">Hooked consonants</div></div>
       <div class="fact"><div class="n">CC</div><div class="l license">BY-NC-SA 4.0</div></div>
       <div class="fact"><div class="n">90M+</div><div class="l">Hausa speakers</div></div>
