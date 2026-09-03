@@ -23,7 +23,7 @@ python-multipart>=0.0.31,<1  # floor raised: PYSEC-2026-3040 fixed in 0.0.31
 websockets>=12,<17
 
 # Admin login (bcrypt password hashing for admin_store.py)
-bcrypt>=4.0,<5
+bcrypt>=5.0.0,<6
 
 # Rate limiting on public endpoints (rate_limit.py)
 slowapi>=0.1.9,<1
