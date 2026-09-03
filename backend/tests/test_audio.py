@@ -265,6 +265,31 @@ def test_synthesize_speech_returns_none_when_piper_unavailable():
         assert result is None
 
 
+@pytest.mark.anyio
+async def test_tts_endpoint_rejects_text_over_2000_chars(client):
+    """On 2026-09-03 an ~4,000-char /api/tts request ran for 1,107s and grew
+    uvicorn to ~7.5GB RSS on a 7.8GB VM, OOM-killing the whole backend. text
+    is now capped (matching every other free-text endpoint's max_length) so
+    FastAPI rejects an oversized request with 422 before synthesis ever runs."""
+    resp = await client.get("/api/tts", params={"text": "a" * 2001})
+    assert resp.status_code == 422
+
+
+@pytest.mark.anyio
+async def test_tts_endpoint_accepts_text_at_2000_char_limit(monkeypatch):
+    """The boundary itself must still be usable -- only requests that exceed
+    the cap should be rejected."""
+    from unittest.mock import patch
+
+    with patch("routers.audio._synthesize_speech", return_value=b"\x00\x00" * 100):
+        from starlette.testclient import TestClient
+        from main import app
+
+        with TestClient(app) as tc:
+            resp = tc.get("/api/tts", params={"text": "a" * 2000})
+    assert resp.status_code == 200
+
+
 # ---------------------------------------------------------------------------
 # SPEAKER_MAP — frontend speaker_id -> WAXAL numeric id must match the
 # actual gender-alternating scheme in waxal_hausa/metadata_processed.jsonl

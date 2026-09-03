@@ -36,7 +36,7 @@ from pathlib import Path
 from typing import Any, cast
 
 import numpy as np
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, Response, HTTPException, Request
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, Response, HTTPException, Request, Query
 
 from auth import consume_live_ticket, issue_live_ticket, verify_api_key
 
@@ -900,7 +900,7 @@ def _add_wav_header(pcm_bytes: bytes, sample_rate: int = 24000) -> bytes:
 @ip_limiter.limit("100/minute")
 async def tts_endpoint(
     request: Request,
-    text: str,
+    text: str = Query(..., min_length=1, max_length=2000),
     speaker_id: int = 0,
     length_scale: float | None = None,
     noise_scale: float | None = None,
@@ -912,6 +912,13 @@ async def tts_endpoint(
     length_scale/noise_scale/noise_w are optional per-request overrides for
     A/B testing pacing and clarity (e.g. ?length_scale=1.15 for slower,
     more deliberate speech) without redeploying — see services/vits_engine.py.
+
+    text is capped at 2000 chars (every other free-text endpoint in this API
+    has a similar Field/Query max_length; this was the one unbounded outlier).
+    On 2026-09-03 an ~4,000-char /api/tts request ran for 1,107s and grew
+    uvicorn to ~7.5GB RSS on a 7.8GB VM, triggering an OOM kill of the whole
+    backend process. 2000 is generous for real usage (several paragraphs)
+    while ruling out that failure mode.
     """
     try:
         pcm = await asyncio.get_event_loop().run_in_executor(
