@@ -60,6 +60,17 @@ venv/
 # scratch/training audio the blanket *.wav rule above exists to keep out.
 !data/mos_ground_truth/*.wav
 
+# landing/samples/*.wav are the 3 published voice-demo clips on murya.ng
+# (Malama Asabe, Malam Garba, hero). Never tracked in git before -- they only
+# ever reached Cloudflare Pages via a one-off manual `wrangler pages deploy`
+# from a machine that happened to have them on disk. deploy-landing.yml
+# (added 2026-08-24) checks out a clean clone on a GitHub runner and deploys
+# THAT, so every automated deploy since has shipped a landing/ with no audio
+# in it -- Cloudflare's not-found fallback then served index.html (200) for
+# every sample URL instead of a real 404, so it went unnoticed. Small
+# (~320KB total).
+!landing/samples/*.wav
+
 # Pitch and Proposals (kept local only)
 docs/project_proposal_hpc_ua.md
 docs/unilorin_ua_ai4d_pitch.md
