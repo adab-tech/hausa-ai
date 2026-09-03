@@ -60,6 +60,81 @@ def test_cors_middleware_is_outermost():
 
 
 # ---------------------------------------------------------------------------
+# Regression: /api/tts had no text-length cap and let a single ~4,000-char
+# request OOM the whole VM on 2026-09-03 (see routers/audio.py's
+# tts_endpoint). MaxBodySizeMiddleware is the same protection applied
+# globally -- reject on Content-Length before the body is ever buffered into
+# memory, so a client can't force allocation on this box regardless of what
+# endpoint or schema the body would or wouldn't eventually match.
+# ---------------------------------------------------------------------------
+@pytest.mark.anyio
+async def test_max_body_size_middleware_rejects_oversized_content_length():
+    async def app(scope, receive, send):
+        raise AssertionError("inner app must not run for an oversized body")
+
+    async def receive():
+        raise AssertionError("body must not be read for an oversized Content-Length")
+
+    sent = []
+
+    async def send(message):
+        sent.append(message)
+
+    mw = main.MaxBodySizeMiddleware(app, max_bytes=1000)
+    await mw({"type": "http", "headers": [(b"content-length", b"5000")]}, receive, send)
+
+    assert sent[0]["status"] == 413
+
+
+@pytest.mark.anyio
+async def test_max_body_size_middleware_rejects_streamed_body_over_cap_without_content_length():
+    """Content-Length can be absent under chunked transfer-encoding -- the
+    running-total check while streaming must still catch an oversized body."""
+    chunks = [b"a" * 600, b"a" * 600]  # 1200 bytes total, over the 1000 cap
+
+    async def fake_receive():
+        body = chunks.pop(0) if chunks else b""
+        return {"type": "http.request", "body": body, "more_body": bool(chunks)}
+
+    async def app(scope, receive, send):
+        while True:
+            msg = await receive()
+            if not msg.get("more_body"):
+                break
+
+    sent = []
+
+    async def send(message):
+        sent.append(message)
+
+    mw = main.MaxBodySizeMiddleware(app, max_bytes=1000)
+    await mw({"type": "http", "headers": []}, fake_receive, send)
+
+    assert sent[0]["status"] == 413
+
+
+@pytest.mark.anyio
+async def test_max_body_size_middleware_allows_body_under_cap():
+    async def app(scope, receive, send):
+        await receive()
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b"ok"})
+
+    async def fake_receive():
+        return {"type": "http.request", "body": b"small", "more_body": False}
+
+    sent = []
+
+    async def send(message):
+        sent.append(message)
+
+    mw = main.MaxBodySizeMiddleware(app, max_bytes=1000)
+    await mw({"type": "http", "headers": [(b"content-length", b"5")]}, fake_receive, send)
+
+    assert sent[0]["status"] == 200
+
+
+# ---------------------------------------------------------------------------
 # Regression: startup model preload used to swallow all exceptions with only
 # a log warning, leaving /health reporting healthy even when the TTS/STT
 # models never loaded. /health should now reflect a failed preload.

@@ -40,6 +40,73 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi import _rate_limit_exceeded_handler
 
+# ChatRequest's own Field(max_length=...) constraints (routers/chat.py) already
+# bound a legitimate worst-case body to ~25MB (5 attachments x ~3.75MB decoded
+# + history/text/memoryPrompt) -- but those constraints are Pydantic-level and
+# only run AFTER Starlette has fully buffered the request body into memory. A
+# body that never matches any schema still forces that read, so a client can
+# force memory allocation on this box regardless of eventual validation
+# outcome -- the same class of gap that let one unbounded /api/tts request OOM
+# the process on 2026-09-03 (see routers/audio.py's tts_endpoint). This is the
+# outer guard: reject on Content-Length before the body is read at all, with a
+# streaming fallback in case Content-Length is absent/understated (chunked
+# transfer-encoding).
+_MAX_REQUEST_BODY_BYTES = int(os.getenv("MAX_REQUEST_BODY_BYTES", str(30 * 1024 * 1024)))  # 30 MB
+
+
+class _RequestTooLarge(Exception):
+    pass
+
+
+class MaxBodySizeMiddleware:
+    """Raw ASGI (not BaseHTTPMiddleware) so the body is never buffered twice."""
+
+    def __init__(self, app, max_bytes: int) -> None:
+        self.app = app
+        self.max_bytes = max_bytes
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        for name, value in scope.get("headers") or []:
+            if name == b"content-length":
+                try:
+                    if int(value) > self.max_bytes:
+                        await self._reject(send)
+                        return
+                except ValueError:
+                    pass
+                break
+
+        total = 0
+
+        async def guarded_receive():
+            nonlocal total
+            message = await receive()
+            total += len(message.get("body") or b"")
+            if total > self.max_bytes:
+                raise _RequestTooLarge()
+            return message
+
+        try:
+            await self.app(scope, guarded_receive, send)
+        except _RequestTooLarge:
+            await self._reject(send)
+
+    @staticmethod
+    async def _reject(send) -> None:
+        await send({
+            "type": "http.response.start",
+            "status": 413,
+            "headers": [(b"content-type", b"application/json")],
+        })
+        await send({
+            "type": "http.response.body",
+            "body": b'{"detail":"Request body too large"}',
+        })
+
 from auth import verify_api_key, verify_admin_session
 from rate_limit import limiter
 from routers import (admin_auth, analytics, audio, chat, dictionary, document,
@@ -253,6 +320,7 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
+app.add_middleware(MaxBodySizeMiddleware, max_bytes=_MAX_REQUEST_BODY_BYTES)
 
 
 @app.middleware("http")
