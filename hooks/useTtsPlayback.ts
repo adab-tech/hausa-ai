@@ -24,6 +24,18 @@ export function useTtsPlayback(speakerId: number | null, showToast: (message: st
   // <audio> element can never advance a queue that no longer belongs to
   // the active playback.
   const ttsQueueRef = useRef<string[]>([]);
+  // Mirrors playingSpeechId but updates SYNCHRONOUSLY (a ref, not React
+  // state, which batches). Two click events landing before a re-render
+  // both see the SAME pre-update playingSpeechId if the gate below reads
+  // that state value directly -- both then take the "start fresh" branch,
+  // each independently resetting the queue and restarting chunk 0, so the
+  // user hears the opening of a long reply loop back to its own start and
+  // never reaches the rest of it. Found live: a single real click on
+  // murya.ng produced two separate chunk-0 Audio instances back-to-back.
+  // handlePlaySpeech reads this ref instead, so the second call in the
+  // same tick correctly sees "already active" and stops instead of
+  // restarting.
+  const activeMessageIdRef = useRef<string | null>(null);
 
   const stopCurrent = () => {
     if (ttsAudioRef.current) {
@@ -34,10 +46,15 @@ export function useTtsPlayback(speakerId: number | null, showToast: (message: st
     ttsQueueRef.current = [];
   };
 
+  const finish = () => {
+    activeMessageIdRef.current = null;
+    setPlayingSpeechId(null);
+  };
+
   const playChunkAt = (index: number) => {
     const chunks = ttsQueueRef.current;
     if (index >= chunks.length) {
-      setPlayingSpeechId(null);
+      finish();
       return;
     }
 
@@ -53,7 +70,7 @@ export function useTtsPlayback(speakerId: number | null, showToast: (message: st
     audio.play().catch((err) => {
       console.error("TTS playback failed to start", err);
       stopCurrent();
-      setPlayingSpeechId(null);
+      finish();
       alert("Gafara dai, an samu kuskure wajen sauti.");
     });
     audio.onended = () => {
@@ -65,7 +82,7 @@ export function useTtsPlayback(speakerId: number | null, showToast: (message: st
     audio.onerror = (e) => {
       console.error("TTS playback error", e);
       stopCurrent();
-      setPlayingSpeechId(null);
+      finish();
       showToast("Gafara dai, an samu kuskure wajen sauti.");
     };
   };
@@ -77,13 +94,14 @@ export function useTtsPlayback(speakerId: number | null, showToast: (message: st
     // internally now, but doing it here too means this still helps even if
     // some future caller bypasses that.
     text = normalized || text;
-    if (playingSpeechId === messageId) {
+    if (activeMessageIdRef.current === messageId) {
       stopCurrent();
-      setPlayingSpeechId(null);
+      finish();
       return;
     }
 
     stopCurrent();
+    activeMessageIdRef.current = messageId;
     ttsQueueRef.current = chunkTextForTts(text, MAX_CHUNK_CHARS);
     setPlayingSpeechId(messageId);
     playChunkAt(0);

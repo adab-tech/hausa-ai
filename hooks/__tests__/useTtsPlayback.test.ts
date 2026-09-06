@@ -183,4 +183,43 @@ describe('useTtsPlayback', () => {
     expect(audios.length).toBe(countAfterStart);
     expect(result.current.playingSpeechId).toBeNull();
   });
+
+  // -------------------------------------------------------------------
+  // Regression: found LIVE on murya.ng, not just hypothesized. A single
+  // real click on Saurara produced two separate "chunk 0" Audio instances
+  // back-to-back (same text, same length) instead of progressing to
+  // chunk 1 -- playingSpeechId is React state, which doesn't update
+  // synchronously, so two click events landing before a re-render both
+  // read the same pre-update value and both take the "start fresh"
+  // branch, each independently resetting the queue and restarting from
+  // chunk 0. The user heard the opening of a long reply loop back to its
+  // own start and never reached the rest of it.
+  // -------------------------------------------------------------------
+  it('two click events for the same message landing before a re-render do not both restart chunk 0', async () => {
+    const audios: FakeAudio[] = [];
+    vi.stubGlobal(
+      'Audio',
+      vi.fn().mockImplementation(function () {
+        const a = new FakeAudio();
+        audios.push(a);
+        return a;
+      })
+    );
+
+    const { result } = renderHook(() => useTtsPlayback(6, showToast));
+    const longText = 'Kalma. '.repeat(400).trim();
+
+    // Both calls use the SAME render's handlePlaySpeech closure, exactly
+    // like two click events firing before React commits the state update
+    // from the first one.
+    await act(async () => {
+      result.current.handlePlaySpeech(longText, 'm1');
+      result.current.handlePlaySpeech(longText, 'm1');
+    });
+
+    // The second call must be treated as "stop", not "start over" -- only
+    // one chunk-0 Audio should ever have been created.
+    expect(audios.length).toBe(1);
+    expect(result.current.playingSpeechId).toBeNull();
+  });
 });
