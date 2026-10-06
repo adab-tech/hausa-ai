@@ -20,7 +20,7 @@ python-multipart>=0.0.31,<1  # floor raised: PYSEC-2026-3040 fixed in 0.0.31
 # (what the Docker build actually does) is stricter than an incremental
 # upgrade of a few packages. Not a security-relevant version -- websockets
 # didn't appear in the CVE audit -- so capping back down costs nothing.
-websockets>=12,<17
+websockets>=17.1,<18
 
 # Admin login (bcrypt password hashing for admin_store.py)
 bcrypt>=5.0.0,<6
