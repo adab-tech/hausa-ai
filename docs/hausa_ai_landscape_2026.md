@@ -17,7 +17,7 @@ completion. Companion to `manifesto.md`.
 | `CLEAR-Global/TWB-Voice-Hausa-TTS-1.0` | CLEAR Global (NGO), 2025 | own TWB Voice corpus (gated) + synthetic-voice program | 1 | **CC-BY-NC** | most serious org effort; single voice |
 | `mosesdaudu/hausa-tts-model-gambo-11h` | individual, 2025 | VITS, 11 h single speaker | 1 | unspecified | |
 | Piper voices | rhasspy | — | — | — | **no Hausa voice exists** (`ha_NG-openbible` was named in configs but never published) |
-| **WAXAL–Piper (this project)** | **A. D. Abubakar, 2026** | **Piper grapheme-mode, WAXAL (CC-BY), 6.03 h after corpus recovery** | **8** | **MIT** | **only multi-speaker, only WAXAL-trained, only fully-permissive conversational Hausa TTS; native-speaker-built** |
+| **WAXAL–Piper (this project)** | **A. D. Abubakar, 2026** | **Piper grapheme-mode, WAXAL (CC-BY), 6.03 h after corpus recovery** | **8** | **CC BY-NC-SA 4.0** | **only multi-speaker, only WAXAL-trained conversational Hausa TTS; native-speaker-built. Weights are non-commercial and share-alike; app code is MIT** |
 
 **Findings:**
 1. **Nobody had trained TTS on WAXAL-Hausa.** Despite `google/WaxalNLP`'s 243
@@ -26,9 +26,10 @@ completion. Companion to `manifesto.md`.
    project.
 2. **Every existing open Hausa TTS is single-speaker.** Ours is the first open
    multi-speaker (8-voice) Hausa model.
-3. **License landscape is hostile to builders:** Meta MMS and CLEAR Global are
-   NC; BibleTTS is share-alike and Bible-domain. An MIT conversational-domain
-   model fills the only fully-permissive slot.
+3. **License landscape:** Meta MMS and CLEAR Global are NC; BibleTTS is
+   share-alike and Bible-domain. Murya's weights are CC BY-NC-SA 4.0, so
+   non-commercial derivatives stay share-alike. Commercial use of the voice
+   is a separate written license. The application code is MIT.
 4. **Piper's ecosystem gap** (no Hausa, no espeak support) is exactly what our
    grapheme-alphabet method closes — and the method generalizes.
 
@@ -70,7 +71,8 @@ Defensible as of 2026-07-04 (with "to our knowledge" hedging):
 1. **First TTS trained on WAXAL-Hausa** — and first WAXAL model built by a
    native speaker of the target language.
 2. **First open multi-speaker Hausa TTS** (8 voices vs. every rival's 1).
-3. **Most permissive conversational Hausa TTS** (MIT vs. NC/share-alike field).
+3. **Reference conversational Hausa TTS** — eight everyday-domain voices,
+   with weights under CC BY-NC-SA 4.0.
 4. **First grapheme-native Hausa pipeline** — orthography (ɓ ɗ ƙ ƴ) as model
    symbols; closes the espeak-ng gap for Hausa and, by recipe, for other
    unphonemized languages.

@@ -61,7 +61,8 @@ To support the business goals, the core technical tasks must be completed on sch
   - Normalized hooked orthography (`ɗ`, `ɓ`, `ƙ`, `ƴ`) and integrated standard R-to-L tone heuristics.
   - Tested and achieved a 96.67% sovereign linguistic score on the validation test suite.
 - [x] **Local Model Deployment (Completed 2026-07-04 — exceeded targets)**
-  - [x] Pivoted from from-scratch VITS to a **grapheme-mode Piper fine-tune** (MIT)
+  - [x] Pivoted from from-scratch VITS to a **grapheme-mode Piper fine-tune**
+        (Piper code is MIT; the published weights are CC BY-NC-SA 4.0)
         after native-speaker evaluation rejected both the from-scratch output and
         the Meta MMS base — see `docs/waxal_piper_technical_report.md`.
   - [x] Trained 2,000 epochs on Modal (A10G), multi-speaker (all 8 WAXAL voices
@@ -76,6 +77,6 @@ To support the business goals, the core technical tasks must be completed on sch
         pipeline; Murya dial exposes all 8 WAXAL speakers (M1–M4, F1–F4).
   - [x] Axiom Trace panel shows raw → normalized → tone-mapped stages.
 - [ ] **Publication & Demo Assets (new)**
-  - [ ] Publish v2 model to Hugging Face (MIT, WAXAL attribution) + GitHub release.
+  - [ ] Publish v2 model to Hugging Face (weights CC BY-NC-SA 4.0, WAXAL attribution; app code stays MIT) + GitHub release.
   - [ ] Record the YC founder video using the live app with the fine-tuned voices.
   - [ ] Technical report (`docs/waxal_piper_technical_report.md`) as grant exhibit.

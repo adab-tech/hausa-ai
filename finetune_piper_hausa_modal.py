@@ -2,9 +2,10 @@
 
 Warm-starts from the public-domain en_US-lessac-medium checkpoint (acoustic
 initialization only; the WAXAL fine-tune replaces the voice) and trains a
-single multi-speaker Hausa model matching the Murya speaker dial. Piper is
-MIT-licensed and WAXAL is CC-BY, so the result is safe to publish on
-GitHub / Hugging Face, commercial use included.
+single multi-speaker Hausa model matching the Murya speaker dial. Piper's
+code is MIT and WAXAL is CC-BY-4.0 / CC-BY-SA-4.0. The published weights are
+CC BY-NC-SA 4.0: non-commercial and share-alike. Commercial use of the voice
+needs a separate written license. The application code stays MIT.
 
 Launch:
 

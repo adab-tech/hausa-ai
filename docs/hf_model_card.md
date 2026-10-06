@@ -1,5 +1,5 @@
 ---
-license: mit
+license: cc-by-nc-sa-4.0
 language:
 - ha
 pipeline_tag: text-to-speech
@@ -26,13 +26,13 @@ To our knowledge this is the **first TTS model trained on WAXAL-Hausa**, the
 native speaker of the target language** with native evaluation embedded at
 every decision point.
 
-- **Voices:** 8 (M1–M4 male, F1–F4 female)
-- **Sample rate:** 22.05 kHz
+- **Voices:** 8 (M1–M4 male, F1–F4 female). The public demo names two of them, Malama Asabe and Malam Garba. `speaker_id_map` in `model.onnx.json` is F2=0, M3=1, M2=2, F4=3, M4=4, F1=5, M1=6, F3=7.
+- **Sample rate:** 22,050 Hz, from `model.onnx.json` (`audio.sample_rate`). The file is not 24 kHz.
 - **Format:** ONNX (~73.5 MB) — real-time on commodity **CPU**, no GPU or cloud required
 - **Orthography-native:** trained in grapheme mode on a custom 42-symbol Hausa
   alphabet — the hooked consonants **ɓ ɗ ƙ ƴ** and glottal **'** are
   first-class model symbols and are never flattened.
-- **License:** MIT (commercial use permitted). Please cite Google WAXAL (below).
+- **License:** weights are **CC BY-NC-SA 4.0** (attribution, non-commercial, share-alike). The Murya application code is MIT and lives in the GitHub repo; that license does not cover these weights. Commercial use of the voice needs a separate written license: hi@murya.ng. Cite Google WAXAL (below).
 
 Developed by **Adamu Danjuma Abubakar** (ADAB-TECH Labs) · [github.com/adab-tech](https://github.com/adab-tech)
 
@@ -97,8 +97,7 @@ offline/edge apps in bandwidth-constrained regions.
 - Per-voice naturalness reflects ~45 min of audio per speaker; a single-speaker
   corpus with far more hours (e.g. BibleTTS) may sound smoother on one voice,
   but is single-speaker and single-register. This model's strengths are voice
-  diversity, everyday-domain prosody, natural (non-scripted) delivery, and a
-  permissive license.
+  diversity, everyday-domain prosody, and natural (non-scripted) delivery.
 - Trained on read speech; extreme expressivity/emotion is out of scope.
 - Not validated for safety-critical or medical dictation without human review.
 

@@ -39,8 +39,10 @@ target language**. Highlights (full write-up:
 - **Native-speaker-in-the-loop evaluation** gated every decision: base-model
   selection (Meta MMS-Hausa auditioned and rejected), data certification, and
   the epoch budget (300 → 2,000, verified improving at each probe).
-- Deployed model: `models/piper_hausa_waxal/model.onnx` (73.5 MB, 22.05 kHz,
-  MIT-licensed pipeline; **cite Google WAXAL when publishing derivatives**).
+- Deployed model: `models/piper_hausa_waxal/model.onnx` (73.5 MB, 22.05 kHz).
+  The weights are **CC BY-NC-SA 4.0**; the application code in this repo is MIT.
+  Cite Google WAXAL when publishing derivatives. Commercial use of the voice
+  needs a separate written license (`hi@murya.ng`).
 
 Train / evaluate / segment with:
 

@@ -361,8 +361,9 @@ Effect: 9 failed launches on day 1 shrank to zero-failure runs on day 2
 4. **A reproducible reliability playbook for rented-GPU fine-tuning**
    (taxonomy + preflight + diagnosis + detachment + backup cadence), reducing
    iteration cost from GPU-hours to seconds for the dominant failure classes.
-5. **A fully sovereign deployment path**: MIT-licensed 73.5 MB CPU model inside
-   a local FastAPI/React stack; no external inference dependency.
+5. **A fully sovereign deployment path**: a 73.5 MB CPU model inside
+   a local FastAPI/React stack; no external inference dependency. The
+   application code is MIT. The published weights are CC BY-NC-SA 4.0.
 6. **A milestone in participation**: to the authors' knowledge, this is the
    first TTS model trained on the WAXAL Hausa corpus *by a native speaker of
    the target language*, with native judgment embedded at every decision gate
@@ -377,7 +378,10 @@ Effect: 9 failed launches on day 1 shrank to zero-failure runs on day 2
 - WAXAL data: CC-BY-4.0 / CC-BY-SA-4.0 — **cite Google WAXAL and the speakers'
   corpus** in all derivatives.
 - Piper code & lessac warm-start: MIT / public-domain audio.
-- Resulting models: releasable under **MIT** — commercial use permitted.
+- Resulting weights: published under **CC BY-NC-SA 4.0**. Attribution,
+  non-commercial use, and share-alike. Commercial use needs a separate written
+  license (hi@murya.ng). The application code remains MIT; that license does
+  not cover the weights.
 - Robinson 1914 lexicon (separate SFT track): public domain; cite Robinson +
   Internet Archive (see `data/sources/robinson-dictionary/ATTRIBUTION.md`).
 - Newman Hausa–English lexicography (planned HA→EN track): **Paul Newman &
