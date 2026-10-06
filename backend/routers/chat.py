@@ -41,6 +41,11 @@ from routers.fallback import generate_fallback_response
 from orthography import normalize_hausa_orthography, apply_tonal_heuristics, normalize_digits
 from services.search_service import web_search, search_enabled
 from services.you_service import web_search_you, you_enabled
+from services.own_llm_service import (
+    PROVIDER_NAME as OWN_LLM_NAME,
+    own_llm_enabled,
+    stream_own_llm,
+)
 from services import calc_service, prayer_service, dictionary_service, phonetics_service
 import corrections_store
 
@@ -1095,6 +1100,14 @@ async def chat_endpoint(request: Request, req: ChatRequest):
             # successful, complete reply -- the empty/near-empty "success"
             # skipped the rest of the fallback chain entirely instead of
             # continuing to Gemini/static.
+            # Murya's own / self-hosted model (services/own_llm_service.py):
+            # empty unless MURYA_LLM_BASE_URL is configured, so the chain is
+            # unchanged until a sovereign model is switched on. When on, it
+            # leads the text-only providers and the hosted ones become its
+            # fallback. (Text-only, so image requests still try Gemini first.)
+            own_step = (
+                ((OWN_LLM_NAME, stream_own_llm(messages)),) if own_llm_enabled() else ()
+            )
             if has_image_attachments:
                 # Without this reorder, an attached image was silently
                 # ignored by whichever text-only provider happened to
@@ -1108,12 +1121,14 @@ async def chat_endpoint(request: Request, req: ChatRequest):
                 # none) if Gemini's quota is exhausted.
                 steps = (
                     ("Gemini", stream_gemini(req)),
+                    *own_step,
                     ("Cerebras", stream_cerebras(messages)),
                     ("Groq", stream_groq(messages)),
                     ("Ollama", stream_ollama(messages)),
                 )
             else:
                 steps = (
+                    *own_step,
                     ("Cerebras", stream_cerebras(messages)),
                     # Groq is tried before Ollama because local Ollama on this
                     # box has never once succeeded in production under current

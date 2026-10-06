@@ -85,6 +85,12 @@ async def document_endpoint(request: Request, req: DocumentRequest):
         stream_ollama,
     )
 
+    from services.own_llm_service import (
+        PROVIDER_NAME as OWN_LLM_NAME,
+        own_llm_enabled,
+        stream_own_llm,
+    )
+
     messages = [
         {"role": "system", "content": _system_prompt(req.action, req.target)},
         {"role": "user", "content": req.text},
@@ -103,6 +109,7 @@ async def document_endpoint(request: Request, req: DocumentRequest):
                 yield f"data: {_dumps({'text': normalize_digits(full), 'isDone': False})}\n\n"
 
         for stream_fn, label in (
+            *(((stream_own_llm(messages), OWN_LLM_NAME),) if own_llm_enabled() else ()),
             (stream_cerebras(messages), "Cerebras"),
             (stream_groq(messages), "Groq"),
             (stream_ollama(messages), "Ollama"),

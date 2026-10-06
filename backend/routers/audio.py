@@ -43,6 +43,7 @@ from auth import consume_live_ticket, issue_live_ticket, verify_api_key
 from rate_limit import ip_limiter, limiter
 from routers.fallback import generate_fallback_response
 from services.cloudflare_stt_service import cloudflare_stt_enabled, transcribe_via_cloudflare
+from services.own_llm_service import complete_own_llm, own_llm_enabled
 from services.vad_service import FRAME_MS, WINDOW_SIZE_SAMPLES, new_vad_stream
 import corrections_store
 
@@ -752,6 +753,14 @@ def _wav_bytes(audio: np.ndarray, sample_rate: int) -> bytes:
 # LLM chat (non-streaming, for voice — we want the full response at once)
 # ---------------------------------------------------------------------------
 async def _llm_respond(transcript: str, history: list[dict], addressee_gender: str = "unspecified") -> str:
+    # Murya's own / self-hosted model leads when configured
+    # (MURYA_LLM_BASE_URL); otherwise this step is skipped entirely.
+    if own_llm_enabled():
+        try:
+            return await _llm_respond_own(transcript, history, addressee_gender)
+        except Exception as own_err:
+            logger.warning("Own LLM unavailable for voice (%s), switching to Cerebras...", own_err)
+
     # Cerebras is the fast, hosted primary — local Ollama on this box is
     # slow enough that trying it first before Cerebras just adds latency.
     try:
@@ -786,6 +795,14 @@ async def _llm_respond(transcript: str, history: list[dict], addressee_gender: s
     except Exception as ollama_err:
         logger.warning("Ollama unavailable for voice (%s), switching to Gemini...", ollama_err)
         return await _llm_respond_gemini(transcript, history, addressee_gender)
+
+
+async def _llm_respond_own(transcript: str, history: list[dict], addressee_gender: str = "unspecified") -> str:
+    """Voice reply from Murya's own OpenAI-compatible server (services/own_llm_service.py)."""
+    messages = [{"role": "system", "content": _voice_system_prompt(addressee_gender)}]
+    messages.extend(history[-6:])
+    messages.append({"role": "user", "content": transcript})
+    return await complete_own_llm(messages, max_tokens=_VOICE_REPLY_MAX_TOKENS)
 
 
 async def _llm_respond_groq(transcript: str, history: list[dict], addressee_gender: str = "unspecified") -> str:

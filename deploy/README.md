@@ -56,3 +56,25 @@ Edit `deploy/murya-deploy.sh` in the repo and redeploy as normal -- but the
 version actually enforced by `sudo` is the copy at
 `/usr/local/bin/murya-deploy.sh` on the VM, which does NOT auto-update.
 Re-run step 2 above after any change to keep them in sync.
+
+## Moving to a different host
+
+`murya-deploy.sh` is not tied to one machine or cloud. Host-specific values
+come from `/etc/murya/deploy.env` (must be **root-owned** -- the script
+refuses to source it otherwise, since it runs as root). Defaults match the
+current production VM, so a host without this file behaves as before.
+
+```bash
+sudo mkdir -p /etc/murya
+sudo tee /etc/murya/deploy.env >/dev/null <<'EOF2'
+REPO_DIR="/srv/hausa-ai"
+SERVICE="murya.service"
+HEALTH_URL="https://api.example.org/health"
+BRANCH="main"
+EOF2
+sudo chown root:root /etc/murya/deploy.env && sudo chmod 644 /etc/murya/deploy.env
+```
+
+The checkout is pulled as whoever owns `REPO_DIR`. Also update the
+`HEALTH_URL`/hostname in `deploy/Caddyfile` and the workflow's SSH host secret.
+See `docs/sovereignty_plan.md` for the full hosting-independence plan.

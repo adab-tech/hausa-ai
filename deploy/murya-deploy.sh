@@ -12,13 +12,30 @@
 
 set -euo pipefail
 
+# Host-specific settings live in /etc/murya/deploy.env (root-owned) so this
+# script is not tied to one machine, one user or one cloud -- moving hosts
+# means writing that file, not editing code. The defaults below are the
+# current production values, so an existing host with no file behaves exactly
+# as before. The file is sourced as root, so it must stay root-owned.
+CONFIG_FILE="${MURYA_DEPLOY_ENV:-/etc/murya/deploy.env}"
 REPO_DIR="/home/adamu/hausa-ai"
 SERVICE="murya.service"
 HEALTH_URL="https://api.murya.ng/health"
+BRANCH="main"
+if [ -f "$CONFIG_FILE" ]; then
+  if [ "$(stat -c %u "$CONFIG_FILE")" != "0" ]; then
+    echo "::error:: $CONFIG_FILE must be owned by root (it is executed as root)."
+    exit 1
+  fi
+  # shellcheck disable=SC1090
+  . "$CONFIG_FILE"
+fi
 
 cd "$REPO_DIR"
-echo "==> Pulling latest main..."
-sudo -u adamu git pull
+# Pull as whoever owns the checkout rather than a hardcoded user name.
+REPO_OWNER="$(stat -c %U "$REPO_DIR")"
+echo "==> Pulling latest $BRANCH as $REPO_OWNER..."
+sudo -u "$REPO_OWNER" git pull origin "$BRANCH"
 
 SHA="$(git rev-parse HEAD)"
 echo "==> Building image for commit $SHA..."
