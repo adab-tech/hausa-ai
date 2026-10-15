@@ -31,7 +31,7 @@ slowapi>=0.1.9,<1
 # IANA timezone database for zoneinfo — the python:3.11-slim image ships
 # without system tzdata, so ZoneInfo("Asia/Tokyo") etc. would raise. Needed
 # by routers/chat.py's _current_time_context (exact, DST-aware world times).
-tzdata>=2024.1
+tzdata>=2026.4
 
 # Ollama client (talks to local Ollama server)
 ollama~=0.3.0
