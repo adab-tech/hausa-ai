@@ -195,3 +195,21 @@ def test_tts_prep_keeps_hausa_parentheticals():
     # Hausa asides must be preserved (hooked letters, common words, or phrases).
     assert "misali" in prepare_text_for_tts("kalmar (misali) a jimla")
     assert "Arewa" in prepare_text_for_tts("Kano (birni mafi girma a Arewa) tana nan")
+
+
+# ---------------------------------------------------------------------------
+# Regression (gyara): a glottal stop before y is not a hook. "ya'ya"
+# (children) used to become "yaƴa", and quoted words lost their quotes.
+# ---------------------------------------------------------------------------
+def test_normalize_hausa_orthography_keeps_glottal_stop_before_y():
+    assert normalize_hausa_orthography("ya'ya") == "ya'ya"
+    assert normalize_hausa_orthography("ya'yan Najeriya") == "ya'yan Najeriya"
+
+
+def test_normalize_hausa_orthography_leaves_quotes_alone():
+    assert normalize_hausa_orthography("ya ce 'yaro'") == "ya ce 'yaro'"
+    assert normalize_hausa_orthography("he said 'k'") == "he said 'k'"
+
+
+def test_tts_prep_keeps_glottal_stop_in_yaya():
+    assert prepare_text_for_tts("ya'ya na") == "ya'ya na"

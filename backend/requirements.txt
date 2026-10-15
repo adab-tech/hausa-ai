@@ -149,3 +149,8 @@ sentry-sdk[fastapi]>=2.0,<3
 # image before adding. Pulls in panphon (phonological feature vectors) as
 # its own dependency.
 epitran>=1.24,<2
+
+# Hausa text toolkit (orthography, numbers, TTS text prep) -- shared with other
+# ADAB-TECH projects. Pinned to a commit archive, not a git+ URL: the
+# python:3.11-slim image has no git binary. Bump the SHA to take a newer gyara.
+gyara @ https://github.com/adab-tech/gyara/archive/9d3b8afdfe22aa789f200c18559d73a875ce2bfa.zip

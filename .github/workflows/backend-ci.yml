@@ -108,7 +108,8 @@ jobs:
             "tenacity>=9.0,<10" \
             "sentry-sdk[fastapi]>=2.0,<3" \
             "onnxruntime>=1.18,<2" \
-            "piper-tts~=1.2.0"
+            "piper-tts~=1.2.0" \
+            "gyara @ https://github.com/adab-tech/gyara/archive/9d3b8afdfe22aa789f200c18559d73a875ce2bfa.zip"
 
       - name: Install dev/test dependencies
         working-directory: backend
