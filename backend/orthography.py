@@ -243,6 +243,12 @@ def apply_tonal_heuristics(text: str) -> str:
     
     Returns a representation of the text annotated with high (H) and low (L) tone markers
     suitable for prosodic diagnostics in the Axiom Trace.
+
+    Only words with a known tone are marked: those in LEXICAL_TONES and those matching the
+    plural-suffix rules below. Every other word is returned unchanged -- standard Hausa spelling
+    does not mark tone, and guessing would present noise as analysis. NOTE: LEXICAL_TONES and the
+    suffix rules are themselves not yet verified by a native speaker; the plan is to replace
+    them with a reviewed lexicon (see the gyara tone lexicon work).
     """
     words = text.split()
     processed_words = []
@@ -279,16 +285,15 @@ def apply_tonal_heuristics(text: str) -> str:
             elif re.search(r"[bdfghjklmnrstwyzɓɗƙƴ']ai$", word_lower):  # Suffix -ai preceded by consonant (e.g. dawakai, litattafai)
                 melody = ["L", "H", "H"]
             else:
-                # Fallback: assign melody based on syllable count and ending
-                # If word ends in heavy syllable, often uses L-H or H-L
-                if syllables[-1][1] == "heavy":
-                    melody = ["L", "H"]
-                else:
-                    # Simple deterministic mapping using word hash
-                    melodies = [["H", "L"], ["L", "H"], ["H", "H"]]
-                    idx = sum(ord(char) for char in word_lower) % len(melodies)
-                    melody = melodies[idx]
-                
+                # No tone is known for this word, so leave it unmarked. This used to guess:
+                # "ends in a heavy syllable -> L-H", otherwise a pattern picked from the sum of
+                # the word's letters. Measured against Wiktionary's tone-marked Hausa entries
+                # (3,173 words) those guesses matched 21% and 17% of the time -- no better than
+                # chance -- yet they covered 81% of the words in real Hausa text and were shown
+                # in the trace and written into training file lists as if they were analysis.
+                processed_words.append(word)
+                continue
+
         # Perform Right-to-Left tone mapping
         tones = []
         melody_idx = len(melody) - 1
