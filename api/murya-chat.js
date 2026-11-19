@@ -1,0 +1,96 @@
+const headers = { "Cache-Control": "no-store" };
+const model = "google/gemma-4-31b-it:free";
+const maxMessageLength = 4_000;
+const maxHistory = 6;
+const vibes = new Set(["Classic", "Royal", "Cyberpunk", "Academic"]);
+const genders = new Set(["masculine", "feminine", "unspecified"]);
+
+const hausaPrompt = `You are Murya, the Hausa AI created by Adamu Danjuma Abubakar.
+Reply in natural, standard Hausa with correct spelling and hooked letters (ɓ, ɗ, ƙ, ƴ).
+Use attested Hausa words and proverbs. Prefer simple, accurate Hausa over invented terms,
+and use English terms only where a natural Hausa equivalent is unavailable or requested.
+Address the learner in the grammatical singular, following the supplied form of address.
+Use neutral wording when the form is unspecified. Greet only at the start of a conversation.
+Keep the tone warm, respectful and direct. Output the answer only.
+This text service has no live web access or tools. Do not claim to have looked up current facts.`;
+
+const tutorPrompt = `Teach one small idea at a time in simple Hausa. Give a concrete example and
+one short practice question. When teaching a Hausa word, lead with the Hausa word and
+use only a brief English gloss where useful. Encourage the learner and mention Saurara
+when listening to the pronunciation helps.`;
+
+function error(status, message) {
+  return Response.json({ error: message }, { status, headers });
+}
+
+export default {
+  async fetch(request) {
+    if (request.method !== "POST") {
+      return new Response(null, { status: 405, headers: { ...headers, Allow: "POST" } });
+    }
+    if (process.env.VERCEL_ENV !== "preview") return error(404, "Preview route");
+    if (request.headers.get("origin") !== new URL(request.url).origin) {
+      return error(403, "A same-origin request is required");
+    }
+
+    const body = await request.json().catch(() => null);
+    const text = typeof body?.text === "string" ? body.text.trim() : "";
+    const history = body?.history ?? [];
+    if (!text || text.length > maxMessageLength || !Array.isArray(history) || history.length > maxHistory) {
+      return error(400, "Invalid text or conversation history");
+    }
+    if (history.some((turn) =>
+      !turn || !["user", "assistant"].includes(turn.role) ||
+      typeof turn.text !== "string" || turn.text.length > maxMessageLength
+    )) {
+      return error(400, "Invalid conversation turn");
+    }
+
+    const key = process.env.MURYA_OPENROUTER_PREVIEW_KEY;
+    if (!key) return error(503, "Chat preview is not configured");
+
+    const vibe = vibes.has(body.vibe) ? body.vibe : "Classic";
+    const gender = genders.has(body.addresseeGender) ? body.addresseeGender : "unspecified";
+    const systemPrompt = [
+      hausaPrompt,
+      body.mode === "tutor" ? tutorPrompt : "",
+      `Style: ${vibe}. Form of address: ${gender}.`,
+    ].filter(Boolean).join("\n\n");
+
+    try {
+      const upstream = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: "system", content: systemPrompt },
+            ...history.filter((turn) => turn.text.trim()).map((turn) => ({ role: turn.role, content: turn.text })),
+            { role: "user", content: text },
+          ],
+          max_tokens: 768,
+          provider: { data_collection: "deny", max_price: { prompt: 0, completion: 0 } },
+        }),
+        redirect: "error",
+        signal: AbortSignal.timeout(25000),
+      });
+
+      if (upstream.status === 429) return error(429, "Chat preview rate limit reached");
+      if (!upstream.ok) {
+        console.warn("Murya chat provider returned status", upstream.status);
+        return error(502, "Chat provider unavailable");
+      }
+      const result = await upstream.json();
+      const answer = result.choices?.[0]?.message?.content;
+      if (typeof answer !== "string" || !answer.trim()) {
+        return error(502, "Chat provider returned no lesson");
+      }
+      const event = { text: answer.trim(), isDone: true, verified: false };
+      return new Response(`data: ${JSON.stringify(event)}\n\n`, {
+        headers: { ...headers, "Content-Type": "text/event-stream; charset=utf-8" },
+      });
+    } catch {
+      return error(502, "Chat provider unavailable");
+    }
+  },
+};
