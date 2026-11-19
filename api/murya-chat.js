@@ -1,5 +1,9 @@
 const headers = { "Cache-Control": "no-store" };
-const models = ["google/gemma-4-31b-it:free", "google/gemma-4-26b-a4b-it:free"];
+const models = [
+  "openai/gpt-oss-120b:free",
+  "google/gemma-4-31b-it:free",
+  "google/gemma-4-26b-a4b-it:free",
+];
 const maxMessageLength = 4_000;
 const maxHistory = 6;
 const vibes = new Set(["Classic", "Royal", "Cyberpunk", "Academic"]);
@@ -98,6 +102,8 @@ export default {
       if (typeof answer !== "string" || !answer.trim()) {
         return error(502, "Chat provider returned no lesson");
       }
+      const servedModel = models.find((id) => id === result.model || id.replace(/:free$/, "") === result.model);
+      console.info("Murya chat completed", servedModel ?? "free router");
       const event = { text: answer.trim(), isDone: true, verified: false };
       return new Response(`data: ${JSON.stringify(event)}\n\n`, {
         headers: { ...headers, "Content-Type": "text/event-stream; charset=utf-8" },
