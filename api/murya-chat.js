@@ -50,8 +50,9 @@ export default {
       return error(400, "Invalid conversation turn");
     }
 
-    const key = process.env.MURYA_OPENROUTER_PREVIEW_KEY;
-    if (!key) return error(503, "Chat preview is not configured");
+    const groqKey = process.env.MURYA_GROQ_PREVIEW_KEY;
+    const openRouterKey = process.env.MURYA_OPENROUTER_PREVIEW_KEY;
+    if (!groqKey && !openRouterKey) return error(503, "Chat preview is not configured");
 
     const vibe = vibes.has(body.vibe) ? body.vibe : "Classic";
     const gender = genders.has(body.addresseeGender) ? body.addresseeGender : "unspecified";
@@ -62,36 +63,68 @@ export default {
     ].filter(Boolean).join("\n\n");
 
     try {
-      const signal = AbortSignal.timeout(25000);
-      const payload = {
-        messages: [
-          { role: "system", content: systemPrompt },
-          ...history.filter((turn) => turn.text.trim()).map((turn) => ({ role: turn.role, content: turn.text })),
-          { role: "user", content: text },
-        ],
-        max_tokens: 768,
-        provider: { data_collection: "deny", max_price: { prompt: 0, completion: 0 } },
-      };
-      const send = (routing) => fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ ...payload, ...routing }),
-        redirect: "error",
-        signal,
-      });
+      const messages = [
+        { role: "system", content: systemPrompt },
+        ...history.filter((turn) => turn.text.trim()).map((turn) => ({ role: turn.role, content: turn.text })),
+        { role: "user", content: text },
+      ];
 
-      let upstream = await send({ models });
-      if (upstream.status === 429) {
-        const detail = await upstream.json().catch(() => null);
-        const source = detail?.error?.metadata?.limit_source;
-        const message = detail?.error?.message;
-        const providerLimit = source === "upstream_provider_shared_pool" ||
-          (!source && typeof message === "string" && message.includes("temporarily rate-limited upstream"));
-        const accountLimit = typeof source === "string" && source.startsWith("openrouter_free_tier");
-        console.warn("Murya chat throttled", providerLimit ? "provider" : accountLimit ? "account" : "unknown");
-        if (!providerLimit) return error(429, "Chat preview rate limit reached");
-        upstream = await send({ model: "openrouter/free" });
+      let upstream;
+      let servedByGroq = false;
+      if (groqKey) {
+        upstream = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${groqKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: "openai/gpt-oss-120b",
+            messages,
+            max_completion_tokens: 900,
+            reasoning_effort: "low",
+            include_reasoning: false,
+          }),
+          redirect: "error",
+          signal: AbortSignal.timeout(10000),
+        }).catch(() => null);
+
+        servedByGroq = upstream?.ok === true;
+        if (!servedByGroq) {
+          console.warn("Murya Groq request failed", upstream?.status ?? "network");
+          if (upstream && upstream.status < 500 && upstream.status !== 429) {
+            return error(502, "Chat provider unavailable");
+          }
+        }
       }
+
+      if (!servedByGroq && openRouterKey) {
+        const signal = AbortSignal.timeout(25000);
+        const send = (routing) => fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${openRouterKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            messages,
+            max_tokens: 768,
+            provider: { data_collection: "deny", max_price: { prompt: 0, completion: 0 } },
+            ...routing,
+          }),
+          redirect: "error",
+          signal,
+        });
+
+        upstream = await send({ models });
+        if (upstream.status === 429) {
+          const detail = await upstream.json().catch(() => null);
+          const source = detail?.error?.metadata?.limit_source;
+          const message = detail?.error?.message;
+          const providerLimit = source === "upstream_provider_shared_pool" ||
+            (!source && typeof message === "string" && message.includes("temporarily rate-limited upstream"));
+          const accountLimit = typeof source === "string" && source.startsWith("openrouter_free_tier");
+          console.warn("Murya chat throttled", providerLimit ? "provider" : accountLimit ? "account" : "unknown");
+          if (!providerLimit) return error(429, "Chat preview rate limit reached");
+          upstream = await send({ model: "openrouter/free" });
+        }
+      }
+
+      if (!upstream) return error(502, "Chat provider unavailable");
       if (upstream.status === 429) return error(429, "Chat preview rate limit reached");
       if (!upstream.ok) {
         console.warn("Murya chat provider returned status", upstream.status);
@@ -103,7 +136,7 @@ export default {
         return error(502, "Chat provider returned no lesson");
       }
       const servedModel = models.find((id) => id === result.model || id.replace(/:free$/, "") === result.model);
-      console.info("Murya chat completed", servedModel ?? "free router");
+      console.info("Murya chat completed", servedByGroq ? "Groq" : "OpenRouter", servedModel ?? "free router");
       const event = { text: answer.trim(), isDone: true, verified: false };
       return new Response(`data: ${JSON.stringify(event)}\n\n`, {
         headers: { ...headers, "Content-Type": "text/event-stream; charset=utf-8" },
