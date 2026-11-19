@@ -58,33 +58,37 @@ export default {
     ].filter(Boolean).join("\n\n");
 
     try {
-      const upstream = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      const signal = AbortSignal.timeout(25000);
+      const payload = {
+        messages: [
+          { role: "system", content: systemPrompt },
+          ...history.filter((turn) => turn.text.trim()).map((turn) => ({ role: turn.role, content: turn.text })),
+          { role: "user", content: text },
+        ],
+        max_tokens: 768,
+        provider: { data_collection: "deny", max_price: { prompt: 0, completion: 0 } },
+      };
+      const send = (routing) => fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          models,
-          messages: [
-            { role: "system", content: systemPrompt },
-            ...history.filter((turn) => turn.text.trim()).map((turn) => ({ role: turn.role, content: turn.text })),
-            { role: "user", content: text },
-          ],
-          max_tokens: 768,
-          provider: { data_collection: "deny", max_price: { prompt: 0, completion: 0 } },
-        }),
+        body: JSON.stringify({ ...payload, ...routing }),
         redirect: "error",
-        signal: AbortSignal.timeout(25000),
+        signal,
       });
 
+      let upstream = await send({ models });
       if (upstream.status === 429) {
         const detail = await upstream.json().catch(() => null);
         const source = detail?.error?.metadata?.limit_source;
         const message = detail?.error?.message;
         const providerLimit = source === "upstream_provider_shared_pool" ||
-          (typeof message === "string" && message.includes("temporarily rate-limited upstream"));
+          (!source && typeof message === "string" && message.includes("temporarily rate-limited upstream"));
         const accountLimit = typeof source === "string" && source.startsWith("openrouter_free_tier");
         console.warn("Murya chat throttled", providerLimit ? "provider" : accountLimit ? "account" : "unknown");
-        return error(429, "Chat preview rate limit reached");
+        if (!providerLimit) return error(429, "Chat preview rate limit reached");
+        upstream = await send({ model: "openrouter/free" });
       }
+      if (upstream.status === 429) return error(429, "Chat preview rate limit reached");
       if (!upstream.ok) {
         console.warn("Murya chat provider returned status", upstream.status);
         return error(502, "Chat provider unavailable");
