@@ -17,7 +17,7 @@ import admin_audit_store
 import admin_store
 import pronunciation_store
 from rate_limit import limiter
-from routers import admin_auth, pronunciation
+from routers import admin_auth, chat, pronunciation
 from vits_engine import OUTPUT_SAMPLE_RATE, VitsEngine
 
 
@@ -77,9 +77,15 @@ def require_review_storage(request: Request):
         raise HTTPException(status_code=503, detail="Pronunciation review storage is unavailable")
 
 
+def require_chat_provider():
+    if not os.environ.get("GROQ_API_KEY", "").strip():
+        raise HTTPException(status_code=503, detail="Preview chat provider is not configured")
+
+
 review_dependencies = [Depends(verify_relay), Depends(require_review_storage)]
 app.include_router(pronunciation.router, prefix="/api", dependencies=review_dependencies)
 app.include_router(admin_auth.router, prefix="/api", dependencies=review_dependencies)
+app.include_router(chat.router, prefix="/api", dependencies=[*review_dependencies, Depends(require_chat_provider)])
 
 
 class VoiceRequest(BaseModel):
@@ -92,6 +98,7 @@ def health(request: Request):
     return {
         "status": "ok", "voice": "asabe", "voices": ["asabe", "garba"],
         "pronunciation_storage": request.app.state.review_ready,
+        "chat_configured": bool(os.environ.get("GROQ_API_KEY", "").strip()),
     }
 
 
