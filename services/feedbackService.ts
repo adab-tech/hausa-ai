@@ -1,7 +1,7 @@
 /** feedbackService.ts — public-facing contribution actions: thumbs up/down
  * on a reply, flagging a mispronunciation, and submitting community Q&A. */
 
-import { BACKEND_URL, withContributor } from "./apiConfig.ts";
+import { BACKEND_URL, reviewUrl, withContributor } from "./apiConfig.ts";
 
 export async function recordFeedback(messageId: string, type: "up" | "down", text: string, correction?: string): Promise<void> {
   try {
@@ -28,7 +28,7 @@ export async function getFeedbackStats(): Promise<{ up: number; down: number; to
 /** PUBLIC: a user reports a mispronunciation for a reviewer to fix. */
 export async function flagPronunciation(text: string, speakerId: number | null = null, note?: string): Promise<boolean> {
   try {
-    const res = await fetch(`${BACKEND_URL}/api/pronunciation/flag`, {
+    const res = await fetch(reviewUrl("pronunciation/flag"), {
       method: "POST",
       headers: withContributor({ "Content-Type": "application/json" }),
       credentials: "include",
@@ -56,14 +56,15 @@ export async function submitQA(question: string, answer: string, topic?: string)
 
 /** PUBLIC: a user records the correct pronunciation of a word/phrase (+ optional
  * note). Lands pending for the owner to approve — never served without approval. */
-export async function submitUserPronunciation(text: string, speakerId: number | null, audio: Blob, note?: string): Promise<boolean> {
+export async function submitUserPronunciation(text: string, speakerId: number | null, audio: Blob | null, note?: string, spokenText?: string): Promise<boolean> {
   try {
     const fd = new FormData();
     fd.append("text", text);
     if (speakerId !== null && speakerId !== undefined) fd.append("speaker_id", String(speakerId));
     if (note) fd.append("note", note);
-    fd.append("audio", audio, "correction.webm");
-    const res = await fetch(`${BACKEND_URL}/api/pronunciation/submit`, {
+    if (audio) fd.append("audio", audio, "correction.wav");
+    if (spokenText) fd.append("spoken_text", spokenText);
+    const res = await fetch(reviewUrl("pronunciation/submit"), {
       method: "POST", headers: withContributor({}), credentials: "include", body: fd,
     });
     return res.ok;

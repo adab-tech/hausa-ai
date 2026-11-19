@@ -31,6 +31,7 @@ import logging
 import os
 import sqlite3
 import time
+import wave
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -80,7 +81,8 @@ def convert_upload_to_pcm24k(raw: bytes) -> bytes | None:
             AudioSegment.converter = imageio_ffmpeg.get_ffmpeg_exe()
         except Exception:
             pass
-        seg = AudioSegment.from_file(io.BytesIO(raw))
+        is_wav = raw[:4] == b"RIFF" and raw[8:12] == b"WAVE"
+        seg = AudioSegment.from_file(io.BytesIO(raw), format="wav" if is_wav else None)
         seg = seg.set_frame_rate(_TTS_SAMPLE_RATE).set_channels(1).set_sample_width(2)
         return seg.raw_data
     except Exception as exc:
@@ -106,6 +108,7 @@ def _get_conn():
 def init_db() -> None:
     """Create the corrections table + lookup index if missing."""
     with _get_conn() as conn:
+        conn.execute("BEGIN IMMEDIATE")
         conn.execute(
             """CREATE TABLE IF NOT EXISTS pronunciations (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -113,6 +116,7 @@ def init_db() -> None:
                 display_text TEXT NOT NULL,
                 speaker_id INTEGER,
                 audio BLOB,
+                spoken_text TEXT,
                 status TEXT NOT NULL DEFAULT 'pending',
                 submitted_by TEXT,
                 note TEXT,
@@ -120,6 +124,9 @@ def init_db() -> None:
                 updated_at REAL NOT NULL
             )"""
         )
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(pronunciations)")}
+        if "spoken_text" not in columns:
+            conn.execute("ALTER TABLE pronunciations ADD COLUMN spoken_text TEXT")
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_pron_lookup ON pronunciations(text_key, status)"
         )
@@ -135,29 +142,45 @@ def _cap(value, limit):
 # ---------------------------------------------------------------------------
 # Synthesis-time lookup (the hot path)
 # ---------------------------------------------------------------------------
-def lookup(text: str, speaker_id: int | None = None) -> bytes | None:
-    """Return approved correction PCM (24 kHz mono PCM-16) for an EXACT folded
-    match of `text`, or None. A voice-specific correction (matching speaker_id)
-    wins over a voice-agnostic one; ties break to the most recently updated.
-    Never raises — a correction lookup must never break synthesis."""
+def _lookup(text: str, speaker_id: int | None, *, audio_only: bool = False) -> tuple[bytes | None, str | None]:
     key = fold_key(text)
     if not key:
-        return None
+        return None, None
     try:
         with _get_conn() as conn:
             row = conn.execute(
-                """SELECT audio FROM pronunciations
-                   WHERE text_key = ? AND status = 'approved' AND audio IS NOT NULL
+                """SELECT audio, spoken_text FROM pronunciations
+                   WHERE text_key = ? AND status = 'approved'
+                     AND (audio IS NOT NULL OR (? = 0 AND spoken_text IS NOT NULL))
                      AND (speaker_id IS ? OR speaker_id IS NULL)
                    ORDER BY (speaker_id IS ?) DESC, updated_at DESC
-                   LIMIT 1""",
-                (key, speaker_id, speaker_id),
+                   LIMIT 1""", (key, audio_only, speaker_id, speaker_id),
             ).fetchone()
-        if row and row["audio"]:
-            return bytes(row["audio"])
+        if row:
+            return row["audio"], row["spoken_text"]
     except Exception as exc:
-        logger.error("pronunciation lookup failed for %r: %s", text, exc)
-    return None
+        logger.error("Pronunciation lookup failed: %s", type(exc).__name__)
+    return None, None
+
+
+def lookup(text: str, speaker_id: int | None = None) -> bytes | None:
+    """Return approved 24 kHz PCM for an exact folded match."""
+    return _lookup(text, speaker_id, audio_only=True)[0]
+
+
+def resolve(text: str, speaker_id: int | None = None) -> tuple[bytes | None, str | None]:
+    """Find the latest approved correction, preferring a matching voice."""
+    return _lookup(text, speaker_id)
+
+
+def pcm_to_wav(pcm: bytes, sample_rate: int = _TTS_SAMPLE_RATE) -> bytes:
+    output = io.BytesIO()
+    with wave.open(output, "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(sample_rate)
+        wav.writeframes(pcm)
+    return output.getvalue()
 
 
 # ---------------------------------------------------------------------------
@@ -183,26 +206,24 @@ def flag(text: str, speaker_id: int | None, submitted_by: str | None,
         return cur.lastrowid
 
 
-def add_correction(text: str, speaker_id: int | None, audio_pcm: bytes,
+def add_correction(text: str, speaker_id: int | None, audio_pcm: bytes | None,
                    submitted_by: str | None = None, note: str | None = None,
-                   status: str = "pending") -> int | None:
-    """Store a correction recording (already 24 kHz PCM) for `text`. Lands as
-    'pending' by DESIGN — recording is not approving. The owner must explicitly
-    approve (set_status) before it is ever served; nothing auto-activates.
-    Returns row id."""
-    key = fold_key(text)
+                   status: str = "pending", *, spoken_text: str | None = None) -> int | None:
+    """Store written pronunciation, 24 kHz PCM, or both for owner review."""
     display = _cap(text, _MAX_TEXT)
-    if not key or not display or not audio_pcm:
+    key = fold_key(display or "")
+    spoken_text = _cap(spoken_text, _MAX_TEXT)
+    if not key or not (audio_pcm or spoken_text):
         return None
-    if len(audio_pcm) > _MAX_AUDIO_BYTES:
+    if audio_pcm and len(audio_pcm) > _MAX_AUDIO_BYTES:
         raise ValueError("correction audio too large")
     now = time.time()
     with _get_conn() as conn:
         cur = conn.execute(
             """INSERT INTO pronunciations
-               (text_key, display_text, speaker_id, audio, status, submitted_by, note, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (key, display, speaker_id, sqlite3.Binary(audio_pcm), status,
+               (text_key, display_text, speaker_id, audio, spoken_text, status, submitted_by, note, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (key, display, speaker_id, audio_pcm or None, spoken_text, status,
              _cap(submitted_by, _MAX_CID), _cap(note, _MAX_NOTE), now, now),
         )
         return cur.lastrowid
@@ -252,6 +273,7 @@ def _row_meta(row: sqlite3.Row) -> dict:
         "speaker_id": row["speaker_id"],
         "status": row["status"],
         "has_audio": row["audio"] is not None,
+        "spoken_text": row["spoken_text"],
         "submitted_by": row["submitted_by"],
         "note": row["note"],
         "created_at": row["created_at"],

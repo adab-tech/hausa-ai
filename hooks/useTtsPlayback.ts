@@ -24,7 +24,7 @@ export function useTtsPlayback(speakerId: number | null, showToast: (message: st
   const blobUrlRef = useRef<string | null>(null);
   const env = (import.meta as ImportMeta & { env?: { VITE_MURYA_VOICE_RELAY?: string } }).env;
   const useVoiceRelay = env?.VITE_MURYA_VOICE_RELAY === "1"
-    && (speakerId === null || speakerId === 6);
+    && (speakerId === null || speakerId === 0 || speakerId === 6);
   // The chunk queue for whichever message is currently playing. Cleared on
   // every stop/pause/switch so a stale onended from a just-superseded
   // <audio> element can never advance a queue that no longer belongs to
@@ -78,7 +78,7 @@ export function useTtsPlayback(speakerId: number | null, showToast: (message: st
         const response = await fetch("/api/voice", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: chunks[index] }),
+          body: JSON.stringify({ text: chunks[index], speaker_id: speakerId ?? 6 }),
           signal: request.signal,
         });
         if (!response.ok) throw new Error("Voice service unavailable");

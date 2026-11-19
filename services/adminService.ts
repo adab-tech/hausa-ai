@@ -2,12 +2,12 @@
  * action behind it: corrections, community Q&A, and pronunciation review
  * queues. See backend/admin_store.py. */
 
-import { BACKEND_URL } from "./apiConfig.ts";
+import { BACKEND_URL, reviewUrl } from "./apiConfig.ts";
 
 // ── Admin session ────────────────────────────────────────────────────────
 export async function adminLogin(username: string, password: string): Promise<{ ok: true; username: string } | { ok: false; error: string }> {
   try {
-    const res = await fetch(`${BACKEND_URL}/api/admin/login`, {
+    const res = await fetch(reviewUrl("admin/login"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
@@ -29,7 +29,7 @@ export async function adminLogin(username: string, password: string): Promise<{ 
  * in," and redirect to login. */
 export async function changePassword(oldPassword: string, newPassword: string): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    const res = await fetch(`${BACKEND_URL}/api/admin/change-password`, {
+    const res = await fetch(reviewUrl("admin/change-password"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
@@ -53,7 +53,7 @@ export async function changePassword(oldPassword: string, newPassword: string): 
 
 export async function adminLogout(): Promise<void> {
   try {
-    await fetch(`${BACKEND_URL}/api/admin/logout`, { method: "POST", credentials: "include" });
+    await fetch(reviewUrl("admin/logout"), { method: "POST", credentials: "include" });
   } catch (err) {
     console.error("Admin logout failed:", err);
   }
@@ -61,7 +61,7 @@ export async function adminLogout(): Promise<void> {
 
 export async function adminMe(): Promise<string | null> {
   try {
-    const res = await fetch(`${BACKEND_URL}/api/admin/me`, { credentials: "include" });
+    const res = await fetch(reviewUrl("admin/me"), { credentials: "include" });
     if (!res.ok) return null;
     const data = await res.json();
     return data.username;
@@ -77,7 +77,7 @@ export async function getAuditLog(surface?: "correction" | "pronunciation" | "qa
 > {
   try {
     const q = surface ? `?surface=${surface}` : "";
-    const res = await fetch(`${BACKEND_URL}/api/admin/audit-log${q}`, { credentials: "include" });
+    const res = await fetch(reviewUrl("admin/audit-log", new URLSearchParams(q)), { credentials: "include" });
     if (!res.ok) return null;
     const data = await res.json();
     return data.items ?? [];
@@ -165,7 +165,7 @@ export async function exportQA(): Promise<boolean> {
 export async function getPronunciations(status?: "pending" | "approved" | "rejected"): Promise<{ items: any[]; counts: any } | null> {
   try {
     const q = status ? `?status=${status}` : "";
-    const res = await fetch(`${BACKEND_URL}/api/admin/pronunciation${q}`, { credentials: "include" });
+    const res = await fetch(reviewUrl("admin/pronunciation", new URLSearchParams(q)), { credentials: "include" });
     if (!res.ok) return null;
     return await res.json();
   } catch (err) {
@@ -182,7 +182,7 @@ export async function submitPronunciation(text: string, speakerId: number | null
     if (speakerId !== null && speakerId !== undefined) fd.append("speaker_id", String(speakerId));
     if (note) fd.append("note", note);
     fd.append("audio", audio, "correction.webm");
-    const res = await fetch(`${BACKEND_URL}/api/admin/pronunciation`, {
+    const res = await fetch(reviewUrl("admin/pronunciation"), {
       method: "POST", credentials: "include", body: fd,
     });
     return res.ok;
@@ -192,12 +192,12 @@ export async function submitPronunciation(text: string, speakerId: number | null
   }
 }
 
-/** ADMIN: attach a recording to an existing flagged item and approve it. */
+/** ADMIN: attach a recording to an existing flagged item for review. */
 export async function recordPronunciation(id: number, audio: Blob): Promise<boolean> {
   try {
     const fd = new FormData();
     fd.append("audio", audio, "correction.webm");
-    const res = await fetch(`${BACKEND_URL}/api/admin/pronunciation/${id}/record`, {
+    const res = await fetch(reviewUrl(`admin/pronunciation/${id}/record`), {
       method: "POST", credentials: "include", body: fd,
     });
     return res.ok;
@@ -210,7 +210,7 @@ export async function recordPronunciation(id: number, audio: Blob): Promise<bool
 /** ADMIN: approve / reject. */
 export async function setPronunciationStatus(id: number, status: "pending" | "approved" | "rejected"): Promise<boolean> {
   try {
-    const res = await fetch(`${BACKEND_URL}/api/admin/pronunciation/${id}/status`, {
+    const res = await fetch(reviewUrl(`admin/pronunciation/${id}/status`), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
@@ -226,7 +226,7 @@ export async function setPronunciationStatus(id: number, status: "pending" | "ap
 /** ADMIN: delete a correction. */
 export async function deletePronunciation(id: number): Promise<boolean> {
   try {
-    const res = await fetch(`${BACKEND_URL}/api/admin/pronunciation/${id}`, {
+    const res = await fetch(reviewUrl(`admin/pronunciation/${id}`), {
       method: "DELETE", credentials: "include",
     });
     return res.ok;
@@ -239,7 +239,7 @@ export async function deletePronunciation(id: number): Promise<boolean> {
 /** ADMIN: download all approved corrections as a training-ready ZIP. */
 export async function exportPronunciationCorpus(): Promise<boolean> {
   try {
-    const res = await fetch(`${BACKEND_URL}/api/admin/pronunciation/export`, { credentials: "include" });
+    const res = await fetch(reviewUrl("admin/pronunciation/export"), { credentials: "include" });
     if (!res.ok) return false;
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
@@ -257,7 +257,7 @@ export async function exportPronunciationCorpus(): Promise<boolean> {
 /** ADMIN: fetch a correction's audio (with the session cookie) as a playable object URL. */
 export async function pronunciationAudioUrl(id: number): Promise<string | null> {
   try {
-    const res = await fetch(`${BACKEND_URL}/api/admin/pronunciation/${id}/audio`, { credentials: "include" });
+    const res = await fetch(reviewUrl(`admin/pronunciation/${id}/audio`), { credentials: "include" });
     if (!res.ok) return null;
     return URL.createObjectURL(await res.blob());
   } catch (err) {

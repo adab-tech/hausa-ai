@@ -14,6 +14,17 @@ export const BACKEND_URL = (
     : "http://127.0.0.1:8000")
 ).replace("localhost", "127.0.0.1");
 
+const env = (import.meta as ImportMeta & { env?: { VITE_MURYA_PRONUNCIATION_RELAY?: string } }).env;
+
+export function reviewUrl(path: string, query?: URLSearchParams): string {
+  const params = new URLSearchParams(query);
+  if (env?.VITE_MURYA_PRONUNCIATION_RELAY === "1") {
+    params.set("route", path);
+    return `/api/furuci?${params}`;
+  }
+  return `${BACKEND_URL}/api/${path}${params.size ? `?${params}` : ""}`;
+}
+
 // ─── Anonymous contributor identity (Level 1 — no login wall) ──────────────
 // A PII-free device token, generated once and kept in localStorage. Sent as
 // the X-Contributor-Id header (or a contributor_id query param where headers

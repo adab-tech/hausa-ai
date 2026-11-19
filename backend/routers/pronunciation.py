@@ -3,6 +3,7 @@ Pronunciation corrections — the human-in-the-loop TTS eval loop.
 
 PUBLIC (user):
   POST /api/pronunciation/flag        — "this was mispronounced" (text, no audio)
+  POST /api/pronunciation/submit      — written or recorded correction
 
 ADMIN (reviewer, self-gated via verify_admin_session):
   GET    /api/admin/pronunciation             — list items (optional ?status=)
@@ -29,7 +30,7 @@ import admin_audit_store
 import pronunciation_store as store
 from auth import verify_admin_session, verify_csrf_origin
 from contributor import get_contributor_id
-from rate_limit import limiter
+from rate_limit import ip_limiter, limiter
 
 router = APIRouter()
 
@@ -50,7 +51,7 @@ def _clean_speaker(speaker_id):
 async def _read_audio(upload: UploadFile) -> bytes:
     """Read + size-check an uploaded recording, decode to 24 kHz PCM. Raises
     HTTPException on empty/oversized/undecodable input."""
-    raw = await upload.read()
+    raw = await upload.read(_MAX_UPLOAD + 1)
     if not raw:
         raise HTTPException(status_code=400, detail="Empty audio upload")
     if len(raw) > _MAX_UPLOAD:
@@ -88,27 +89,26 @@ async def flag_mispronunciation(request: Request, body: FlagBody):
 
 @router.post("/pronunciation/submit")
 @limiter.limit("6/minute")
+@ip_limiter.limit("30/minute")
 async def submit_pronunciation(
     request: Request,
-    text: str = Form(...),
-    audio: UploadFile = File(...),
+    text: str = Form(..., min_length=1, max_length=400),
+    audio: UploadFile | None = File(None),
     speaker_id: str | None = Form(None),
     note: str | None = Form(None),
+    spoken_text: str | None = Form(None, max_length=400),
 ):
-    """PUBLIC: a user records the correct pronunciation of a word/phrase (and may
-    add a text note). Lands 'pending' — like every correction, it is NEVER served
-    until the owner explicitly approves it in the admin panel. Rate-limited and
-    size-capped; the audio must decode or it is rejected."""
-    pcm = await _read_audio(audio)
+    """Queue a proposed spelling or audio clip for owner approval."""
+    pcm = await _read_audio(audio) if audio is not None else None
     try:
         row_id = store.add_correction(
             text=text, speaker_id=_clean_speaker(speaker_id), audio_pcm=pcm,
-            submitted_by=get_contributor_id(request), note=note, status="pending",
+            submitted_by=get_contributor_id(request), note=note, status="pending", spoken_text=spoken_text,
         )
     except ValueError as e:
         raise HTTPException(status_code=413, detail=str(e)) from e
     if row_id is None:
-        raise HTTPException(status_code=400, detail="Missing text or audio")
+        raise HTTPException(status_code=400, detail="A word or phrase and a written or recorded correction are required")
     return {"ok": True, "id": row_id}
 
 
@@ -133,7 +133,6 @@ async def admin_export(_admin: str = Depends(verify_admin_session)):
       metadata.csv    (<id>|<text>|<speaker_id>, LJSpeech-style)
     Fold this into the WAXAL/VITS training set for the next retrain — the batch
     step that turns runtime overrides into permanent model skill."""
-    from routers.audio import _add_wav_header
     rows = store.export_approved()
     if not rows:
         raise HTTPException(status_code=404, detail="No approved corrections to export yet")
@@ -142,7 +141,7 @@ async def admin_export(_admin: str = Depends(verify_admin_session)):
         meta = io.StringIO()
         writer = csv.writer(meta, delimiter="|")
         for r in rows:
-            z.writestr(f"wavs/{r['id']}.wav", _add_wav_header(r["audio"], sample_rate=24000))
+            z.writestr(f"wavs/{r['id']}.wav", store.pcm_to_wav(r["audio"]))
             writer.writerow([r["id"], r["text"], r["speaker_id"] if r["speaker_id"] is not None else ""])
         z.writestr("metadata.csv", meta.getvalue())
     return Response(
@@ -182,7 +181,7 @@ async def admin_record_against_flag(
     audio: UploadFile = File(...),
     _admin: str = Depends(verify_admin_session),
 ):
-    """Reviewer records audio for an existing (flagged) item and approves it."""
+    """Reviewer records audio for a flagged item, leaving it pending."""
     pcm = await _read_audio(audio)
     try:
         ok = store.attach_audio(row_id, pcm)
@@ -197,11 +196,10 @@ async def admin_record_against_flag(
 @router.get("/admin/pronunciation/{row_id}/audio")
 async def admin_get_audio(row_id: int, _admin: str = Depends(verify_admin_session)):
     """Serve a correction's recording as a WAV for playback in the dashboard."""
-    from routers.audio import _add_wav_header
     pcm = store.get_audio(row_id)
     if not pcm:
         raise HTTPException(status_code=404, detail="No audio for this item")
-    return Response(content=_add_wav_header(pcm, sample_rate=24000), media_type="audio/wav")
+    return Response(content=store.pcm_to_wav(pcm), media_type="audio/wav")
 
 
 class StatusBody(BaseModel):

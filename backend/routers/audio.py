@@ -559,10 +559,12 @@ def _synthesize_speech_raw(
     #    RAW request text (what the user flagged), before TTS normalization.
     try:
         import pronunciation_store
-        correction = pronunciation_store.lookup(text, speaker_id)
+        correction, spoken_text = pronunciation_store.resolve(text, speaker_id)
         if correction:
             logger.info("Speech served from approved pronunciation correction (speaker %s)", speaker_id)
             return correction
+        if spoken_text:
+            text = spoken_text
     except Exception as exc:
         logger.error("Pronunciation correction lookup failed: %s", exc)
 
