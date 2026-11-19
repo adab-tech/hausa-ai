@@ -30,8 +30,8 @@ export default tseslint.config(
     languageOptions: { globals: globals.serviceworker },
   },
   {
-    // Node-run dev/build scripts, not part of the app bundle.
-    files: ['scripts/**/*.{js,mjs}'],
+    // Node-run scripts and server-side Vercel functions.
+    files: ['scripts/**/*.{js,mjs}', 'api/**/*.js'],
     languageOptions: { globals: globals.node },
   }
 );
