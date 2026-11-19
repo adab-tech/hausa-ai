@@ -1,5 +1,5 @@
 const headers = { "Cache-Control": "no-store" };
-const model = "google/gemma-4-31b-it:free";
+const models = ["google/gemma-4-31b-it:free", "google/gemma-4-26b-a4b-it:free"];
 const maxMessageLength = 4_000;
 const maxHistory = 6;
 const vibes = new Set(["Classic", "Royal", "Cyberpunk", "Academic"]);
@@ -62,7 +62,7 @@ export default {
         method: "POST",
         headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model,
+          models,
           messages: [
             { role: "system", content: systemPrompt },
             ...history.filter((turn) => turn.text.trim()).map((turn) => ({ role: turn.role, content: turn.text })),
@@ -75,7 +75,16 @@ export default {
         signal: AbortSignal.timeout(25000),
       });
 
-      if (upstream.status === 429) return error(429, "Chat preview rate limit reached");
+      if (upstream.status === 429) {
+        const detail = await upstream.json().catch(() => null);
+        const source = detail?.error?.metadata?.limit_source;
+        const message = detail?.error?.message;
+        const providerLimit = source === "upstream_provider_shared_pool" ||
+          (typeof message === "string" && message.includes("temporarily rate-limited upstream"));
+        const accountLimit = typeof source === "string" && source.startsWith("openrouter_free_tier");
+        console.warn("Murya chat throttled", providerLimit ? "provider" : accountLimit ? "account" : "unknown");
+        return error(429, "Chat preview rate limit reached");
+      }
       if (!upstream.ok) {
         console.warn("Murya chat provider returned status", upstream.status);
         return error(502, "Chat provider unavailable");
