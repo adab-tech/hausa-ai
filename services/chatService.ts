@@ -47,8 +47,14 @@ export async function* unifiedExchange(
       .map((a) => ({ mimeType: a.mimeType, data: a.data! })),
   };
 
+  const env = (import.meta as ImportMeta & { env?: { VITE_MURYA_CHAT_RELAY?: string } }).env;
+  const relayEnabled = env?.VITE_MURYA_CHAT_RELAY === "1";
+  const chatUrl = relayEnabled && body.attachments.length === 0
+    ? "/api/murya-chat-full"
+    : `${BACKEND_URL}/api/chat`;
+
   try {
-    const response = await fetch(`${BACKEND_URL}/api/chat`, {
+    const response = await fetch(chatUrl, {
       method: "POST",
       headers: withContributor({ "Content-Type": "application/json" }),
       body: JSON.stringify(body),
