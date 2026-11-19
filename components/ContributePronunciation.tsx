@@ -6,7 +6,7 @@ import { Mic, Square, Play, X, Check, Loader2, Send, AlertTriangle } from 'lucid
 const VOICES = [
   { v: '', label: 'Duk muryoyi (any voice)' },
   { v: '0', label: 'Malam Garba (namiji)' },
-  { v: '4', label: 'Malama Asabe (mace)' },
+  { v: '6', label: 'Malama Asabe (mace)' },
 ];
 
 /** User-facing: contribute the correct pronunciation of a Hausa word/phrase.
@@ -14,6 +14,7 @@ const VOICES = [
  * the owner to review and approve. Nothing goes live without that approval. */
 export const ContributePronunciation: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const [text, setText] = useState('');
+  const [spokenText, setSpokenText] = useState('');
   const [note, setNote] = useState('');
   const [voice, setVoice] = useState('');
   const [blob, setBlob] = useState<Blob | null>(null);
@@ -52,10 +53,10 @@ export const ContributePronunciation: React.FC<{ onClose: () => void }> = ({ onC
   };
 
   const submit = async () => {
-    if (!text.trim() || !blob) return;
+    if (!text.trim() || (!blob && !spokenText.trim()) || recording) return;
     setBusy(true);
     setError(null);
-    const ok = await gemini.submitUserPronunciation(text.trim(), voice ? Number(voice) : null, blob, note.trim() || undefined);
+    const ok = await gemini.submitUserPronunciation(text.trim(), voice ? Number(voice) : null, blob, note.trim() || undefined, spokenText.trim() || undefined);
     setBusy(false);
     if (ok) setDone(true);
     else setError('An kasa aika gyaran. A sake gwadawa. (Failed to submit — please try again.)');
@@ -84,7 +85,7 @@ export const ContributePronunciation: React.FC<{ onClose: () => void }> = ({ onC
           </div>
         ) : (
           <div className="space-y-6">
-            <p className="text-sm text-dyn-text-secondary leading-relaxed">Idan Murya ta furta wata kalma ba daidai ba, ka rubuta ta sannan ka yi rikodin yadda ya kamata a faɗe ta. (If Murya says a word wrong, type it and record how it should sound.)</p>
+            <p className="text-sm text-dyn-text-secondary leading-relaxed">Rubuta kalmar da Murya ta furta ba daidai ba, sannan ka rubuta yadda za a faɗe ta ko ka yi rikodi. (Enter the word or phrase, then write how it should be said or record it.)</p>
 
             {error && (
               <div role="alert" className="flex items-start gap-3 p-4 rounded-2xl bg-red-500/[0.06] border border-red-500/30 animate-reveal">
@@ -96,6 +97,12 @@ export const ContributePronunciation: React.FC<{ onClose: () => void }> = ({ onC
             <div className="space-y-2">
               <label className="text-[10px] uppercase tracking-widest text-dyn-text-muted font-bold">Kalma / Jimla (Word or phrase)</label>
               <input value={text} onChange={(e) => setText(e.target.value)} maxLength={200} placeholder="misali: ƙoshin lafiya"
+                className="w-full rounded-xl bg-dyn-bg-tertiary/50 border border-dyn-border px-4 py-3 text-sm text-dyn-text-primary focus:outline-none focus:border-dyn-accent/50" />
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="correct-pronunciation" className="text-[10px] uppercase tracking-widest text-dyn-text-muted font-bold">Yadda za a faɗa (Written correction)</label>
+              <input id="correct-pronunciation" value={spokenText} onChange={(e) => setSpokenText(e.target.value)} maxLength={400}
                 className="w-full rounded-xl bg-dyn-bg-tertiary/50 border border-dyn-border px-4 py-3 text-sm text-dyn-text-primary focus:outline-none focus:border-dyn-accent/50" />
             </div>
 
@@ -129,7 +136,7 @@ export const ContributePronunciation: React.FC<{ onClose: () => void }> = ({ onC
               )}
             </div>
 
-            <button onClick={submit} disabled={!text.trim() || !blob || busy} className="w-full flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-dyn-accent text-dyn-bg-primary text-sm font-bold uppercase tracking-wider disabled:opacity-30 disabled:cursor-not-allowed">
+            <button onClick={submit} disabled={!text.trim() || (!blob && !spokenText.trim()) || recording || busy} className="w-full flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-dyn-accent text-dyn-bg-primary text-sm font-bold uppercase tracking-wider disabled:opacity-30 disabled:cursor-not-allowed">
               {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Aika gyara (Submit correction)
             </button>
             <p className="text-[11px] text-dyn-text-muted/70 text-center italic">Ba za a yi amfani da shi ba sai mai kula ya amince. (Not used until the owner approves.)</p>

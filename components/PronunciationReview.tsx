@@ -6,14 +6,14 @@ import { Mic, Square, Play, Check, X, Trash2, Plus, Loader2, RefreshCw, Download
 
 type Item = {
   id: number; text: string; speaker_id: number | null; status: string;
-  has_audio: boolean; note: string | null; updated_at: number;
+  has_audio: boolean; spoken_text?: string | null; note: string | null; updated_at: number;
 };
 
 const VOICES = [
   { v: '', label: 'Duk muryoyi (all)' },
-  { v: '0', label: 'Malam Garba (M1)' }, { v: '4', label: 'Malama Asabe (F1)' },
+  { v: '0', label: 'Malam Garba (M1)' }, { v: '6', label: 'Malama Asabe (F3)' },
   { v: '1', label: 'M2' }, { v: '2', label: 'M3' }, { v: '3', label: 'M4' },
-  { v: '5', label: 'F2' }, { v: '6', label: 'F3' }, { v: '7', label: 'F4' },
+  { v: '4', label: 'F1' }, { v: '5', label: 'F2' }, { v: '7', label: 'F4' },
 ];
 
 /** Reusable mic recorder (WAV output; works on iOS/Safari) — calls onDone with
@@ -194,8 +194,8 @@ export const PronunciationReview: React.FC = () => {
 
   if (denied) return <p className="text-dyn-text-muted text-sm p-4">An hana shiga. Shiga a matsayin admin. (Admin login required.)</p>;
 
-  const needsRecording = items.filter((i) => i.status === 'pending' && !i.has_audio);
-  const awaitingApproval = items.filter((i) => i.status === 'pending' && i.has_audio);
+  const needsRecording = items.filter((i) => i.status === 'pending' && !i.has_audio && !i.spoken_text);
+  const awaitingApproval = items.filter((i) => i.status === 'pending' && (i.has_audio || i.spoken_text));
   const approved = items.filter((i) => i.status === 'approved');
 
   return (
@@ -211,7 +211,7 @@ export const PronunciationReview: React.FC = () => {
             <span className="text-amber-400">{counts.pending} pending</span>
             <span className="text-emerald-400">{counts.approved} approved</span>
           </>}
-          {counts && counts.approved > 0 && (
+          {approved.some((item) => item.has_audio) && (
             <button
               onClick={async () => { setExporting(true); const ok = await gemini.exportPronunciationCorpus(); setExporting(false); if (!ok) alert('Fitarwa ya kāsa. (Export failed.)'); }}
               disabled={exporting}
@@ -286,10 +286,12 @@ export const PronunciationReview: React.FC = () => {
             <div key={it.id} className="space-y-1">
               <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/[0.05] px-4 py-3">
                 <div className="flex items-center gap-3 min-w-0">
-                  <button onClick={() => play(it.id)} className="p-2 rounded-lg bg-dyn-bg-tertiary/50 text-dyn-accent hover:bg-dyn-bg-tertiary shrink-0" aria-label="Listen before approving"><Play className="w-4 h-4" /></button>
+                  {it.has_audio && <button onClick={() => play(it.id)} className="p-2 rounded-lg bg-dyn-bg-tertiary/50 text-dyn-accent hover:bg-dyn-bg-tertiary shrink-0" aria-label="Listen before approving"><Play className="w-4 h-4" /></button>}
                   <div className="min-w-0">
                     <p className="text-sm text-dyn-text-primary truncate">{it.text}</p>
-                    <p className="text-[10px] text-dyn-text-muted">{it.speaker_id === null ? 'duk muryoyi' : `voice ${it.speaker_id}`} · listen, then approve</p>
+                    {it.spoken_text && <p className="text-sm text-dyn-text-secondary break-words">{it.spoken_text}</p>}
+                    {it.note && <p className="text-xs text-dyn-text-muted break-words">{it.note}</p>}
+                    <p className="text-[10px] text-dyn-text-muted">{it.speaker_id === null ? 'duk muryoyi' : `voice ${it.speaker_id}`}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
@@ -315,9 +317,10 @@ export const PronunciationReview: React.FC = () => {
           <div key={it.id} className="space-y-1">
             <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] px-4 py-3">
               <div className="flex items-center gap-3 min-w-0">
-                <button onClick={() => play(it.id)} className="p-2 rounded-lg bg-dyn-bg-tertiary/50 text-dyn-accent hover:bg-dyn-bg-tertiary shrink-0" aria-label="Play"><Play className="w-4 h-4" /></button>
+                {it.has_audio && <button onClick={() => play(it.id)} className="p-2 rounded-lg bg-dyn-bg-tertiary/50 text-dyn-accent hover:bg-dyn-bg-tertiary shrink-0" aria-label="Play"><Play className="w-4 h-4" /></button>}
                 <div className="min-w-0">
                   <p className="text-sm text-dyn-text-primary truncate">{it.text}</p>
+                  {it.spoken_text && <p className="text-sm text-dyn-text-secondary break-words">{it.spoken_text}</p>}
                   <p className="text-[10px] text-dyn-text-muted">{it.speaker_id === null ? 'duk muryoyi' : `voice ${it.speaker_id}`}</p>
                 </div>
               </div>
