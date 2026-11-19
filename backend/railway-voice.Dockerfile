@@ -2,7 +2,8 @@ FROM python:3.11-slim
 
 WORKDIR /app
 RUN pip install --no-cache-dir 'fastapi>=0.115,<1' 'uvicorn>=0.30,<1' \
-    'onnxruntime>=1.18,<2' 'numpy>=1.26,<3' 'unicodedata2>=16,<18'
+    'onnxruntime>=1.18,<2' 'numpy>=1.26,<3' 'unicodedata2>=16,<18' \
+    'gyara @ https://github.com/adab-tech/gyara/archive/9d3b8afdfe22aa789f200c18559d73a875ce2bfa.zip'
 
 ARG MURYA_MODEL_REVISION
 RUN python -c 'import os,re,pathlib,urllib.request; revision=os.environ["MURYA_MODEL_REVISION"]; assert re.fullmatch("[0-9a-f]{40}", revision), "Use a Hugging Face commit SHA"; root=pathlib.Path("/app/model"); root.mkdir(); base=f"https://huggingface.co/adab-tech/murya-piper-hausa-tts/resolve/{revision}"; [urllib.request.urlretrieve(f"{base}/{name}", root / name) for name in ("model.onnx", "model.onnx.json")]'
