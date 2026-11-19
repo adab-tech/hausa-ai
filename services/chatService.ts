@@ -47,11 +47,17 @@ export async function* unifiedExchange(
       .map((a) => ({ mimeType: a.mimeType, data: a.data! })),
   };
 
-  const env = (import.meta as ImportMeta & { env?: { VITE_MURYA_CHAT_RELAY?: string } }).env;
-  const usePreviewRelay = env?.VITE_MURYA_CHAT_RELAY === "1" && body.attachments.length === 0;
+  const env = (import.meta as ImportMeta & {
+    env?: { VITE_MURYA_CHAT_RELAY?: string; VITE_MURYA_CHAT_PARITY?: string };
+  }).env;
+  const isTextChat = body.attachments.length === 0;
+  const useCanonicalRelay = isTextChat && env?.VITE_MURYA_CHAT_PARITY === "1";
+  const usePreviewRelay = isTextChat && !useCanonicalRelay && env?.VITE_MURYA_CHAT_RELAY === "1";
+  const chatUrl = useCanonicalRelay ? "/api/murya-chat-full"
+    : usePreviewRelay ? "/api/murya-chat" : `${BACKEND_URL}/api/chat`;
 
   try {
-    const response = await fetch(usePreviewRelay ? "/api/murya-chat" : `${BACKEND_URL}/api/chat`, {
+    const response = await fetch(chatUrl, {
       method: "POST",
       headers: usePreviewRelay
         ? { "Content-Type": "application/json" }
