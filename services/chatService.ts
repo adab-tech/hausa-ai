@@ -47,11 +47,18 @@ export async function* unifiedExchange(
       .map((a) => ({ mimeType: a.mimeType, data: a.data! })),
   };
 
+  const env = (import.meta as ImportMeta & { env?: { VITE_MURYA_CHAT_RELAY?: string } }).env;
+  const usePreviewRelay = env?.VITE_MURYA_CHAT_RELAY === "1" && body.attachments.length === 0;
+
   try {
-    const response = await fetch(`${BACKEND_URL}/api/chat`, {
+    const response = await fetch(usePreviewRelay ? "/api/murya-chat" : `${BACKEND_URL}/api/chat`, {
       method: "POST",
-      headers: withContributor({ "Content-Type": "application/json" }),
-      body: JSON.stringify(body),
+      headers: usePreviewRelay
+        ? { "Content-Type": "application/json" }
+        : withContributor({ "Content-Type": "application/json" }),
+      body: JSON.stringify(
+        usePreviewRelay ? { text, history: body.history, vibe, addresseeGender, mode } : body
+      ),
     });
 
     if (!response.ok) {
