@@ -20,6 +20,8 @@ export default {
     if (!text || text.length > maxTextLength) {
       return error(400, "Supply between 1 and 300 characters");
     }
+    const speakerId = body.speaker_id ?? 6;
+    if (speakerId !== 0 && speakerId !== 6) return error(400, "Unknown Murya voice");
 
     const endpoint = process.env.MURYA_VOICE_ENDPOINT;
     const token = process.env.MURYA_VOICE_PREVIEW_TOKEN;
@@ -29,7 +31,7 @@ export default {
       const upstream = await fetch(endpoint, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, speaker_id: speakerId }),
         redirect: "error",
         signal: AbortSignal.timeout(25000),
       });
