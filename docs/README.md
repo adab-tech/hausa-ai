@@ -4,6 +4,7 @@
 - [Backend details (API, models, configuration)](../backend/README.md)
 - [Cloud Run deployment with GitHub Actions + WIF](./deploy-cloud-run.md)
 - [Deployment readiness checklist](./deployment-readiness-checklist.md)
+- [Hausa speech recognition evaluation](./hausa_asr_evaluation.md)
 
 ## Documentation ownership
 
