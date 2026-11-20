@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 
 vi.mock('../../services/localService.ts', () => ({
@@ -220,6 +220,84 @@ describe('useTtsPlayback', () => {
     // The second call must be treated as "stop", not "start over" -- only
     // one chunk-0 Audio should ever have been created.
     expect(audios.length).toBe(1);
+    expect(result.current.playingSpeechId).toBeNull();
+  });
+});
+
+
+describe('Railway voice relay playback', () => {
+  let audio: FakeAudio;
+  const wav = () => new Response(new Blob(['audio']), {
+    headers: { 'Content-Type': 'audio/wav' },
+  });
+
+  beforeEach(() => {
+    vi.stubEnv('VITE_MURYA_VOICE_RELAY', '1');
+    vi.stubGlobal('Audio', vi.fn().mockImplementation(function () {
+      audio = new FakeAudio();
+      return audio;
+    }));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it('waits after a busy response and retries with the selected speaker', async () => {
+    vi.useFakeTimers();
+    const request = vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 503, headers: { 'Retry-After': '1' } }))
+      .mockImplementation(async () => wav());
+    vi.stubGlobal('fetch', request);
+    const showToast = vi.fn();
+    const { result } = renderHook(() => useTtsPlayback(0, showToast));
+
+    await act(async () => result.current.handlePlaySpeech('goma sha huɗu', 'm1'));
+    expect(request).toHaveBeenCalledTimes(1);
+    await act(async () => vi.advanceTimersByTimeAsync(1000));
+
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(request.mock.calls[1][1].body)).toEqual({ text: 'goma sha huɗu', speaker_id: 0 });
+    expect(audio.play).toHaveBeenCalledTimes(1);
+    expect(showToast).not.toHaveBeenCalled();
+    act(() => audio.onended?.());
+  });
+
+  it('cancels a scheduled busy retry when playback is stopped', async () => {
+    vi.useFakeTimers();
+    const request = vi.fn().mockResolvedValue(new Response(null, { status: 503 }));
+    vi.stubGlobal('fetch', request);
+    const showToast = vi.fn();
+    const { result } = renderHook(() => useTtsPlayback(6, showToast));
+
+    await act(async () => result.current.handlePlaySpeech('Sannu', 'm1'));
+    await act(async () => result.current.handlePlaySpeech('Sannu', 'm1'));
+    await act(async () => vi.advanceTimersByTimeAsync(1000));
+
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(request.mock.calls[0][1].signal.aborted).toBe(true);
+    expect(result.current.playingSpeechId).toBeNull();
+    expect(showToast).not.toHaveBeenCalled();
+  });
+
+  it('starts fetching the next chunk while the current audio is playing', async () => {
+    const request = vi.fn().mockImplementation(async () => wav());
+    vi.stubGlobal('fetch', request);
+    const { result } = renderHook(() => useTtsPlayback(6, vi.fn()));
+    const text = 'Wannan jimla ce. '.repeat(25).trim();
+
+    await act(async () => result.current.handlePlaySpeech(text, 'm1'));
+    const first = audio;
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(first.play).toHaveBeenCalledTimes(1);
+
+    await act(async () => first.onended?.());
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(audio).not.toBe(first);
+    expect(audio.play).toHaveBeenCalledTimes(1);
+    act(() => audio.onended?.());
     expect(result.current.playingSpeechId).toBeNull();
   });
 });
