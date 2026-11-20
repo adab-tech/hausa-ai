@@ -1,28 +1,9 @@
 name: Deploy Backend
 
-# Replaces the manual SSH -> git pull -> docker build -> systemctl restart
-# sequence -- see deploy/README.md for the one-time VM setup this depends
-# on and why the deploy key is scoped to exactly one forced command.
+# The public chat and speech service is deployed through Railway. Keep the
+# former VM deployment available for an explicitly requested manual recovery.
 
 on:
-  push:
-    branches: [ "main" ]
-    paths:
-      - "backend/**"
-      # Only these three are actually COPY'd into the image (see
-      # backend/Dockerfile) -- data/processed/ has other corpora (WAXAL
-      # training data, etc.) that don't belong to the running backend at
-      # all and shouldn't trigger a redeploy.
-      - "data/processed/robinson/**"
-      - "data/processed/hausa_en_open/**"
-      - "data/processed/newman_1977/**"
-      # Real human WAXAL recordings baked into the image as the MOS
-      # listening test's ground-truth anchor (see backend/Dockerfile,
-      # backend/seed_mos_stimuli.py) -- same reasoning as the three
-      # dictionary sources above.
-      - "data/mos_ground_truth/**"
-      - "deploy/murya-deploy.sh"
-      - ".github/workflows/deploy-backend.yml"
   workflow_dispatch: {}
 
 jobs:
