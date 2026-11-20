@@ -38,7 +38,7 @@ from rate_limit import ip_limiter, limiter
 from pydantic import BaseModel, Field
 
 from routers.fallback import generate_fallback_response
-from orthography import normalize_hausa_orthography, apply_tonal_heuristics, normalize_digits
+from orthography import normalize_hausa_orthography, apply_tonal_heuristics, hausa_cardinal
 from services.search_service import web_search, search_enabled
 from services.you_service import web_search_you, you_enabled
 from services import calc_service, prayer_service, dictionary_service, phonetics_service
@@ -614,6 +614,8 @@ class ChatRequest(BaseModel):
 # ---------------------------------------------------------------------------
 _MANIFEST_RE = re.compile(r"\[MANIFEST:\s*(IMAGE|VIDEO)\s*\|\s*(.*?)\]", re.IGNORECASE)
 _SANITIZE_RE = re.compile(r"\[MANIFEST:.*?\]|[*#$]")
+_PLAIN_FOUR_RE = re.compile(r"\bhudu\b", re.IGNORECASE)
+_HAUSA_FOUR = hausa_cardinal(4)
 
 # Gemma occasionally leaks its internal tool-use / thinking scaffolding into the
 # reply (e.g. a hallucinated `print(google_search.search(...))` call and a
@@ -662,13 +664,22 @@ _DEFAULT_IMAGE_PROMPT = "A beautiful and majestic Hausa cultural scene with gold
 _DEFAULT_VIDEO_PROMPT = "A sweeping cinematic view of ancient Kano walls and mud-brick architecture, golden hour"
 
 
+def _restore_four(match: re.Match[str]) -> str:
+    spelling = match[0]
+    if spelling.isupper():
+        return _HAUSA_FOUR.upper()
+    if spelling.istitle():
+        return _HAUSA_FOUR.capitalize()
+    return _HAUSA_FOUR
+
+
 def _sanitize(text: str) -> str:
     # Strip any leaked tool-use/thinking scaffolding first (see _strip_scaffolding).
     text = _strip_scaffolding(text)
-    # normalize_digits: fold any Arabic-Indic/Persian numerals (٢٠١٥) the model
-    # emits back to Western digits (2015) — correct for Hausa and needed so the
-    # number is visible in the UI (and later speakable by TTS).
-    return normalize_digits(_SANITIZE_RE.sub("", text).strip())
+    text = normalize_hausa_orthography(_SANITIZE_RE.sub("", text).strip())
+    # The shared normalizer handles apostrophe spellings. Models also omit the
+    # apostrophe entirely in this reviewed number word, so use Gyara's cardinal.
+    return _PLAIN_FOUR_RE.sub(_restore_four, text)
 
 
 def _extract_manifest(user_text: str, response_text: str) -> dict[str, str] | None:
@@ -1038,7 +1049,8 @@ async def chat_endpoint(request: Request, req: ChatRequest):
 
             manifest_data = _extract_manifest(req.text, cached_text)
 
-            yield f"data: {_dumps({'text': _sanitize(cached_text), 'isDone': True, 'verified': _calculate_cultural_confidence(cached_text), 'manifest': manifest_data, 'normalized': normalize_hausa_orthography(cached_text), 'tone_mapped': apply_tonal_heuristics(cached_text)})}\n\n"
+            display_text = _sanitize(cached_text)
+            yield f"data: {_dumps({'text': display_text, 'isDone': True, 'verified': _calculate_cultural_confidence(cached_text), 'manifest': manifest_data, 'normalized': display_text, 'tone_mapped': apply_tonal_heuristics(display_text)})}\n\n"
         return StreamingResponse(generate_cached(), media_type="text/event-stream")
 
     # Live web grounding for the primary Cerebras/Ollama path: on a cache miss,
@@ -1211,7 +1223,8 @@ async def chat_endpoint(request: Request, req: ChatRequest):
         # Final done event
         manifest_data = _extract_manifest(req.text, full_text)
 
-        yield f"data: {_dumps({'text': _sanitize(full_text), 'isDone': True, 'verified': _calculate_cultural_confidence(full_text), 'manifest': manifest_data, 'normalized': normalize_hausa_orthography(full_text), 'tone_mapped': apply_tonal_heuristics(full_text)})}\n\n"
+        display_text = _sanitize(full_text)
+        yield f"data: {_dumps({'text': display_text, 'isDone': True, 'verified': _calculate_cultural_confidence(full_text), 'manifest': manifest_data, 'normalized': display_text, 'tone_mapped': apply_tonal_heuristics(display_text)})}\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")
 

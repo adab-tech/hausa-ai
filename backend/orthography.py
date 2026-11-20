@@ -177,6 +177,7 @@ LEXICAL_TONES = {
     "biyu": ["H", "L"],
     "uku": ["H", "L"],
     "hudu": ["H", "L"],
+    hausa_cardinal(4): ["H", "L"],
     "biyar": ["L", "H"],
     "shida": ["H", "L"],
     "bakwai": ["H", "H"],
