@@ -45,6 +45,13 @@ describe('chunkTextForTts', () => {
     expect(chunks.join(' ').split(/\s+/).sort()).toEqual(words.slice().sort());
   });
 
+  it('preserves decimals and Hausa text next to punctuation without spaces', () => {
+    const text = 'Adadin ya kai 14.5 a nan.Ƙarin bayani: an ƙara ruwa.';
+    const chunks = chunkTextForTts(text, 26);
+    expect(chunks.join(' ')).toBe(text);
+    expect(chunks.every((chunk) => chunk.length <= 26)).toBe(true);
+  });
+
   it('packs multiple short sentences into one chunk when they fit together', () => {
     const text = 'Ɗan gajeren jimla. Wani kuma. Da wani.';
     const chunks = chunkTextForTts(text, 1800);
