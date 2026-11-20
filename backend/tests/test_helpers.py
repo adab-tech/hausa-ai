@@ -22,6 +22,16 @@ def test_sanitize_noop_on_clean_text():
     assert _sanitize("Sannu ranka ya dade") == "Sannu ranka ya dade"
 
 
+def test_sanitize_uses_gyara_orthography_in_chat_text():
+    assert _sanitize("Goma sha hudu, Hudu, HUDU; k'ofa, b'aki, 'yanci, ١٤.") == (
+        "Goma sha huɗu, Huɗu, HUƊU; ƙofa, ɓaki, ƴanci, 14."
+    )
+    assert _sanitize("Goma sha huɗu. Hudubar ta yi kyau.") == (
+        "Goma sha huɗu. Hudubar ta yi kyau."
+    )
+    assert _sanitize("ɗa da shekara huɗu") == "ɗa da shekara huɗu"
+
+
 # ---------------------------------------------------------------------------
 # _calculate_cultural_confidence helper
 # ---------------------------------------------------------------------------
