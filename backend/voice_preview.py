@@ -77,8 +77,8 @@ def require_review_storage(request: Request):
         raise HTTPException(status_code=503, detail="Pronunciation review storage is unavailable")
 
 
-def require_chat_provider():
-    if not os.environ.get("GROQ_API_KEY", "").strip():
+def require_chat_provider(req: chat.ChatRequest):
+    if not os.environ.get("GROQ_API_KEY", "").strip() and chat.local_number_answer(req) is None:
         raise HTTPException(status_code=503, detail="Chat provider is not configured")
 
 

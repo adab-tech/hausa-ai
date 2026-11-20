@@ -462,6 +462,21 @@ _SOURCE_LABEL = {
     "robinson_1914_vol2": "Robinson 1914",
     "wiktionary_ha_ccbysa": "Wiktionary CC-BY-SA",
 }
+_HAUSA_CARDINAL_REQUEST = re.compile(
+    r"(?:don Allah\s*,?\s*)?(?:(?:ka|ki|yaya ake|yaya za a|yaya zan)\s+)?"
+    r"(?:rubuta|fa[ɗd]i|furta|karanta|mene ne|menene)\s+"
+    r"(?:(?:lambar?|adadin?)\s+)?(?P<number>0|[1-9][0-9]{0,8})\s+"
+    r"(?:(?:da\s+(?:haruffa|kalmomi)|a\s+rubuce)(?:\s+a\s+(?:harshen\s+)?Hausa)?|"
+    r"a\s+(?:harshen\s+)?Hausa)"
+    r"(?:,?\s+a\s+jimla\s+[ɗd]aya(?:\s+kawai)?|\s+kawai)?[.!?]*",
+    re.IGNORECASE,
+)
+_ENGLISH_CARDINAL_REQUEST = re.compile(
+    r"(?:(?:how do (?:you|I)|how to|please)\s+)?(?:write|say|spell(?: out)?)\s+"
+    r"(?:the number\s+)?(?P<number>0|[1-9][0-9]{0,8})\s+"
+    r"(?:in\s+words\s+)?in\s+Hausa(?:\s+words)?[.!?]*",
+    re.IGNORECASE,
+)
 _PRAYER_RE = re.compile(
     r"\b(?:sallah?|salla|prayer times?|lokutan? salla|lokacin salla|adhan|"
     r"azahar|azalla|la'?asar|magariba|magrib|isha'?i?|subah?|asuba|fajr|"
@@ -607,6 +622,17 @@ class ChatRequest(BaseModel):
     # "assistant" (default) is normal Murya; "tutor" turns Murya into a patient
     # Hausa teacher (Malamin Hausa) — see TUTOR_PROMPT / [LEARNING_MODE].
     mode: str = Field("assistant", pattern=r"^(assistant|tutor)$")
+
+
+def local_number_answer(req: ChatRequest) -> str | None:
+    """Answer standalone cardinal spelling requests using Gyara's own lexicon."""
+    if req.attachments:
+        return None
+    text = normalize_hausa_orthography(req.text).strip()
+    match = _HAUSA_CARDINAL_REQUEST.fullmatch(text) or _ENGLISH_CARDINAL_REQUEST.fullmatch(text)
+    if match is None:
+        return None
+    return hausa_cardinal(int(match["number"]))
 
 
 # ---------------------------------------------------------------------------
@@ -1012,6 +1038,18 @@ async def stream_gemini(req: ChatRequest) -> AsyncGenerator[str, None]:
 @limiter.limit("20/minute")
 @ip_limiter.limit("100/minute")
 async def chat_endpoint(request: Request, req: ChatRequest):
+    number_answer = local_number_answer(req)
+    if number_answer is not None:
+        event = _dumps({
+            "text": number_answer,
+            "isDone": True,
+            "verified": True,
+            "manifest": None,
+            "normalized": number_answer,
+            "tone_mapped": apply_tonal_heuristics(number_answer),
+        })
+        return StreamingResponse(iter([f"data: {event}\n\n"]), media_type="text/event-stream")
+
     # 1. Normalize orthography on the incoming request text and history
     req.text = normalize_hausa_orthography(req.text)
     for item in req.history:
