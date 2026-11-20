@@ -6,6 +6,7 @@ import { chunkTextForTts } from '../utils/textChunking.ts';
 // backend/routers/audio.py's tts_endpoint) -- leaves margin rather than
 // chunking right up against the server's own limit.
 const MAX_CHUNK_CHARS = 1800;
+const RELAY_CHUNK_CHARS = 300;
 
 /** Plays a message's text as speech via the TTS endpoint, tracking which
  * message (if any) is currently playing so the UI can show the right
@@ -19,6 +20,11 @@ const MAX_CHUNK_CHARS = 1800;
 export function useTtsPlayback(speakerId: number | null, showToast: (message: string) => void) {
   const [playingSpeechId, setPlayingSpeechId] = useState<string | null>(null);
   const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
+  const playbackRequestRef = useRef<AbortController | null>(null);
+  const blobUrlRef = useRef<string | null>(null);
+  const env = (import.meta as ImportMeta & { env?: { VITE_MURYA_VOICE_RELAY?: string } }).env;
+  const useVoiceRelay = env?.VITE_MURYA_VOICE_RELAY === "1"
+    && (speakerId === null || speakerId === 0 || speakerId === 6);
   // The chunk queue for whichever message is currently playing. Cleared on
   // every stop/pause/switch so a stale onended from a just-superseded
   // <audio> element can never advance a queue that no longer belongs to
@@ -38,10 +44,15 @@ export function useTtsPlayback(speakerId: number | null, showToast: (message: st
   const activeMessageIdRef = useRef<string | null>(null);
 
   const stopCurrent = () => {
+    playbackRequestRef.current?.abort();
+    playbackRequestRef.current = null;
+    if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
+    blobUrlRef.current = null;
     if (ttsAudioRef.current) {
       ttsAudioRef.current.onended = null;
       ttsAudioRef.current.onerror = null;
       ttsAudioRef.current.pause();
+      ttsAudioRef.current = null;
     }
     ttsQueueRef.current = [];
   };
@@ -51,14 +62,41 @@ export function useTtsPlayback(speakerId: number | null, showToast: (message: st
     setPlayingSpeechId(null);
   };
 
-  const playChunkAt = (index: number) => {
+  const playChunkAt = async (index: number) => {
     const chunks = ttsQueueRef.current;
     if (index >= chunks.length) {
+      stopCurrent();
       finish();
       return;
     }
 
-    const url = gemini.getTtsUrl(chunks[index], speakerId);
+    let url: string;
+    if (useVoiceRelay) {
+      const request = new AbortController();
+      playbackRequestRef.current = request;
+      try {
+        const response = await fetch("/api/voice", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: chunks[index], speaker_id: speakerId ?? 6 }),
+          signal: request.signal,
+        });
+        if (!response.ok) throw new Error("Voice service unavailable");
+        const blob = await response.blob();
+        if (request.signal.aborted) return;
+        url = URL.createObjectURL(blob);
+        if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
+        blobUrlRef.current = url;
+      } catch {
+        if (request.signal.aborted) return;
+        stopCurrent();
+        finish();
+        showToast("Gafara dai, an samu kuskure wajen sauti.");
+        return;
+      }
+    } else {
+      url = gemini.getTtsUrl(chunks[index], speakerId);
+    }
     const audio = new Audio(url);
     ttsAudioRef.current = audio;
 
@@ -68,6 +106,7 @@ export function useTtsPlayback(speakerId: number | null, showToast: (message: st
     // previously unhandled: the UI would silently stay "playing" with no
     // sound and no indication anything went wrong.
     audio.play().catch((err) => {
+      if (ttsAudioRef.current !== audio) return;
       console.error("TTS playback failed to start", err);
       stopCurrent();
       finish();
@@ -102,7 +141,7 @@ export function useTtsPlayback(speakerId: number | null, showToast: (message: st
 
     stopCurrent();
     activeMessageIdRef.current = messageId;
-    ttsQueueRef.current = chunkTextForTts(text, MAX_CHUNK_CHARS);
+    ttsQueueRef.current = chunkTextForTts(text, useVoiceRelay ? RELAY_CHUNK_CHARS : MAX_CHUNK_CHARS);
     setPlayingSpeechId(messageId);
     playChunkAt(0);
   };
