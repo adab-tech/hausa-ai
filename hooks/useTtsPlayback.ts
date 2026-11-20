@@ -1,3 +1,5 @@
+/// <reference types="vite/client" />
+
 import { useRef, useState } from 'react';
 import { gemini } from '../services/localService.ts';
 import { chunkTextForTts } from '../utils/textChunking.ts';
@@ -7,6 +9,42 @@ import { chunkTextForTts } from '../utils/textChunking.ts';
 // chunking right up against the server's own limit.
 const MAX_CHUNK_CHARS = 1800;
 const RELAY_CHUNK_CHARS = 300;
+const BUSY_RETRY_DELAYS_MS = [1000, 2000, 4000, 4000];
+
+function waitToRetry(delay: number, signal: AbortSignal): Promise<void> {
+  if (signal.aborted) return Promise.resolve();
+  return new Promise((resolve) => {
+    const finish = () => {
+      clearTimeout(timer);
+      signal.removeEventListener('abort', finish);
+      resolve();
+    };
+    const timer = setTimeout(finish, delay);
+    signal.addEventListener('abort', finish, { once: true });
+  });
+}
+
+async function loadVoiceChunk(text: string, speakerId: number, signal: AbortSignal): Promise<Blob | null> {
+  try {
+    for (let attempt = 0; !signal.aborted; attempt++) {
+      const response = await fetch('/api/voice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, speaker_id: speakerId }),
+        signal,
+      });
+      if (response.ok) return await response.blob();
+      const delay = BUSY_RETRY_DELAYS_MS[attempt];
+      if (response.status !== 503 || delay === undefined) return null;
+      const retryAfter = Number(response.headers.get('Retry-After') ?? 0) * 1000;
+      if (retryAfter > 4000) return null;
+      await waitToRetry(Math.max(delay, retryAfter || 0), signal);
+    }
+  } catch {
+    // Fetch may reject after a user stops playback. The caller checks its signal.
+  }
+  return null;
+}
 
 /** Plays a message's text as speech via the TTS endpoint, tracking which
  * message (if any) is currently playing so the UI can show the right
@@ -21,9 +59,9 @@ export function useTtsPlayback(speakerId: number | null, showToast: (message: st
   const [playingSpeechId, setPlayingSpeechId] = useState<string | null>(null);
   const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
   const playbackRequestRef = useRef<AbortController | null>(null);
+  const nextChunkRef = useRef<Promise<Blob | null> | null>(null);
   const blobUrlRef = useRef<string | null>(null);
-  const env = (import.meta as ImportMeta & { env?: { VITE_MURYA_VOICE_RELAY?: string } }).env;
-  const useVoiceRelay = env?.VITE_MURYA_VOICE_RELAY === "1"
+  const useVoiceRelay = import.meta.env.VITE_MURYA_VOICE_RELAY === "1"
     && (speakerId === null || speakerId === 0 || speakerId === 6);
   // The chunk queue for whichever message is currently playing. Cleared on
   // every stop/pause/switch so a stale onended from a just-superseded
@@ -46,6 +84,7 @@ export function useTtsPlayback(speakerId: number | null, showToast: (message: st
   const stopCurrent = () => {
     playbackRequestRef.current?.abort();
     playbackRequestRef.current = null;
+    nextChunkRef.current = null;
     if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
     blobUrlRef.current = null;
     if (ttsAudioRef.current) {
@@ -70,60 +109,49 @@ export function useTtsPlayback(speakerId: number | null, showToast: (message: st
       return;
     }
 
+    const request = playbackRequestRef.current;
     let url: string;
-    if (useVoiceRelay) {
-      const request = new AbortController();
-      playbackRequestRef.current = request;
-      try {
-        const response = await fetch("/api/voice", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: chunks[index], speaker_id: speakerId ?? 6 }),
-          signal: request.signal,
-        });
-        if (!response.ok) throw new Error("Voice service unavailable");
-        const blob = await response.blob();
-        if (request.signal.aborted) return;
-        url = URL.createObjectURL(blob);
-        if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
-        blobUrlRef.current = url;
-      } catch {
-        if (request.signal.aborted) return;
+    if (request) {
+      const pending = nextChunkRef.current ?? loadVoiceChunk(chunks[index], speakerId ?? 6, request.signal);
+      nextChunkRef.current = null;
+      const blob = await pending;
+      if (request.signal.aborted) return;
+      if (!blob?.size) {
         stopCurrent();
         finish();
         showToast("Gafara dai, an samu kuskure wajen sauti.");
         return;
       }
+      if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
+      url = URL.createObjectURL(blob);
+      blobUrlRef.current = url;
     } else {
       url = gemini.getTtsUrl(chunks[index], speakerId);
     }
     const audio = new Audio(url);
     ttsAudioRef.current = audio;
 
-    // audio.play() returns a Promise that can reject on its own (blocked
-    // autoplay policy, AbortError from a fast pause/replace, etc.) -- a
-    // failure mode distinct from the element's onerror event below, and
-    // previously unhandled: the UI would silently stay "playing" with no
-    // sound and no indication anything went wrong.
-    audio.play().catch((err) => {
+    const failPlayback = (error: unknown) => {
       if (ttsAudioRef.current !== audio) return;
-      console.error("TTS playback failed to start", err);
-      stopCurrent();
-      finish();
-      alert("Gafara dai, an samu kuskure wajen sauti.");
-    });
-    audio.onended = () => {
-      // Long replies play as several back-to-back chunks -- advance to the
-      // next one instead of ending playback just because THIS chunk's
-      // audio finished.
-      playChunkAt(index + 1);
-    };
-    audio.onerror = (e) => {
-      console.error("TTS playback error", e);
+      console.error("TTS playback failed", error);
       stopCurrent();
       finish();
       showToast("Gafara dai, an samu kuskure wajen sauti.");
     };
+    audio.onended = () => {
+      if (ttsAudioRef.current !== audio) return;
+      audio.onended = null;
+      audio.onerror = null;
+      ttsAudioRef.current = null;
+      void playChunkAt(index + 1);
+    };
+    audio.onerror = failPlayback;
+    audio.play().then(() => {
+      // Synthesize one chunk ahead while the current audio plays.
+      if (request && !request.signal.aborted && ttsAudioRef.current === audio && index + 1 < chunks.length) {
+        nextChunkRef.current = loadVoiceChunk(chunks[index + 1], speakerId ?? 6, request.signal);
+      }
+    }).catch(failPlayback);
   };
 
   const handlePlaySpeech = (text: string, messageId: string, normalized?: string) => {
@@ -141,9 +169,10 @@ export function useTtsPlayback(speakerId: number | null, showToast: (message: st
 
     stopCurrent();
     activeMessageIdRef.current = messageId;
+    if (useVoiceRelay) playbackRequestRef.current = new AbortController();
     ttsQueueRef.current = chunkTextForTts(text, useVoiceRelay ? RELAY_CHUNK_CHARS : MAX_CHUNK_CHARS);
     setPlayingSpeechId(messageId);
-    playChunkAt(0);
+    void playChunkAt(0);
   };
 
   return { playingSpeechId, handlePlaySpeech };
