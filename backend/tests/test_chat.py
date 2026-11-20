@@ -21,6 +21,42 @@ def _iter_sse(content: bytes) -> list[dict]:
     return events
 
 
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("prompt", "expected"),
+    [
+        ("Ki rubuta lamba 14 da haruffa a Hausa, a jimla daya.", "goma sha huɗu"),
+        ("Yaya ake rubuta ١٤ a rubuce a Hausa?", "goma sha huɗu"),
+        ("How do you write 21 in Hausa?", "ashirin da ɗaya"),
+        ("Rubuta 0 da kalmomi kawai.", "sifili"),
+    ],
+)
+async def test_chat_uses_gyara_cardinals_before_provider_calls(client, prompt, expected):
+    with patch("routers.chat._maybe_search_context", side_effect=AssertionError("provider path used")):
+        response = await client.post("/api/chat", json={"text": prompt, "addresseeGender": "feminine"})
+
+    assert response.status_code == 200
+    (event,) = _iter_sse(response.content)
+    assert event["isDone"] is True
+    assert event["text"] == event["normalized"] == expected
+
+
+@pytest.mark.parametrize(
+    "prompt",
+    [
+        "Write a story about 14 people in Hausa.",
+        "Write 14 in English.",
+        "Spell 14.5 in Hausa.",
+        "Explain the history of the 14th century in Hausa.",
+        "Write 014 in Hausa.",
+    ],
+)
+def test_local_cardinals_preserve_other_chat_requests(prompt):
+    from routers.chat import ChatRequest, local_number_answer
+
+    assert local_number_answer(ChatRequest(text=prompt)) is None
+
+
 # ---------------------------------------------------------------------------
 # Request validation
 # ---------------------------------------------------------------------------
