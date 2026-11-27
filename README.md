@@ -24,7 +24,8 @@ The system integrates a high-performance **FastAPI backend** running local neura
 
 ## 🎙️ The WAXAL–Piper Hausa voices (July 2026)
 
-The app speaks with **8 native Hausa voices** (M1–M4, F1–F4) fine-tuned on
+The model has **8 native Hausa voices** (M1–M4, F1–F4); the app offers two of
+them, **Malama Asabe** (F3) and **Malam Garba** (M1). They are fine-tuned on
 Google's [WAXAL](https://huggingface.co/datasets/google/WaxalNLP) corpus — to
 our knowledge the **first WAXAL-trained TTS built by a native speaker of the
 target language**. Highlights (full write-up:
