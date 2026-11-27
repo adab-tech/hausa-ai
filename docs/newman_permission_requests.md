@@ -5,8 +5,10 @@ Hausa lexicography as a data source in the Murya Hausa-language AI. Confirmed
 (2026-07-13) that **no open-licensed edition exists** — the Internet Archive
 copies are controlled-digital-lending / in-copyright, and only Newman's
 *Bibliography* (not a dictionary) is CC-licensed. So permission is the path.
-Until a grant is on record, neither edition is ingested (see
-`data/sources/newman-dictionary/ATTRIBUTION.md`).
+**Update (2026-08-22):** Prof. Newman granted permission by email, and the 1977
+edition is now ingested (`data/processed/newman_1977/`). The 2007 edition is not.
+The requests below remain useful for confirming scope in writing and for the
+publishers' rights (see `data/sources/newman-dictionary/ATTRIBUTION.md`).
 
 **Two editions, two (overlapping) rights holders — send whichever you need:**
 

@@ -85,7 +85,7 @@ vector. So `backend/main.py::_validate_runtime_config` enforces, in production:
   `/api/live` (a WebSocket) can't use the `X-API-Key` header every other
   endpoint uses — browsers can't set custom headers on a WebSocket handshake
   at all — so a query param is the only place *something* can travel. Fixed
-  2026-08-23 (`docs/security_architecture_review_2026-08-23.md` finding #5):
+  2026-08-23 (the private security review of 2026-08-23, finding #5):
   rather than the standing key itself, the frontend calls
   `POST /api/live/ticket` (header-authenticated, same as every other
   endpoint) and gets back a random, single-use, 30-second ticket

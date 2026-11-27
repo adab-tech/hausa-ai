@@ -22,7 +22,7 @@ export const CorrectionsReview: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   // Which row has an approve/reject request in flight — disables its buttons
   // and blocks a second click from firing a concurrent request for the same
-  // row (see docs/deep_scan_2026-08-23.md finding #14).
+  // row (see the private deep-scan notes of 2026-08-23 finding #14).
   const [busyId, setBusyId] = useState<string | null>(null);
   // Per-row error from a failed approve/reject, so a failure is visible on
   // the item itself instead of leaving it silently stuck in "pending" with
