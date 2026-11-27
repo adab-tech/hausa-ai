@@ -7,8 +7,9 @@ copies are controlled-digital-lending / in-copyright, and only Newman's
 *Bibliography* (not a dictionary) is CC-licensed. So permission is the path.
 **Update (2026-08-22):** Prof. Newman granted permission by email, and the 1977
 edition is now ingested (`data/processed/newman_1977/`). The 2007 edition is not.
-The requests below remain useful for confirming scope in writing and for the
-publishers' rights (see `data/sources/newman-dictionary/ATTRIBUTION.md`).
+He confirmed the scope in writing the same day: his permission covers any of
+his works for Murya. The drafts below are kept for reference only (see
+`data/sources/newman-dictionary/ATTRIBUTION.md`).
 
 **Two editions, two (overlapping) rights holders — send whichever you need:**
 

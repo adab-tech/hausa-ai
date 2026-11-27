@@ -42,7 +42,7 @@ ingest it into a training corpus or a served product — that is a distinct righ
 Yale University Press has expressly reserved. **Attribution does not substitute
 for a licence.**
 
-Permitted paths (project owner to choose / confirm):
+Permitted paths (the project took the author's permission; see Status below):
 - **Written permission / licence** from Yale University Press (they license for
   research and for products) — the clean basis for full ingestion. **[preferred]**
 - **Limited, transformative reference use** — consulting *specific* entries to
@@ -80,32 +80,26 @@ This is a genuine, direct grant from the author himself — the cleanest possibl
 basis, stronger than a publisher licence. It sits alongside, not instead of, full
 credit (see below) — Newman's own generosity is exactly why the credit matters.
 
-**One precision to close out, in the spirit of this project's [serious-research
-standard]:** Newman's message grants permission warmly and in general terms. For
-the record to be as precise as everything else here, worth a brief follow-up
-reply to him confirming the exact scope in writing — e.g. "to confirm for my
-project records: permission to digitize and use both the 1977 *Modern
-Hausa–English Dictionary* and the 2007 *A Hausa–English Dictionary* as training
-data for Murya, with full credit to you — is that right?" A specific written
-"yes" to that closes the loop completely. Not a blocker to starting integration
-work — just good practice to have on file.
+**Scope confirmed in writing (2026-08-22).** The same day, Prof. Newman confirmed
+in writing that his permission is general: it covers any of his works for
+Murya, including both the 1977 *Modern Hausa–English Dictionary* and the 2007
+*A Hausa–English Dictionary*, with full credit to him.
 
-**Ingestion STARTED (2026-08-22).** Discovered the 1977 PDF's embedded "text
-layer" is low-quality legacy OCR (font literally named "InvisibleOCR") that
-garbles hooked consonants (ɓ ɗ ƙ) and drops tone marks inconsistently — e.g.
-real "bụlà" extracts as "byl&". Verified this by rendering pages to images and
-reading them directly: the underlying scan is fully legible, so real ingestion
-uses page-image transcription, not the broken text layer. Proof-of-concept done
-on page 16 (39 clean entries, `data/processed/newman_1977/ha_en_pairs.jsonl`).
-Remaining 143 pages (17-159) of the dictionary body dispatched to 4 parallel
-background transcription passes, writing to
-`data/processed/newman_1977/ha_en_pairs_chunk{1..4}.jsonl` with per-page
-progress logs — merge + dedupe + wire into `dictionary_service.py` once all
-chunks land, with a human spot-check before it ships (this project's standard
-for new corpora). The 2007 scan (no text layer at all — needs the same
-page-image approach across all 262 pages) is not yet started; likely superseded
-by the newer 2020/2022 BUK bidirectional edition once acquired (see below), so
-deprioritized until that's resolved.
+**Ingestion COMPLETE (1977 edition).** The 1977 PDF's embedded text layer is
+low-quality legacy OCR (font literally named "InvisibleOCR") that garbles hooked
+consonants (ɓ ɗ ƙ) and drops tone marks inconsistently — e.g. real "bụlà"
+extracts as "byl&". Ingestion therefore used page-image transcription of the
+dictionary body (pages 16–159), written to
+`data/processed/newman_1977/ha_en_pairs.jsonl` and `ha_en_pairs_chunk{1..4}.jsonl`,
+then merged and deduplicated by `utils/merge_newman_1977.py` into
+`ha_en_pairs_merged.jsonl` (8,066 HA→EN pairs). That file is baked into the
+backend images and served by `backend/services/dictionary_service.py` with the
+label "Newman (1977)". The data is not covered by the repository's MIT licence
+(see `data/processed/newman_1977/NOTICE.md`).
+
+**2007 edition: not ingested.** Permission covers it, but the scan has no text
+layer (all 262 pages would need page-image transcription), and it is likely
+superseded by the 2020/2022 BUK bidirectional edition below.
 
 ## A better-fit source, flagged by Newman himself (2026-08-22)
 
@@ -146,11 +140,11 @@ format), with the 1977/2007 editions kept as secondary/cross-reference.
 > Newman, Paul, and Roxana Ma Newman. *Modern Hausa–English Dictionary
 > (Ƙamus na Zamani: Hausa–Turanci).* Ibadan: Oxford University Press, 1977.
 
-## Planned usage in this project
+## Usage in this project
 
-- **HA→EN direction** of `backend/services/dictionary_service.py` (replacing the
+- **HA→EN direction** of `backend/services/dictionary_service.py` (in place of the
   rougher reverse-lookup over the EN→HA Robinson lexicon). Robinson (1914)
   stays as the public-domain EN→HA source.
-- Every derived entry must carry provenance `"Newman 1977"` (or `"Newman 2007"`
-  for that edition), just as Robinson entries carry `"robinson_1914_vol2"`.
+- Every derived entry carries provenance `"newman_1977"` (use `"newman_2007"`
+  if that edition is ever ingested), just as Robinson entries carry `"robinson_1914_vol2"`.
 - Do not remove this attribution file when copying data to other projects.
