@@ -111,3 +111,11 @@ backend/data/
 # in git history (since scrubbed via git filter-repo) — these files can
 # contain pasted secrets, so they must never be tracked.
 migrated_prompt_history/
+
+# Private business and security documents — kept in a private repo, never public
+docs/yc_application_draft.md
+docs/nsf_sbir_project_description.md
+docs/startup_and_funding_roadmap.md
+docs/cac_registration_draft.md
+docs/security_architecture_review_*.md
+docs/deep_scan_*.md

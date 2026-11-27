@@ -7,7 +7,7 @@ import { DependencyList, useCallback, useEffect, useRef, useState } from "react"
  * tab each independently reimplemented the identical pattern: call a
  * gemini.get*() method that returns `null` on a 401/network failure, track
  * loading vs. loaded, and treat a `null`/`{denied:true}` result as "sign in
- * as admin" rather than "no data yet" (see docs/deep_scan_2026-08-23.md,
+ * as admin" rather than "no data yet" (see the private deep-scan notes of 2026-08-23,
  * the Low-severity NeuralReview/VisitorAnalytics duplication finding). Two
  * independent copies of that logic is a real drift risk the next time the
  * response shape changes — one gets updated, the other silently doesn't.
