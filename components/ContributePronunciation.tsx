@@ -6,7 +6,7 @@ import { Mic, Square, Play, X, Check, Loader2, Send, AlertTriangle } from 'lucid
 const VOICES = [
   { v: '', label: 'Duk muryoyi (any voice)' },
   { v: '0', label: 'Malam Garba (namiji)' },
-  { v: '4', label: 'Malama Asabe (mace)' },
+  { v: '6', label: 'Malama Asabe (mace)' }, // frontend 6 = F3, same as App.tsx and Sidebar.tsx
 ];
 
 /** User-facing: contribute the correct pronunciation of a Hausa word/phrase.

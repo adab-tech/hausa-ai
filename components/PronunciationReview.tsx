@@ -11,9 +11,9 @@ type Item = {
 
 const VOICES = [
   { v: '', label: 'Duk muryoyi (all)' },
-  { v: '0', label: 'Malam Garba (M1)' }, { v: '4', label: 'Malama Asabe (F1)' },
+  { v: '0', label: 'Malam Garba (M1)' }, { v: '6', label: 'Malama Asabe (F3)' },
   { v: '1', label: 'M2' }, { v: '2', label: 'M3' }, { v: '3', label: 'M4' },
-  { v: '5', label: 'F2' }, { v: '6', label: 'F3' }, { v: '7', label: 'F4' },
+  { v: '4', label: 'F1' }, { v: '5', label: 'F2' }, { v: '7', label: 'F4' },
 ];
 
 /** Reusable mic recorder (WAV output; works on iOS/Safari) — calls onDone with
